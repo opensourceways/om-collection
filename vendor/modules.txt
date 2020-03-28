@@ -1,0 +1,41 @@
+# gitee.com/openeuler/go-gitee v0.0.0-20191223095123-af9962c05d46
+gitee.com/openeuler/go-gitee/gitee
+# github.com/antihax/optional v1.0.0
+github.com/antihax/optional
+# github.com/golang/protobuf v1.3.2
+github.com/golang/protobuf/proto
+# github.com/huaweicloud/golangsdk v0.0.0-20191226095119-6bb917f8c1d1
+github.com/huaweicloud/golangsdk
+github.com/huaweicloud/golangsdk/internal
+github.com/huaweicloud/golangsdk/openstack
+github.com/huaweicloud/golangsdk/openstack/identity/v2/tenants
+github.com/huaweicloud/golangsdk/openstack/identity/v2/tokens
+github.com/huaweicloud/golangsdk/openstack/identity/v3/domains
+github.com/huaweicloud/golangsdk/openstack/identity/v3/endpoints
+github.com/huaweicloud/golangsdk/openstack/identity/v3/projects
+github.com/huaweicloud/golangsdk/openstack/identity/v3/services
+github.com/huaweicloud/golangsdk/openstack/identity/v3/tokens
+github.com/huaweicloud/golangsdk/openstack/utils
+github.com/huaweicloud/golangsdk/pagination
+# github.com/inconshreveable/mousetrap v1.0.0
+github.com/inconshreveable/mousetrap
+# github.com/spf13/cobra v0.0.3
+github.com/spf13/cobra
+# github.com/spf13/pflag v1.0.5
+github.com/spf13/pflag
+# golang.org/x/net v0.0.0-20190923162816-aa69164e4478
+golang.org/x/net/context
+golang.org/x/net/context/ctxhttp
+# golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
+golang.org/x/oauth2
+golang.org/x/oauth2/internal
+# google.golang.org/appengine v1.6.3
+google.golang.org/appengine/internal
+google.golang.org/appengine/internal/base
+google.golang.org/appengine/internal/datastore
+google.golang.org/appengine/internal/log
+google.golang.org/appengine/internal/remote_api
+google.golang.org/appengine/internal/urlfetch
+google.golang.org/appengine/urlfetch
+# gopkg.in/yaml.v2 v2.2.2
+gopkg.in/yaml.v2
