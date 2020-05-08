@@ -16,6 +16,7 @@ $ git clone https://gitee.com/opensourceway/om-collections
 
 ## Example of config file(config.ini)
 
+```
 [general]
 from_data=20200504
 es_url=https://127.0.0.1:9200
@@ -29,3 +30,4 @@ username=baidutongji_user_name
 password=xxxxxxxx
 token=
 site_id=37834763
+```
