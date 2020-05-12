@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2020 Technologies Co., Ltd.
+# Copyright 2020 The community Authors.
 # A-Tune is licensed under the Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
@@ -12,6 +12,7 @@
 # See the Mulan PSL v2 for more details.
 # Create: 2020-05
 #
+
 
 import logging
 import queue
@@ -26,8 +27,15 @@ logger = logging.getLogger(__name__)
 
 
 BACKEND_MAPPING = {
-    'baidutongji': 'data.baidutongji.BaiduTongji'
+    'baidutongji': 'data.baidutongji.BaiduTongji',
+    'gitee': 'data.gitee.Gitee',
+    'nginx': 'data.nginx.Nginx',
+    'obs': 'data.obs.Obs',
+    'mailman': 'data.mailman.MailMan',
+    'sig': 'data.sig.Sig',
+    'users': 'data.combine.Sig',
 }
+
 
 class George:
 
@@ -56,13 +64,18 @@ class George:
 
         starTime = self.from_data
         while True:
-            print("start to run from ", starTime)
+            if starTime is None:
+                print("[common] Start to run from itself time")
+            else:
+                print("[common] Start to run from ", starTime)
             for driver in drivers:
                 driver.run(starTime)
 
+            print("try to run again....waiting for %d seconds, from %s"
+                  % (self.sleep_time, datetime.now()))
             time.sleep(self.sleep_time)
             starTime = None
-            print("try to run again from ", starTime)
+            print("try to run again")
 
         logger.info("Finished engine ...")
 

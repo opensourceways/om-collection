@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2020 Technologies Co., Ltd.
+# Copyright 2020 The community Authors.
 # A-Tune is licensed under the Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
@@ -13,6 +13,14 @@
 # Create: 2020-05
 #
 
+
+import json
+import re
+import dateutil.parser
+import dateutil.rrule
+import dateutil.tz
+
+from datetime import timedelta, datetime
 import urllib3
 urllib3.disable_warnings()
 
@@ -20,133 +28,352 @@ import requests
 from requests.auth import HTTPBasicAuth
 
 
+class ESClient(object):
 
-def safe_put_bulk(bulk_json, header, url):
-    """Bulk items to a target index `url`. In case of UnicodeEncodeError,
-    the bulk is encoded with iso-8859-1.
-
-    :param url: target index where to bulk the items
-    :param bulk_json: str representation of the items to upload
-    """
-    if not bulk_json:
-        return
-    header["Content-Type"] = "application/x-ndjson"
-
-    try:
-        res = requests.post(url + "/_bulk", data=bulk_json, headers=header,
-                            verify=False)
-        res.raise_for_status()
-    except UnicodeEncodeError:
-        # Related to body.encode('iso-8859-1'). mbox data
-        logger.warning("Encondig error ... converting bulk to iso-8859-1")
-        bulk_json = bulk_json.encode('iso-8859-1', 'ignore')
-        res = requests.put(url, data=bulk_json, headers=headers)
-        res.raise_for_status()
+    def __init__(self, config=None):
+        self.url = config.get('es_url')
+        self.index_name = config.get('index_name')
+        self.authorization = config.get('authorization')
+        self.default_headers = {
+            'Content-Type': 'application/json'
+        }
+        if self.authorization:
+            self.default_headers['Authorization'] = self.authorization
 
 
-def getStartTime(index_name):
-    # 2020-04-29T15:59:59.000Z
-    last_time = getLastTime(index_name)
-    # 20200429
-    last_time = last_time.split("T")[0].replace("-", "")
+    def safe_put_bulk(self, bulk_json, header=None, url=None):
+        """Bulk items to a target index `url`. In case of UnicodeEncodeError,
+        the bulk is encoded with iso-8859-1.
 
-    f = datetime.strptime(last_time, "%Y%m%d") + timedelta(days=1)
-    # 20200430
-    starTime = f.strftime("%Y%m%d")
-    return starTime
+        :param url: target index where to bulk the items
+        :param bulk_json: str representation of the items to upload
+        """
+        if not bulk_json:
+            return
+        _header = self.default_headers
+        if header:
+            _header = header
+
+        _url = self.url
+        if url:
+            _url = url
+
+        _header["Content-Type"] = "application/x-ndjson"
+
+        try:
+            res = requests.post(_url + "/_bulk", data=bulk_json,
+                                headers=_header, verify=False)
+            res.raise_for_status()
+        except UnicodeEncodeError:
+            # Related to body.encode('iso-8859-1'). mbox data
+            logger.warning("Encondig error ... converting bulk to iso-8859-1")
+            bulk_json = bulk_json.encode('iso-8859-1', 'ignore')
+            res = requests.put(url, data=bulk_json, headers=headers)
+            res.raise_for_status()
 
 
-def getLastTime(index_name):
-    data_agg = '''
+    def getStartTime(self):
+        # 2020-04-29T15:59:59.000Z
+        last_time = self.getLastTime()
+        # 20200429
+        last_time = last_time.split("T")[0].replace("-", "")
+
+        f = datetime.strptime(last_time, "%Y%m%d") + timedelta(days=1)
+        # 20200430
+        starTime = f.strftime("%Y%m%d")
+        return starTime
+
+
+    def getLastTime(self, field="created_at"):
+        data_agg = '''
+                "aggs": {
+                    "1": {
+                      "max": {
+                        "field": "%s"
+                      }
+                    }
+                }
+            ''' % field
+
+        data_json = '''
+            { "size": 0, %s
+            } ''' % data_agg
+        res = requests.get(self.getSearchUrl(), data=data_json,
+                           headers=self.default_headers, verify=False)
+        data = res.json()
+        print(data)
+        result_num = data['hits']['total']['value']
+        if result_num == 0:
+            return
+        # get min create at value
+        created_at_value = data['aggregations']['1']['value_as_string']
+        return created_at_value
+
+    def checkFieldExist(self, field="_id", filter=None):
+        query_data = '''
+                "query": {
+                    "terms": {
+                      "%s": ["%s"]
+                    }
+                }
+            ''' % (field, filter)
+
+        data_json = '''
+            { "size": 0, %s
+            } ''' % query_data
+
+        self.default_headers = {
+            'Authorization': self.authorization,
+            'Content-Type': 'application/json'
+        }
+        res = requests.get(self.getSearchUrl(), data=data_json,
+                           headers=self.default_headers, verify=False)
+        if res.status_code != 200:
+            print("The resource not exist")
+            return False
+        data = res.json()
+
+        result_num = data['hits']['total']['value']
+        if result_num == 0:
+            return False
+        # get min create at value
+        # created_at_value = data['aggregations']['1']['value_as_string']
+        return True
+
+
+    def get_last_item_field(self, field, filters_=[], offset=False):
+        """Find the offset/date of the last item stored in the index.
+        """
+        last_value = None
+
+        if filters_ is None:
+            filters_ = []
+
+        terms = []
+        for filter_ in filters_:
+            if not filter_:
+                continue
+            term = '''{"term" : { "%s" : "%s"}}''' % (
+            filter_['name'], filter_['value'])
+            terms.append(term)
+
+        data_query = '''"query": {"bool": {"filter": [%s]}},''' % (
+            ','.join(terms))
+
+        data_agg = '''
             "aggs": {
                 "1": {
                   "max": {
-                    "field": "created_at"
+                    "field": "%s"
                   }
                 }
             }
-        '''
+        ''' % field
 
-    data_json = '''
-        { "size": 0, %s
-        } ''' % data_agg
-    res = es.search(index=index_name, body=data_json)
-    result_num = res['hits']['total']['value']
-    if result_num == 0:
-        return
-    # get min create at value
-    created_at_value = res['aggregations']['1']['value_as_string']
-    return created_at_value
+        data_json = '''
+        { "size": 0, %s  %s
+        } ''' % (data_query, data_agg)
+
+        print(data_json)
+
+        self.default_headers = {
+            'Authorization': self.authorization,
+            'Content-Type': 'application/json'
+        }
+        data = requests.get(self.getSearchUrl(),
+                           data=data_json,
+                           headers=self.default_headers, verify=False)
+        res = data.json()
+        print(res)
+
+        if "value_as_string" in res["aggregations"]["1"]:
+            last_value = res["aggregations"]["1"]["value_as_string"]
+            last_value = str_to_datetime(last_value)
+        else:
+            last_value = res["aggregations"]["1"]["value"]
+            if last_value:
+                try:
+                    last_value = unixtime_to_datetime(last_value)
+                except InvalidDateError:
+                    last_value = unixtime_to_datetime(last_value / 1000)
+
+        return last_value
+
+    def getSearchUrl(self):
+        return self.url + "/" + self.index_name + "/_search"
+
+    def get_last_date(self, field, filters_=[]):
+        """Find the date of the last item stored in the index
+        """
+        last_date = self.get_last_item_field(field, filters_=filters_)
+
+        return last_date
 
 
-def get_last_item_field(field, filters_=[], offset=False):
-    """Find the offset/date of the last item stored in the index.
-    """
-    last_value = None
+    def get_incremental_date(self):
+        """Field with the date used for incremental analysis."""
 
-    if filters_ is None:
-        filters_ = []
+        return "updated_at"
 
-    terms = []
-    for filter_ in filters_:
-        if not filter_:
-            continue
-        term = '''{"term" : { "%s" : "%s"}}''' % (
-        filter_['name'], filter_['value'])
-        terms.append(term)
 
-    data_query = '''"query": {"bool": {"filter": [%s]}},''' % (
-        ','.join(terms))
+    def get_last_update_from_es(self, _filters=[]):
+        last_update = self.get_last_date(self.get_incremental_date(), _filters)
 
-    data_agg = '''
-        "aggs": {
-            "1": {
-              "max": {
-                "field": "%s"
-              }
+        return last_update
+
+
+    def get_from_date(self, filters=[]):
+        last_update = self.get_last_update_from_es(filters)
+        last_update = last_update
+
+        # if last_update is None:
+        #     last_update = str_to_datetime("2020-04-26T14:26+08:00")
+        #
+        # print("last update time:", last_update)
+        # print("last update time type:", type(last_update))
+        return last_update
+
+    def getTotalAuthorName(self, field="author_name", size=1000):
+        data_json = '''{"size": 0,
+                     "aggs": {
+                         "uniq_gender": {
+                             "terms": {
+                                 "field": "%s",
+                                 "size": %d
+                             }
+                         }
+                     }
+                     }''' % (field, size)
+        print(data_json)
+        res = requests.get(self.getSearchUrl(), data=data_json,
+                           headers=self.default_headers, verify=False)
+        if res.status_code != 200:
+            print("The author name not exist")
+            return []
+        return res['aggregations']['uniq_gender']['buckets']
+
+
+    def setIsFirstCountributeItem(self, author_name):
+        # get min created at value by author name
+        data_query = '''"query": {"bool": {"must": [{"match": {"author_name": "%s"}}]}},''' % (
+            author_name)
+        data_agg = '''
+                "aggs": {
+                    "1": {
+                      "min": {
+                        "field": "created_at"
+                      }
+                    }
+                }
+            '''
+
+        data_json = '''
+            { "size": 2, %s  %s
+            } ''' % (data_query, data_agg)
+        res = requests.get(self.getSearchUrl(), data=data_json,
+                           headers=self.default_headers, verify=False)
+        result_num = res['hits']['total']['value']
+        if result_num == 0:
+            print("author name(%s) not exist." % (author_name))
+            return
+        # get min create at value
+        created_at_value = res['aggregations']['1']['value_as_string']
+
+        # get author name item id with min created_at
+        data_json = '''{"size": 1, "query": {"bool": {"must": [{"match": {"author_name": "%s"}}, {"match": {"created_at": "%s"}}]}}}''' % (
+            author_name, created_at_value)
+        res = requests.get(self.getSearchUrl(), data=data_json,
+                           headers=self.default_headers, verify=False)
+        if res.status_code != 200:
+            return
+        id = res['hits']['hits'][0]['_id']
+
+        update_data = {
+            "doc": {
+                "is_first_contribute": 1
             }
         }
-    ''' % field
-
-    data_json = '''
-    { "size": 0, %s  %s
-    } ''' % (data_query, data_agg)
-
-    print(data_json)
-    res = es.search(index=index_name, body=data_json)
-
-    if "value_as_string" in res["aggregations"]["1"]:
-        last_value = res["aggregations"]["1"]["value_as_string"]
-        last_value = str_to_datetime(last_value)
-    else:
-        last_value = res["aggregations"]["1"]["value"]
-        if last_value:
-            try:
-                last_value = unixtime_to_datetime(last_value)
-            except InvalidDateError:
-                last_value = unixtime_to_datetime(last_value / 1000)
-
-    return last_value
+        res = requests.post(self.url + "/" + index_name + '/_update/' + id,
+                            data=json.dumps(update_data),
+                            headers=default_headers, verify=False)
+        if res.status_code != 200:
+            print("update user name fail")
+            return
 
 
-def get_last_date(field, filters_=[]):
-    """Find the date of the last item stored in the index
-    """
-    last_date = get_last_item_field(field, filters_=filters_)
+    def updateRepoCreatedName(self, org_name, repo_name, author_name, user_login):
+        data_query = '''"query": {"bool": {"must": [{"match": {"is_gitee_repo": 1}},{"match": {"repository": "%s"}}]}}''' % (
+                org_name + "/" + repo_name)
 
-    return last_date
+        data_json = '''
+        { "size": 1, %s
+        } ''' % (data_query)
+
+        res = requests.get(self.getSearchUrl(), data=data_json,
+                           headers=self.default_headers, verify=False)
+        if res.status_code != 200:
+            return
+
+        result_num = res['hits']['total']['value']
+        if result_num != 1:
+            print("repo(%s) not exist or has more than one resources." % (
+                        org_name + "/" + repo_name))
+            return
+
+        id = res['hits']['hits'][0]['_id']
+        if not id:
+            print("ID not exist")
+            return
+
+        original_author_name = res['hits']['hits'][0]['_source'][
+            'author_name']
+        if original_author_name == author_name:
+            print("the repo(%s) author name(%s) is the same as community record" %
+                  (org_name + "/" + repo_name, author_name))
+            return
+
+        print("Change repo(%s) author name from (%s) to (%s)" %
+              (org_name + "/" + repo_name, original_author_name, author_name))
+        update_data = {
+            "doc": {
+                "author_name": author_name,
+                "user_login": user_login
+            }
+        }
+
+        res = requests.post(esLocalUrl + index_name + '/_update/' + id,
+                            data=json.dumps(update_data),
+                            headers=default_headers, verify=False)
+        if res.status_code != 200:
+            print("update repo author name failed")
+            return
 
 
-def get_incremental_date():
-    """Field with the date used for incremental analysis."""
+    def getCountByDate(self, field, from_date, to_date):
+        data_json = '''{"size": 0,
+         "query": {
+             "range": {
+                 "created_at": {
+                     "gte": "%s",
+                     "lte": "%s"
+                 }
+             }
+         },
+         "aggs": {
+             "sum": {
+                 "cardinality": {
+                     "field": "%s"
+                 }
+             }
+         }
+         }''' % (from_date, to_date, field)
+        res = requests.get(self.getSearchUrl(), data=data_json,
+                           headers=self.default_headers, verify=False)
+        if res.status_code != 200:
+            print("The author name not exist")
+            return []
+        return  res["aggregations"]["sum"]["value"]
 
-    return "updated_at"
-
-
-def get_last_update_from_es(_filters=[]):
-    last_update = get_last_date(get_incremental_date(), _filters)
-
-    return last_update
 
 
 def get_date(time):
@@ -185,9 +412,9 @@ def get_time_diff_days(start, end):
     if start is None or end is None:
         return None
 
-    if type(start) is not datetime.datetime:
+    if type(start) is not datetime:
         start = dateutil.parser.parse(start).replace(tzinfo=None)
-    if type(end) is not datetime.datetime:
+    if type(end) is not datetime:
         end = dateutil.parser.parse(end).replace(tzinfo=None)
 
     seconds_day = float(60 * 60 * 24)
@@ -199,7 +426,7 @@ def get_time_diff_days(start, end):
 
 def datetime_utcnow():
     """Handy function which returns the current date and time in UTC."""
-    return datetime.datetime.now()
+    return datetime.now()
 
 
 def str_to_datetime(ts):
@@ -260,3 +487,12 @@ def str_to_datetime(ts):
 
     except ValueError as e:
         raise InvalidDateError(date=str(ts))
+
+
+def getSingleAction(index_name, id, body):
+    action = ""
+    indexData = {
+        "index": {"_index": index_name, "_id": id}}
+    action += json.dumps(indexData) + '\n'
+    action += json.dumps(body) + '\n'
+    return action

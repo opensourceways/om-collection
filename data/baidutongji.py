@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2020 Technologies Co., Ltd.
+# Copyright 2020 The community Authors.
 # A-Tune is licensed under the Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
@@ -13,12 +13,14 @@
 # Create: 2020-05
 #
 
+
 from datetime import timedelta, datetime
 
 import threading
 import json
 
 from data import common
+from data.common import ESClient
 from collect.baidutongji import BaiDuTongjiClient
 
 
@@ -43,6 +45,7 @@ class BaiduTongji(object):
             'Authorization': self.authorization,
             'Content-Type': 'application/json'
         }
+        self.esClient = ESClient(config)
 
 
     def getIndexName(self):
@@ -114,7 +117,7 @@ class BaiduTongji(object):
             if method == "trend/time/a":
                 is_day_data = False
             actions = self.getBaiduAction(collect_time, collect_time, data, index_name, is_day_data)
-            common.safe_put_bulk(actions, self.default_headers, self.url)
+            self.esClient.safe_put_bulk(actions, self.default_headers, self.url)
 
             fromTime = fromTime + timedelta(days=1)
 
@@ -128,9 +131,10 @@ class BaiduTongji(object):
 
 
     def run(self, from_time):
-        starTime = from_time
+        # starTime = from_time
+        starTime = None
         if starTime is None:
-            starTime = common.getStartTime(self.index_name)
+            starTime = self.esClient.getStartTime()
 
         metricMap = {
             # 所有来源

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2020 Technologies Co., Ltd.
+# Copyright 2020 The community Authors.
 # A-Tune is licensed under the Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
@@ -12,6 +12,7 @@
 # See the Mulan PSL v2 for more details.
 # Create: 2020-05
 #
+
 
 import time
 import requests
