@@ -15,7 +15,6 @@
 
 
 import logging
-import queue
 import threading
 import sys
 import time
@@ -29,11 +28,14 @@ logger = logging.getLogger(__name__)
 BACKEND_MAPPING = {
     'baidutongji': 'data.baidutongji.BaiduTongji',
     'gitee': 'data.gitee.Gitee',
+    'gitee_event': 'data.gitee_event.GiteeEvent',
     'nginx': 'data.nginx.Nginx',
-    'obs': 'data.obs.Obs',
+    'obs': 'data.obs.OBS',
     'mailman': 'data.mailman.MailMan',
-    'sig': 'data.sig.Sig',
-    'users': 'data.combine.Sig',
+    'sig': 'data.sig.SIG',
+    'github_down': 'data.github_down.GitHubDown',
+    'github_swf': 'data.github_swf.GitHubSWF',
+    'users': 'data.combine.users.Users',
 }
 
 

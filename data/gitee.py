@@ -33,12 +33,20 @@ import dateutil.tz
 import datetime
 
 
+from json import JSONDecodeError
 from data import common
 from data.common import ESClient
 from collect.gitee import GiteeClient
 
 logger = logging.getLogger(__name__)
 
+
+ISSUE_TYPE = 'issue'
+PULL_TYPE = 'pull_request'
+COMMENT_TYPE = 'comment'
+ISSUE_COMMENT_TYPE = 'issue_comment'
+REVIEW_COMMENT_TYPE = 'review_comment'
+REPOSITORY_TYPE = 'repository'
 
 class Gitee(object):
 
@@ -47,35 +55,54 @@ class Gitee(object):
         self.orgs = self.getOrgs(config.get('orgs'))
         self.index_name = config.get('index_name')
         self.gitee_token = config.get('gitee_token')
+        self.skip_user = config.get('skip_user', "").split(',')
         self.esClient = ESClient(config)
         self.is_gitee_enterprise = config.get('is_gitee_enterprise')
         self.filters = config.get('gitee_repo_filter')
         self.is_update_repo_author = config.get('is_update_repo_author')
+        self.is_set_itself_author = config.get('is_set_itself_author')
+        self.openeulerUsers = []
+        self.all_user = []
 
 
     def run(self, from_time):
         startTime = datetime.datetime.now()
-        threads = []
-        print(self.orgs)
-        for org in self.orgs:
-            repos = self.get_repos(org)
+        self.openeulerUsers = self.getItselfUsers()
+        if self.is_set_itself_author == 'true':
+            self.tagUsers()
+        else:
+            # self.writeData(self.writeContributeForSingleRepo, from_time)
 
-            for r in repos:
-                if r['path'][0] == "a":
-                    continue
-                t = threading.Thread(target=self.writeDatForSingleRepo, args=(
-                    org, r, from_time))
-                threads.append(t)
-                t.start()
+            # self.externalUpdateRepo()
+            # self.updateIsFirstCountributeItem()
+            #
+            self.writeData(self.writeSWForSingleRepo, from_time)
 
-        for t in threads:
-            t.join()
-
-        self.externalUpdateRepo()
         endTime = datetime.datetime.now()
         print("Collect all gitee data finished, spend %s seconds" % (
                 endTime - startTime).seconds)
         print("All gitee collect finished")
+
+
+    def writeData(self, func, from_time):
+        threads = []
+        for org in self.orgs:
+            repos = self.get_repos(org)
+            for r in repos:
+                t = threading.Thread(
+                    target=func,
+                    args=(org, r, from_time))
+                threads.append(t)
+                t.start()
+
+                if len(threads) % 20 == 0:
+                    for t in threads:
+                        t.join()
+                    threads = []
+
+            for t in threads:
+                t.join()
+            threads = []
 
 
     def externalUpdateRepo(self):
@@ -87,19 +114,21 @@ class Gitee(object):
         orgs = []
         if orgsStr:
             orgs = orgsStr.split(",")
+            print(orgs)
         else:
             print("The 'orgs' field must be set")
         return orgs
 
-    def writeDatForSingleRepo(self, org, repo, from_time=None):
+    def writeContributeForSingleRepo(self, org, repo, from_time=None):
         repo_name = repo['path']
         is_public = repo['public']
         self.writeRepoData(org, repo_name, from_time)
         self.writePullData(org, repo_name, is_public, from_time)
         self.writeIssueData(org, repo_name, is_public, from_time)
         self.writeForks(org, repo_name, from_time)
-        # self.updateIsFirstCountributeItem()
 
+    def writeSWForSingleRepo(self, org, repo, from_time=None):
+        repo_name = repo['path']
         self.writeStars(org, repo_name)
         self.writeWatchs(org, repo_name)
 
@@ -117,6 +146,7 @@ class Gitee(object):
 
     def get_repos(self, org):
         client = GiteeClient(org, None, self.gitee_token)
+        print(self.is_gitee_enterprise)
         if self.is_gitee_enterprise == "true":
             org_data = self.getGenerator(client.enterprises())
         else:
@@ -137,19 +167,44 @@ class Gitee(object):
         return repos
 
 
+    def updateRemovedForks(self, gitee_repo, forks):
+        matchs = [{
+            "name": "is_gitee_fork",
+            "value": 1,
+            },
+            {
+            "name": "gitee_repo.keyword",
+            "value": gitee_repo,
+            }
+        ]
+        data = self.esClient.getItemsByMatchs(matchs)
+
+        fork_num = data['hits']['total']['value']
+        original_forks = data['hits']['hits']
+        print("%s original fork num is (%d), The current fork num is (%d)" % (gitee_repo, fork_num, len(forks)))
+        if fork_num == len(forks):
+            return
+        for fork in original_forks:
+            if fork['_source']['fork_id'] not in forks:
+                print("[update] set fork(%s) is_removed to 1" % fork['_source']['fork_id'])
+                self.esClient.updateForkToRemoved(fork['_id'])
+
+
     def writeForks(self, owner, repo, from_date):
         startTime = datetime.datetime.now()
-        from_date = self.getFromDate(from_date, [
-            {"name": "is_gitee_fork", "value": 1}])
-        print("Start collect fork data from ", from_date)
+        # from_date = self.getFromDate(from_date, [
+        #     {"name": "is_gitee_fork", "value": 1}])
+        # print("Start collect fork data from ", from_date)
 
         client = GiteeClient(owner, repo, self.gitee_token)
         fork_data = self.getGenerator(client.forks())
         actions = ""
 
+        fork_ids = []
         for fork in fork_data:
-            if common.str_to_datetime(fork["updated_at"]) < from_date:
-                continue
+            # if common.str_to_datetime(fork["updated_at"]) < from_date:
+            #     continue
+
             action = {
                 "fork_id": fork["id"],
                 "created_at": fork["created_at"],
@@ -169,22 +224,27 @@ class Gitee(object):
                 "index": {"_index": self.index_name, "_id": "fork_" + str(fork['id'])}}
             actions += json.dumps(indexData) + '\n'
             actions += json.dumps(action) + '\n'
+            fork_ids.append(fork["id"])
 
         self.esClient.safe_put_bulk(actions)
+        # self.updateRemovedForks("https://gitee.com/" + owner + "/" + repo, fork_ids)
 
         endTime = datetime.datetime.now()
-        print("Collect fork request data finished, spend %s seconds" % (
-                endTime - startTime).seconds)
+        print("Collect repo(%s) fork request data finished, spend %s seconds"
+              % (owner + "/" + repo, (endTime - startTime).seconds))
 
 
     def writeStars(self, owner, repo):
+        print(".................writeStars  start")
         client = GiteeClient(owner, repo, self.gitee_token)
         star_data = self.getGenerator(client.stars())
         actions = ""
 
         for star in star_data:
             star_id = owner + "/" + repo + "_" + "star" + str(star['id'])
-            # if self.esClient.checkFieldExist(filter=star_id) == True:
+            if self.esClient.checkFieldExist(filter=star_id) == True:
+                continue
+            # if star['login'] in self.skip_user:
             #     continue
             action = {
                 "user_id": star["id"],
@@ -198,7 +258,6 @@ class Gitee(object):
             }
             userExtra = self.getUserInfo(action['user_login'])
             action.update(userExtra)
-
             indexData = {
                 "index": {"_index": self.index_name, "_id": star_id}}
             actions += json.dumps(indexData) + '\n'
@@ -212,9 +271,12 @@ class Gitee(object):
         watch_data = self.getGenerator(client.watchs())
         actions = ""
         for watch in watch_data:
-            watch_id = owner + "/" + repo + "_" + "watch" + str(watch['id'])
-            # if self.esClient.checkFieldExist(filter=[watch_id]) == True:
+            # if watch['login'] in self.skip_user:
             #     continue
+
+            watch_id = owner + "/" + repo + "_" + "watch" + str(watch['id'])
+            if self.esClient.checkFieldExist(filter=[watch_id]) == True:
+                continue
             action = {
                 "user_id": watch["id"],
                 "watch_id": watch_id,
@@ -237,8 +299,6 @@ class Gitee(object):
 
 
     def writeRepoData(self, owner, repo, from_date=None):
-        print("................writeRepoData begin %s/%s" % (owner, repo))
-
         client = GiteeClient(owner, repo, self.gitee_token)
         repo_data = self.getGenerator(client.repo())
         actions = ""
@@ -259,7 +319,6 @@ class Gitee(object):
         }
         userExtra = self.getUserInfo(repo_data['owner']['login'])
         repo_detail.update(userExtra)
-        print("................writeRepoData end %s/%s" % (owner, repo))
         indexData = {
             "index": {"_index": self.index_name,
                       "_id": "gitee_repo_" + re.sub('.git$', '', repo_data['html_url'])}}
@@ -296,6 +355,9 @@ class Gitee(object):
             print(x['number'])
             if common.str_to_datetime(x['updated_at']) < from_date:
                 continue
+            if x['user']['login'] in self.skip_user:
+                continue
+
             pr_number = x['number']
 
             pull_action_logs = self.getGenerator(client.pull_action_logs(pr_number))
@@ -314,9 +376,11 @@ class Gitee(object):
             actions += json.dumps(indexData) + '\n'
             actions += json.dumps(eitem) + '\n'
 
-            ecomments = self.get_rich_pull_reviews(pull_review_comments, eitem)
+            ecomments = self.get_rich_pull_reviews(pull_review_comments, eitem, owner)
             for ec in ecomments:
                 print(ec['pull_comment_id'])
+                if ec['user_login'] in self.skip_user:
+                    continue
                 indexData = {
                     "index": {"_index": self.index_name, "_id": ec['pull_comment_id']}}
                 actions += json.dumps(indexData) + '\n'
@@ -329,13 +393,19 @@ class Gitee(object):
 
 
     def writeIssueData(self, owner, repo, public, from_date=None):
+        startTime = datetime.datetime.now()
+
         client = GiteeClient(owner, repo, self.gitee_token)
         if from_date is None:
-            from_date = self.esClient.get_from_date([{"name": "is_gitee_issue", "value": 1}])
+            from_date = self.esClient.get_from_date(
+                [{"name": "is_gitee_issue", "value": 1},
+                 {"name": "gitee_repo.keyword",
+                  "value": "https://gitee.com/" + owner + "/" + repo}])
         else:
             from_date = common.str_to_datetime(from_date)
-        print("Start collect issue data from ", from_date)
-        startTime = datetime.datetime.now()
+        print("Start collect repo(%s/%s) issue data from %s" % (
+                owner, repo, from_date))
+
 
         # common.
         if public == True:
@@ -357,6 +427,8 @@ class Gitee(object):
 
             issue_comments = self.get_rich_issue_comments(issue_comments, issue_item)
             for ic in issue_comments:
+                if ic['user_login'] in self.skip_user:
+                    continue
                 print(ic['issue_comment_id'])
                 indexData = {
                     "index": {"_index": self.index_name,
@@ -366,7 +438,8 @@ class Gitee(object):
 
         self.esClient.safe_put_bulk(actions)
         endTime = datetime.datetime.now()
-        print("Collect issue data finished, spend %s seconds" % (endTime - startTime).seconds)
+        print("Collect repo(%s/%s) issue data finished, spend %s seconds" % (
+            owner, repo, (endTime - startTime).seconds))
 
 
     def getGenerator(self, response):
@@ -381,11 +454,13 @@ class Gitee(object):
         except StopIteration:
             # print(response)
             print("...end")
+        except JSONDecodeError:
+            print("Gitee get JSONDecodeError, error: ", response)
 
         return data
 
 
-    def get_rich_pull_reviews(self, comments, eitem):
+    def get_rich_pull_reviews(self, comments, eitem, owner=None):
         ecomments = []
 
         for comment in comments:
@@ -412,6 +487,7 @@ class Gitee(object):
             ecomment['repository'] = eitem['repository']
             ecomment['item_type'] = COMMENT_TYPE
             ecomment['sub_type'] = REVIEW_COMMENT_TYPE
+            ecomment['org_name'] = owner
 
             # Copy data from the raw comment
             ecomment['url'] = comment['html_url']
@@ -426,6 +502,7 @@ class Gitee(object):
             # extract reactions and add it to enriched item
             #ecomment.update(self.__get_reactions(comment))
 
+
             ecomment['created_at'] = comment['created_at']
             ecomment['updated_at'] = comment['updated_at']
             ecomment['comment_updated_at'] = comment['updated_at']
@@ -439,6 +516,8 @@ class Gitee(object):
             ecomment['is_gitee_{}'.format(REVIEW_COMMENT_TYPE)] = 1
             ecomment['is_gitee_comment'] = 1
 
+            userExtra = self.getUserInfo(ecomment['user_login'])
+            ecomment.update(userExtra)
             ecomments.append(ecomment)
 
         return ecomments
@@ -446,6 +525,7 @@ class Gitee(object):
 
     def __get_rich_pull(self, item, merged_item):
         rich_pr = {}
+
         # The real data
         pull_request = item
 
@@ -511,7 +591,7 @@ class Gitee(object):
 
         #rich_pr['gitee_repo'] = rich_pr['repository'].replace(gitee, '')
         rich_pr['gitee_repo'] = re.sub('.git$', '', pull_request['base']['repo']['html_url'])
-
+        rich_pr['org_name'] = pull_request['base']['repo']['namespace']['path']
         # GMD code development metrics
         #rich_pr['forks'] = pull_request['base']['repo']['forks_count']
         rich_pr['code_merge_duration'] = common.get_time_diff_days(pull_request['created_at'],
@@ -526,13 +606,15 @@ class Gitee(object):
 
         #if self.prjs_map:
         #    rich_pr.update(self.get_item_project(rich_pr))
-
+        userExtra = self.getUserInfo(rich_pr['user_login'])
+        rich_pr.update(userExtra)
         if 'project' in item:
             rich_pr['project'] = item['project']
 
         rich_pr['is_gitee_{}'.format(PULL_TYPE)] = 1
 
         return rich_pr
+
 
     def get_rich_issue(self, item):
         rich_issue = {}
@@ -613,6 +695,7 @@ class Gitee(object):
 
         #rich_issue['gitee_repo'] = rich_issue['repository'].replace(gitee, '')
         rich_issue['gitee_repo'] = re.sub('.git$', '', issue['repository']['html_url'])
+        rich_issue['org_name'] = issue['repository']['namespace']['path']
         #if self.prjs_map:
         #    rich_issue.update(self.get_item_project(rich_issue))
 
@@ -642,6 +725,7 @@ class Gitee(object):
 
             # Copy data from the enriched issue
             ecomment['issue_labels'] = eitem['issue_labels']
+            ecomment['org_name'] = eitem['org_name']
             ecomment['issue_id'] = eitem['issue_id']
             ecomment['issue_number'] = eitem['issue_number']
             ecomment['issue_id_in_repo'] = eitem['issue_id_in_repo']
@@ -700,24 +784,38 @@ class Gitee(object):
 
 
     def getUserInfo(self, login):
-        client = GiteeClient("", "", self.gitee_token)
-        userInfo = self.getGenerator(client.user(login))
-        # 'company': None, 'profession': None, 'wechat': None, 'qq': None, 'linkedin': None, 'email': None
-        userExtra = {
-            "user_company": userInfo.get('company'),
-            "user_wechat": userInfo.get('wechat'),
-            "user_qq": userInfo.get('qq'),
-            "user_linkedin": userInfo.get('linkedin'),
-            "user_email": userInfo.get('email'),
-        }
+        # client = GiteeClient("", "", self.gitee_token)
+        # userInfo = self.getGenerator(client.user(login))
+        # # 'company': None, 'profession': None, 'wechat': None, 'qq': None, 'linkedin': None, 'email': None
+        # userExtra = {
+        #     "user_company": userInfo.get('company'),
+        #     "user_wechat": userInfo.get('wechat'),
+        #     "user_qq": userInfo.get('qq'),
+        #     "user_linkedin": userInfo.get('linkedin'),
+        #     "user_email": userInfo.get('email'),
+        # }
+        userExtra = {}
+        if login in self.openeulerUsers:
+            userExtra["tag_user_company"] = "openeuler"
+            userExtra["is_project_internal_user"] = 1
+        else:
+            # if userInfo.get('company'):
+            #     userExtra["tag_user_company"] = userInfo.get('company')
+            #     userExtra["is_project_internal_user"] = None
+            # else:
+            userExtra["tag_user_company"] = "n/a"
+            userExtra["is_project_internal_user"] = None
         return userExtra
 
 
     def updateIsFirstCountributeItem(self):
-        all_user = self.esClient.getTotalAuthorName(field="author_name.keyword")
+        all_user = self.esClient.getTotalAuthorName(
+            field="user_login.keyword")
         for user in all_user:
+            if user["key"] in self.all_user:
+                continue
             user_name = user["key"]
-            print(user_name)
+            self.all_user.append(user_name)
             self.esClient.setIsFirstCountributeItem(user_name)
 
 
@@ -726,12 +824,11 @@ class Gitee(object):
         data = self.getGenerator(client.pulls(state='merged'))
 
         for d in data:
-            print("updateCreatedRepoAuthor pull request number=%d" %
-                        d["number"])
+            print("updateCreatedRepoAuthor pull request number=%d" % d["number"])
             pull_files = self.getGenerator(client.pull_files(d["number"]))
             for p in pull_files:
-                if p["filename"] != "repository/src-openeuler.yaml" and p[
-                    "filename"] != "repository/openeuler.yaml":
+                if p["filename"] != "repository/src-openeuler.yaml"\
+                        and p["filename"] != "repository/openeuler.yaml":
                     continue
 
                 lines = p["patch"]["diff"].split("\n")
@@ -744,6 +841,63 @@ class Gitee(object):
                     author_name = d['base']['user']['name']
                     user_login = d['base']['user']['login']
                     print(author_name)
+                    is_internal = False
+                    if user_login in self.openeulerUsers:
+                        is_internal = True
                     self.esClient.updateRepoCreatedName(
                         p["filename"].split('/')[1].split('.')[0], repo_name,
-                        author_name, user_login)
+                        author_name, user_login, is_internal)
+
+
+    def getAllIndex(self, user):
+        matchs = [{
+            "name": "user_login.keyword",
+            "value": user,
+        }]
+        data = self.esClient.getItemsByMatchs(matchs, size=0)
+        all_count = data["hits"]["total"]["value"]
+        print("get %d items from user %s"% (all_count, user))
+        if all_count < 1:
+            return []
+
+        aggs = '''"aggs": {
+            "uniq_gender": {
+                "terms": {
+                    "field": "_id",
+                    "size": %s
+                }
+            }
+        }''' % all_count
+        ids = self.esClient.getItemsByMatchs(matchs, size=0, aggs=aggs)
+
+        print("update %d buckets for user %s" % (len(ids['aggregations']["uniq_gender"]["buckets"]), user))
+        return ids['aggregations']["uniq_gender"]["buckets"]
+
+    def getItselfUsers(self, filename="users"):
+        f = open(filename, 'r')
+
+        users = []
+        for line in f.readlines():
+            if line != "\n":
+                users.append(line.split('\n')[0])
+        print(users)
+        print(len(users))
+        return users
+
+    def tagUsers(self, from_date=None):
+        users = self.getItselfUsers()
+        for u in users:
+            actions = ""
+            ids = self.getAllIndex(u)
+            for id in ids:
+                update_data = {
+                    "doc": {
+                        "tag_user_company": "openeuler",
+                        "is_project_internal_user": 1,
+                    }
+                }
+                action = common.getSingleAction(
+                    self.index_name, id["key"], update_data, act="update")
+                actions += action
+
+            self.esClient.safe_put_bulk(actions)

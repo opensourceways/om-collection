@@ -46,13 +46,6 @@ PER_PAGE = 100
 DEFAULT_SLEEP_TIME = 1
 MAX_RETRIES = 5
 
-ISSUE_TYPE = 'issue'
-PULL_TYPE = 'pull_request'
-COMMENT_TYPE = 'comment'
-ISSUE_COMMENT_TYPE = 'issue_comment'
-REVIEW_COMMENT_TYPE = 'review_comment'
-REPOSITORY_TYPE = 'repository'
-
 
 class GiteeClient():
     _users = {}  # users cache
@@ -139,7 +132,6 @@ class GiteeClient():
         }
 
         path = self.urijoin("events")
-        # print(self.fetch_items(path, payload))
         return self.fetch_items(path, payload)
 
 
@@ -278,9 +270,17 @@ class GiteeClient():
 
         return orgs
 
+    def org_followers(self, org):
+        payload = {
+            'per_page': PER_PAGE,
+        }
+
+        url = self.urijoin("orgs", org, "followers")
+        return self.fetch_items(url, payload)
+
     def fetch(self, url, payload=None, headers=None, method="GET", stream=False, auth=None):
         """Fetch the data from a given URL.
-        :param url: link to the resource
+        :param url: link to thecommits resource
         :param payload: payload of the request
         :param headers: headers of the request
         :param method: type of request call (GET or POST)
@@ -307,7 +307,6 @@ class GiteeClient():
 
     def fetch_items(self, path, payload):
         """Return the items from gitee API using links pagination"""
-
         page = 0  # current page
         total_page = None  # total page number
 
@@ -315,11 +314,14 @@ class GiteeClient():
             url_next = self.urijoin(self.base_url, 'repos', self.owner, self.repository, path)
         else:
             url_next = self.urijoin(self.base_url, path)
-        print("Get Gitee paginated items from " + url_next)
 
         response = self.fetch(url_next, payload=payload)
 
+        if response.status_code != 200:
+            print("Gitee api get error: ", response.text)
+
         items = response.text
+
         page += 1
         total_page = response.headers.get('total_page')
 
