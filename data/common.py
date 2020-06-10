@@ -15,11 +15,15 @@
 
 
 import json
+import types
 import re
 import dateutil.parser
 import dateutil.rrule
 import dateutil.tz
+import threading
 
+from json import JSONDecodeError
+from urllib.parse import quote
 from datetime import timedelta, datetime
 import urllib3
 urllib3.disable_warnings()
@@ -32,6 +36,7 @@ class ESClient(object):
 
     def __init__(self, config=None):
         self.url = config.get('es_url')
+        self.from_date = config.get('from_date')
         self.index_name = config.get('index_name')
         self.authorization = config.get('authorization')
         self.default_headers = {
@@ -50,15 +55,17 @@ class ESClient(object):
         """
         if not bulk_json:
             return
-        _header = self.default_headers
+
+        _header = {
+            "Content-Type": 'application/x-ndjson',
+            'Authorization': self.authorization
+        }
         if header:
             _header = header
 
         _url = self.url
         if url:
             _url = url
-
-        _header["Content-Type"] = "application/x-ndjson"
 
         try:
             res = requests.post(_url + "/_bulk", data=bulk_json,
@@ -75,6 +82,8 @@ class ESClient(object):
     def getStartTime(self):
         # 2020-04-29T15:59:59.000Z
         last_time = self.getLastTime()
+        if last_time is None:
+            return self.from_date
         # 20200429
         last_time = last_time.split("T")[0].replace("-", "")
 
@@ -82,6 +91,19 @@ class ESClient(object):
         # 20200430
         starTime = f.strftime("%Y%m%d")
         return starTime
+
+
+    def getLastFormatTime(self):
+        # 2020-04-29T15:59:59.000Z
+        last_time = self.getLastTime()
+        if last_time is None:
+            return self.from_date
+        # 20200429
+        last_time = last_time.split("T")[0].replace("-", "")
+
+        f = datetime.strptime(last_time, "%Y%m%d")
+        lastTime = f.strftime("%Y%m%d")
+        return lastTime
 
 
     def getLastTime(self, field="created_at"):
@@ -100,14 +122,18 @@ class ESClient(object):
             } ''' % data_agg
         res = requests.get(self.getSearchUrl(), data=data_json,
                            headers=self.default_headers, verify=False)
+        if res.status_code != 200:
+            print("The field (%s) not exist.")
+            return None
         data = res.json()
-        print(data)
+        # print(data)
         result_num = data['hits']['total']['value']
         if result_num == 0:
             return
         # get min create at value
         created_at_value = data['aggregations']['1']['value_as_string']
         return created_at_value
+
 
     def checkFieldExist(self, field="_id", filter=None):
         query_data = '''
@@ -199,8 +225,15 @@ class ESClient(object):
 
         return last_value
 
-    def getSearchUrl(self):
-        return self.url + "/" + self.index_name + "/_search"
+
+    def getSearchUrl(self, url=None, index_name=None):
+        if index_name is None:
+            index_name = self.index_name
+
+        if url is None:
+            url = self.url
+        return url + "/" + index_name + "/_search"
+
 
     def get_last_date(self, field, filters_=[]):
         """Find the date of the last item stored in the index
@@ -233,7 +266,7 @@ class ESClient(object):
         # print("last update time type:", type(last_update))
         return last_update
 
-    def getTotalAuthorName(self, field="author_name", size=1000):
+    def getTotalAuthorName(self, field="author_name", size=1500):
         data_json = '''{"size": 0,
                      "aggs": {
                          "uniq_gender": {
@@ -250,13 +283,20 @@ class ESClient(object):
         if res.status_code != 200:
             print("The author name not exist")
             return []
-        return res['aggregations']['uniq_gender']['buckets']
+        data = res.json()
+        return data['aggregations']['uniq_gender']['buckets']
 
 
-    def setIsFirstCountributeItem(self, author_name):
+    def setIsFirstCountributeItem(self, user_login):
         # get min created at value by author name
-        data_query = '''"query": {"bool": {"must": [{"match": {"author_name": "%s"}}]}},''' % (
-            author_name)
+        data_query = '''"query": {
+            "bool": {
+                "must": [
+                    {"match": {"user_login": "%s"}}
+                ]
+            }
+        },''' % (
+            user_login)
         data_agg = '''
                 "aggs": {
                     "1": {
@@ -272,37 +312,44 @@ class ESClient(object):
             } ''' % (data_query, data_agg)
         res = requests.get(self.getSearchUrl(), data=data_json,
                            headers=self.default_headers, verify=False)
+        res = res.json()
         result_num = res['hits']['total']['value']
         if result_num == 0:
-            print("author name(%s) not exist." % (author_name))
+            print("author name(%s) not exist." % (user_login))
             return
         # get min create at value
         created_at_value = res['aggregations']['1']['value_as_string']
 
         # get author name item id with min created_at
-        data_json = '''{"size": 1, "query": {"bool": {"must": [{"match": {"author_name": "%s"}}, {"match": {"created_at": "%s"}}]}}}''' % (
-            author_name, created_at_value)
+        data_json = '''{"size": 1, "query": {"bool": {"must": [{"match": {"user_login": "%s"}}, {"match": {"created_at": "%s"}}]}}}''' % (
+            user_login, created_at_value)
         res = requests.get(self.getSearchUrl(), data=data_json,
                            headers=self.default_headers, verify=False)
+
         if res.status_code != 200:
             return
+        res = res.json()
         id = res['hits']['hits'][0]['_id']
 
-        update_data = {
+        if "_star" in id or "_watch" in id:
+            return
+
+        update_data = '''{
             "doc": {
                 "is_first_contribute": 1
             }
-        }
-        res = requests.post(self.url + "/" + index_name + '/_update/' + id,
-                            data=json.dumps(update_data),
-                            headers=default_headers, verify=False)
+        }'''
+        url = self.url + "/" + self.index_name + '/_update/' + quote(id, safe='')
+        res = requests.post(url, data=update_data,
+                            headers=self.default_headers, verify=False)
         if res.status_code != 200:
-            print("update user name fail")
+            print("update user name fail:", res.text)
             return
+        print("update is_first_contribute  success")
 
 
-    def updateRepoCreatedName(self, org_name, repo_name, author_name, user_login):
-        data_query = '''"query": {"bool": {"must": [{"match": {"is_gitee_repo": 1}},{"match": {"repository": "%s"}}]}}''' % (
+    def updateRepoCreatedName(self, org_name, repo_name, author_name, user_login, is_internal=False):
+        data_query = '''"query": {"bool": {"must": [{"match": {"is_gitee_repo": 1}},{"match": {"repository.keyword": "%s"}}]}}''' % (
                 org_name + "/" + repo_name)
 
         data_json = '''
@@ -313,7 +360,7 @@ class ESClient(object):
                            headers=self.default_headers, verify=False)
         if res.status_code != 200:
             return
-
+        res = res.json()
         result_num = res['hits']['total']['value']
         if result_num != 1:
             print("repo(%s) not exist or has more than one resources." % (
@@ -340,16 +387,26 @@ class ESClient(object):
                 "user_login": user_login
             }
         }
+        if is_internal == True:
+            update_data["doc"]["is_project_internal_user"] = 1
+            update_data["doc"]["tag_user_company"] = "openeuler"
+        else:
+            update_data["doc"]["is_project_internal_user"] = None
+            update_data["doc"]["tag_user_company"] = None
+        self.update(id, update_data)
 
-        res = requests.post(esLocalUrl + index_name + '/_update/' + id,
-                            data=json.dumps(update_data),
-                            headers=default_headers, verify=False)
+    def update(self, id, update_data):
+        url = self.url + "/" + self.index_name + '/_update/' + quote(id,
+                                                                     safe='')
+        res = requests.post(url, data=json.dumps(update_data),
+                            headers=self.default_headers, verify=False)
         if res.status_code != 200:
-            print("update repo author name failed")
+            print("update repo author name failed:", res.text)
             return
 
 
-    def getCountByDate(self, field, from_date, to_date):
+    def getUniqueCountByDate(self, field, from_date, to_date,
+                       url=None, index_name=None):
         data_json = '''{"size": 0,
          "query": {
              "range": {
@@ -367,13 +424,187 @@ class ESClient(object):
              }
          }
          }''' % (from_date, to_date, field)
-        res = requests.get(self.getSearchUrl(), data=data_json,
+
+        res = requests.get(self.getSearchUrl(url, index_name), data=data_json,
                            headers=self.default_headers, verify=False)
         if res.status_code != 200:
-            print("The author name not exist")
-            return []
-        return  res["aggregations"]["sum"]["value"]
+            print("The field (%s) not exist from time(%s) to (%s)"
+                  % (field, from_date, to_date))
+            return None
 
+        data = res.json()
+        # print(data["aggregations"]["sum"]["value"])
+        return data["aggregations"]["sum"]["value"]
+
+
+    def getCountByTermDate(self, term, field, from_date, to_date,
+                            url=None, index_name=None):
+        data_json = '''{
+            "size": 0,
+            "query": {
+                "range": {
+                    "created_at": {
+                        "gte": "%s",
+                        "lte": "%s"
+                    }
+                }
+            },
+            "aggs": {
+                "list": {
+                    "terms": {
+                        "field": "%s"
+                    },
+                    "aggs": {
+                        "sum": {
+                            "sum": {
+                                "field": "%s"
+                            }
+                        }
+                    }
+                }
+            }
+        }''' % (from_date, to_date, term, field)
+
+        print(data_json)
+        res = requests.get(self.getSearchUrl(url, index_name), data=data_json,
+                           headers=self.default_headers, verify=False)
+        if res.status_code != 200:
+            print("The field (%s) not exist from time(%s) to (%s)"
+                  % (field, from_date, to_date))
+            return None
+
+        data = res.json()
+        count = 0
+        for b in data["aggregations"]["list"]["buckets"]:
+            count += b["sum"]["value"]
+        print(count)
+        return count
+
+
+    def initLocationGeoIPIndex(self):
+        body = {
+            "description": "Add geoip info",
+            "processors": [
+                {
+                    "geoip": {
+                        "field": "ip"
+                    }
+                }
+            ]
+        }
+
+        url = self.url + "/_ingest/pipeline/geoip"
+        response = requests.request("PUT", url, headers=self.default_headers, data=json.dumps(body), verify=False)
+        if response.status_code != 200:
+            return None
+
+
+    def getLocationByIP(self, ip):
+        # initLocationGeoIPIndex()
+        payload = "{\n\t\"ip\": \"%s\"\n}" % ip
+        r = requests.put(self.url + '/my_index/_doc/my_id?pipeline=geoip',
+                           data=payload, headers=self.default_headers,
+                           verify=False)
+        if r.status_code != 200:
+            print("get location failed, err=", r.text)
+            return {}
+
+        res = requests.get(self.url + '/my_index/_doc/my_id',
+                           headers=self.default_headers, verify=False)
+        if r.status_code != 200:
+            print("get location failed, err=", r.text)
+            return {}
+        '''
+        "geoip": {
+                "continent_name": "Asia",
+                "region_iso_code": "CN-ZJ",
+                "city_name": "Hangzhou",
+                "country_iso_code": "CN",
+                "region_name": "Zhejiang",
+                "location": {
+                    "lon": 120.1614,
+                    "lat": 30.2936
+                }
+            },
+            "ip": "122.235.249.147"
+        '''
+        j = res.json()
+        data = j['_source'].get('geoip')
+
+        if data is None:
+            return {}
+        return data
+
+
+    def getItemsByMatchs(self, matchs, size=500, aggs=None):
+        '''
+        {
+            "size": 497,
+            "query": {
+                "bool": {
+                    "must": [
+                        {"match":
+                            {
+                                "is_gitee_fork": 1
+                            }
+                        },
+                        {"match":
+                            {
+                                "gitee_repo.keyword": "https://gitee.com/mindspore/mindspore"
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+        '''
+        if matchs is None:
+            matchs = []
+
+        terms = []
+        for match in matchs:
+            if not match:
+                continue
+            term = '''{"match" : { "%s" : "%s"}}''' % (
+                        match['name'], match['value'])
+            terms.append(term)
+
+        data_query = '''"query": {"bool": {"must": [%s]}}''' % (
+            ','.join(terms))
+
+
+
+        if aggs:
+            data_json = '''
+            { "size": %d, %s, %s
+            } ''' % (size, data_query, aggs)
+        else:
+            data_json = '''
+            { "size": %d, %s
+            } ''' % (size, data_query)
+        data = requests.get(self.getSearchUrl(),
+                            data=data_json,
+                            headers=self.default_headers, verify=False)
+        if data.status_code != 200:
+            print("match data failed, err=", data.text)
+            return {}
+        res = data.json()
+        return res
+
+
+    def updateForkToRemoved(self, id):
+        update_data = '''{
+                    "doc": {
+                        "is_removed": 1
+                    }
+                }'''
+        url = self.url + "/" + self.index_name + '/_update/' + quote(id, safe='')
+        res = requests.post(url, data=update_data,
+                            headers=self.default_headers, verify=False)
+        if res.status_code != 200:
+            print("set fork is_removed value to 1 fail:", res.text)
+            return
+        print("set fork is_removed value to 1 success")
 
 
 def get_date(time):
@@ -489,10 +720,54 @@ def str_to_datetime(ts):
         raise InvalidDateError(date=str(ts))
 
 
-def getSingleAction(index_name, id, body):
+def getSingleAction(index_name, id, body, act="index"):
     action = ""
     indexData = {
-        "index": {"_index": index_name, "_id": id}}
+        act: {"_index": index_name, "_id": id}}
     action += json.dumps(indexData) + '\n'
     action += json.dumps(body) + '\n'
     return action
+
+
+
+def writeDataThread(thread_func_args, max_thread_num=20):
+    threads = []
+
+    for key, values in thread_func_args.items():
+        for v in values:
+            if not isinstance(v, tuple):
+                args = (v, )
+            else:
+                args = v
+            t = threading.Thread(
+                target=key,
+                args=args)
+            threads.append(t)
+            t.start()
+
+            if len(threads) % max_thread_num == 0:
+                for t in threads:
+                    t.join()
+                print("finish threads num:", max_thread_num)
+                threads = []
+
+    for t in threads:
+        t.join()
+
+
+def getGenerator(response):
+    data = []
+    try:
+        while 1:
+            if isinstance(response, types.GeneratorType):
+                data += json.loads(next(response).encode('utf-8'))
+            else:
+                data = json.loads(response)
+                break
+    except StopIteration:
+        # print(response)
+        print("...end")
+    except JSONDecodeError:
+        print("Gitee get JSONDecodeError, error: ", response)
+
+    return data

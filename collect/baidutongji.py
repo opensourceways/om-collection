@@ -31,11 +31,11 @@ class BaiDuTongjiClient():
         self.password = config.get("password")
         self.token = config.get("token")
         self.site_id = config.get("site_id")
-        self.is_enterprise = config.get("is_enterprise")
+        self.is_baidutongji_enterprise = config.get("is_baidutongji_enterprise")
 
     # common
     def getCommon(self, starTime, endTime, metric, method):
-        if self.is_enterprise == "true":
+        if self.is_baidutongji_enterprise == "true":
             data_json = {
                 "header": {
                     "username": self.username,

@@ -30,26 +30,23 @@ class Users(object):
             print("please input 'user_from_index' value first")
             return
         self.tables = tables.split(',')
+        print(self.tables)
         self.url = config.get('es_url')
         self.index_name = config.get('index_name')
         self.authorization = config.get('authorization')
         self.esClient = ESClient(config)
         self.indexMapping = {
-            "maillist": "user_id",
-            "baidutongji": "visitor_count",
-            "nginx": "ip",
+            "maillist": "user_id.keyword",
+            "baidutongji": "new_visitor_count",
+            "nginx": "ip.keyword",
         }
 
 
     def run(self, from_time):
-        # starTime = from_time
-        from_time = None
         if from_time is None:
             from_time = self.esClient.getStartTime()
 
         self.setMailListUser(from_time)
-
-        # self.esClient.safe_put_bulk(json)
 
 
     def setMailListUser(self, from_date):
@@ -58,24 +55,35 @@ class Users(object):
 
         actions = ""
         while fromTime.strftime("%Y%m%d") < to:
+            print(fromTime)
             for t in self.tables:
                 type = t.split(":")[0]
                 index = t.split(":")[1]
 
-                toTime = fromTime + timedelta(days=1)
-                c = self.esClient.getCountByDate(
-                    self.indexMapping[type], fromTime.strftime("%Y%m%dT00:00:00+08:00"),
-                    toTime.strftime("%Y%m%dT23:59:59+08:00"))
-                user = {
-                    "all_user_count": c,
-                    "created_at": vc["created_at"],
-                    "updated_at": vc["updated_at"],
-                    "is_user_" + type: 1
-                }
+                if type != "baidutongji":
+                    c = self.esClient.getUniqueCountByDate(
+                        self.indexMapping[type],
+                        fromTime.strftime("%Y-%m-%dT00:00:00+08:00"),
+                        fromTime.strftime("%Y-%m-%dT23:59:59+08:00"),
+                        index_name=index)
+                else:
+                    c = self.esClient.getCountByTermDate(
+                        "source_type_title.keyword",
+                        self.indexMapping[type],
+                        fromTime.strftime("%Y-%m-%dT00:00:00+08:00"),
+                        fromTime.strftime("%Y-%m-%dT23:59:59+08:00"),
+                        index_name=index)
+                if c is not None:
+                    user = {
+                        "all_user_count": c,
+                        "created_at": fromTime.strftime("%Y-%m-%dT00:00:00+08:00"),
+                        "updated_at": fromTime.strftime("%Y-%m-%dT23:59:59+08:00"),
+                        "is_user_" + type: 1
+                    }
 
-                id = vc["created_at"] + type + index
-                action = common.getSingleAction(self.index_name, id, user)
-                actions += action
-                fromTime = fromTime + timedelta(days=1)
+                    id = fromTime.strftime("%Y-%m-%dT00:00:00+08:00") + type + index
+                    action = common.getSingleAction(self.index_name, id, user)
+                    actions += action
+            fromTime = fromTime + timedelta(days=1)
 
         self.esClient.safe_put_bulk(actions)

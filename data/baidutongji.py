@@ -38,13 +38,9 @@ RESEARCH_WORD_METRIC = "pv_count,pv_ratio,visit_count,visitor_count,new_visitor_
 class BaiduTongji(object):
     def __init__(self, config=None):
         self.config = config
-        self.url = config.get('es_url')
+        self.is_baidutongji_enterprise = config.get('is_baidutongji_enterprise')
         self.index_name = config.get('index_name')
-        self.authorization = config.get('authorization')
-        self.default_headers = {
-            'Authorization': self.authorization,
-            'Content-Type': 'application/json'
-        }
+        self.site_id = config.get('site_id')
         self.esClient = ESClient(config)
 
 
@@ -53,10 +49,18 @@ class BaiduTongji(object):
 
 
     def getBaiduAction(self, starTime, endTime, data, index_name, is_day_data=True):
-        data = data.get('body').get('data')[0]
         if not data:
             print("The data(%s) not exist" % data)
             return ''
+
+        if self.is_baidutongji_enterprise == 'true':
+            data = data.get('body')
+
+            if not data:
+                print("The data body(%s) not exist" % data)
+                return
+            data = data.get('data')[0]
+
         if 'result' not in data:
             print("The data (%s) result not exist" % data)
             return ''
@@ -92,7 +96,7 @@ class BaiduTongji(object):
                 result[data['result']['fields'][f]] = tmpv
                 f += 1
 
-            indexData = {"index": {"_index": index_name, "_id": title + starTime}}
+            indexData = {"index": {"_index": index_name, "_id": title + starTime + self.site_id}}
             actions += json.dumps(indexData) + '\n'
             actions += json.dumps(result) + '\n'
             i += 1
@@ -101,6 +105,7 @@ class BaiduTongji(object):
 
 
     def getDateByTime(self, start_date, metric, method, index_name):
+
         fromTime = datetime.strptime(start_date, "%Y%m%d")
         to = datetime.today().strftime("%Y%m%d")
         baiduClient = BaiDuTongjiClient(self.config)
@@ -112,12 +117,14 @@ class BaiduTongji(object):
             print("collect data of ", collect_time, index_name, method)
 
             data = baiduClient.getCommon(collect_time, collect_time, metric, method)
+            if not data:
+                continue
             print(data)
             is_day_data = True
             if method == "trend/time/a":
                 is_day_data = False
             actions = self.getBaiduAction(collect_time, collect_time, data, index_name, is_day_data)
-            self.esClient.safe_put_bulk(actions, self.default_headers, self.url)
+            self.esClient.safe_put_bulk(actions)
 
             fromTime = fromTime + timedelta(days=1)
 
@@ -131,10 +138,10 @@ class BaiduTongji(object):
 
 
     def run(self, from_time):
-        # starTime = from_time
-        starTime = None
-        if starTime is None:
-            starTime = self.esClient.getStartTime()
+        print("baidutongji collect site id is:", self.site_id)
+
+        if from_time is None:
+            from_time = self.esClient.getStartTime()
 
         metricMap = {
             # 所有来源
@@ -159,10 +166,10 @@ class BaiduTongji(object):
             "visit/topdomain/a": VISIT_REGION_METRIC,
         }
 
-        print("start to run from ", starTime)
+        print("start to run from ", from_time)
         threads = []
         for m in metricMap:
-            t = threading.Thread(target=self.getDateByTime, args=(starTime, metricMap[m], m, self.index_name))
+            t = threading.Thread(target=self.getDateByTime, args=(from_time, metricMap[m], m, self.index_name))
             threads.append(t)
             t.start()
 
