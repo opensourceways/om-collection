@@ -29,6 +29,7 @@ class GitHubSWF(object):
         actions = ""
         for repo in repoNames:
             action = self.getSWF(repo)
+            # print(action)
             actions += action
         self.esClient.safe_put_bulk(actions)
 
@@ -49,10 +50,12 @@ class GitHubSWF(object):
             pass
         return s
 
+
     def getSWF(self, repo):
         client = GithubClient(self.org, repo, self.github_authorization)
         r = client.repo()
         r["swf_update_time"] = datetime.now().strftime('%Y-%m-%dT%H:%M:%S+08:00')
+        # r["swf_update_time"] = "2020-06-19T22:21:25+08:00"
         id = "swf_" + r["swf_update_time"] + r.get("full_name")
         action = common.getSingleAction(self.index_name, id, r)
         return action

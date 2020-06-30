@@ -22,10 +22,145 @@ class SIG(object):
         self.esClient = ESClient(config)
         self.esClient.initLocationGeoIPIndex()
         self.comitter_time = {}
+        self.committer_time_by_self = {
+            "Infrastructure": "2020-05-14T15:58:00+08:00",
+            "doc": "2020-04-03T08:01:00+08:00",
+            "sig-CICD": "2020-04-11T18:14:00+08:00",
+            "Kernel": "2020-01-06T10:43:00+08:00",
+            "sig-Community": "2020-03-28T14:43:00+08:00",
+            "A-Tune": "2020-01-11T16:50:00+08:00",
+            "kae": "2020-04-16T10:02:00+08:00",
+            "Private": "2020-06-02T21:44:00+08:00",
+            "oVirt": "2020-06-10T09:42:00+08:00",
+            "sig-dpdk": "2020-02-29T11:01:00+08:00",
+            "Marketing": "2020-05-13T18:28:00+08:00",
+            "dev-utils": "2020-03-17T22:15:00+08:00",
+            "sig-mate-desktop": "2020-03-21T10:43:00+08:00",
+            "sig-bounds_checking_function": "2020-06-05T10:57:00+08:00",
+            "sig-UKUI": "2020-04-01T10:45:00+08:00",
+            "sig-RaspberryPi": "2020-03-27T16:24:00+08:00",
+            "sig-Ha": "2020-04-29T15:24:00+08:00",
+            "sig-ROS": "2020-04-14T15:42:00+08:00",
+            "sig-ai-bigdata": "2020-05-09T14:15:00+08:00",
+            "sig-EasyLife": "2020-06-01T09:11:00+08:00",
+            "sig-security-facility": "2020-04-24T17:50:00+08:00",
+            "sig-Compatibility-Infra": "2020-04-17T13:19:00+08:00",
+            "sig-DDE": "2020-06-24T12:01:00+08:00",
+            "sig-cms": "2020-04-22T22:08:00+08:00"
+        }
+        self.sigs = []
+        self.openeulerUsers = []
+        self.mindspore_sigs = {
+            "leonwanghui":"2020-02-17T14:26:37+08:00",
+            "guozhende":"2020-03-13T10:21:45+08:00",
+            "weiluning":"2020-03-13T16:37:53+08:00",
+            "leiyuning":"2020-03-13T16:41:01+08:00",
+            "dingcheng":"2020-03-13T16:43:57+08:00",
+            "zheng-huanhuan":"2020-03-13T20:26:08+08:00",
+            "zhunaipan":"2020-03-18T15:38:48+08:00",
+            "lujiale":"2020-03-22T09:51:12+08:00",
+            "gaocongli":"2020-03-22T09:51:30+08:00",
+            "liucunwei":"2020-03-22T09:51:40+08:00",
+            "zhunaipan":"2020-03-22T09:51:48+08:00",
+            "zhengweimin":"2020-03-25T17:04:21+08:00",
+            "dingcheng":"2020-03-25T17:13:33+08:00",
+            "zhangqiang":"2020-03-27T10:16:54+08:00",
+            "zhenghuanhuan":"2020-04-02T10:08:58+08:00",
+            "zhangzhenghai":"2020-04-02T11:38:34+08:00",
+            "zhengweimin":"2020-04-07T09:30:16+08:00",
+            "leiyuning":"2020-05-13T16:28:42+08:00",
+            "wangsiyuan":"2020-05-20T17:26:38+08:00",
+            "leonwanghui": "2020-03-13T16:35:53+08:00",
+            "TommyLike": "2020-03-13T16:36:18+08:00",
+            "zhengweimin": "2020-03-14T12:04:30+08:00",
+            "zhunaipan": "2020-03-21T15:56:27+08:00",
+            "liucunwei": "2020-03-21T15:56:44+08:00",
+            "gaocongli": "2020-03-21T16:02:09+08:00",
+            "lujiale": "2020-03-21T16:36:31+08:00",
+            "dingcheng": "2020-03-22T09:51:21+08:00",
+            "mindspore-ci-bot": "2019-12-03T18:32:29+08:00",
+            "weiyang": "2020-03-04T17:55:14+08:00",
+            "helloway": "2020-02-17T14:26:37+08:00",
+            "absolutely_unexpected": "2020-03-17T14:26:37+08:00",
+
+        }
 
     def run(self, from_date):
+
+        # self.getCreatedTime()
+        # self.getCommitter("mindspore", "mindspore")
+        # self.getCommitter("mindspore", "mindinsight")
+        # self.getCommitter("mindspore", "docs")
+        # self.getCommitter("mindspore", "graphengine")
+        # self.getCommitter("mindspore", "mindarmour")
+        # self.getCommitter("mindspore", "ms-operator")
+        # self.getCommitter("mindspore", "course")
+        # self.getCommitter("mindspore", "community")
+        # self.getCommitter("mindspore", "book")
+
+        self.getOpeneulerCommitter()
+
+        # self.collectTotalByType(from_date)
+
+    def getOpeneulerCommitter(self):
+        self.openeulerUsers = self.getItselfUsers()
         self.getCommiterAddedTime()
         self.prepare_list()
+
+    def getCreatedTime(self, filename="_成员管理日志-2020-06-20_13_46_19.csv"):
+        f = open(filename, 'r')
+
+        i = 0
+
+        for line in f.readlines():
+            if line is None or not line:
+                continue
+            if i == 0:
+                i += 1
+                continue
+
+            sLine = line.split(',')
+            created_at = sLine[2]
+            name = sLine[4]
+            tt = created_at.split("'")[1]
+            created_at = tt.split( )[0] + "T" + tt.split( )[1] + "+08:00"
+            self.mindspore_sigs[name] = created_at
+
+    def getCommitter(self, owner, org):
+        client = GiteeClient(owner, org, self.gitee_token)
+
+        data = self.getGenerator(client.collaborators())
+        actions = ""
+        for d in data:
+            user_login = d.get("login")
+            user_name = d.get("name")
+            is_admin = d.get("permissions").get("admin", 0)
+            created_at = "2020-03-04T17:55:10+08:00"
+            # if is_admin:
+            if user_name in self.mindspore_sigs:
+                created_at = self.mindspore_sigs.get(user_name)
+            elif user_login in self.mindspore_sigs:
+                created_at = self.mindspore_sigs.get(user_login)
+            else:
+                print("not exist:", user_name, user_login)
+            # else:
+            #     print("not exist:", user_name)
+            doc = {
+                "sig_name": org,
+                "repo_name": org,
+                "user_login": user_login,
+                "user_name": user_name,
+                "is_admin": is_admin,
+                "is_committer": 1,
+                "created_at": created_at
+            }
+            id = user_login + "_" + org + "_" + user_name + created_at
+            # id = user_login + "_" + org + "_" + user_name
+            action = common.getSingleAction(self.index_name, id,
+                                            doc)
+            actions += action
+        self.esClient.safe_put_bulk(actions)
+
 
     def gitClone(self):
         print("............start to git clone ")
@@ -83,12 +218,14 @@ class SIG(object):
         return data
 
     def prepare_list(self):
-        actions = ""
+        print("........ prepare_list start")
+
         f = open('community/sig/sigs.yaml')
         y = yaml.load_all(f)
 
-        t = datetime.now().strftime('%Y-%m-%d')
+        # t = datetime.now().strftime('%Y-%m-%d')
         for data in y:
+            actions = ""
             for sig in data['sigs']:
                 print(sig['name'])
                 filename = "community/sig/" + sig['name'] + "/OWNERS"
@@ -102,18 +239,67 @@ class SIG(object):
 
                 for repo in sig['repositories']:
                     for m in maintainers:
-                        print("get commiter (%s) created time is %s" % (
-                                sig['name'] + "_" + m,
-                                self.comitter_time.get(sig['name'] + "_" + m)))
+                        tmp_time = self.comitter_time.get(sig['name'] + "_" + m)
+                        if tmp_time is None:
+                            # print("get commiter (%s) created time is %s" % (
+                            #         sig['name'] + "_" + m,
+                            #         self.comitter_time.get(sig['name'] + "_" + m)))
+                            if sig['name'] not in self.sigs:
+                                self.sigs.append(sig['name'])
+                            tmp_time = self.committer_time_by_self.get(sig['name'], "2020-06-24T12:01:00+08:00")
                         doc = {
                              "sig_name": sig['name'],
                              "repo_name": repo,
                              "user_gitee_name": m,
-                             "created_at": self.comitter_time.get(sig['name'] + "_" + m),
+                             "created_at": tmp_time,
+                             "is_committer": 1
                         }
+                        if m in self.openeulerUsers:
+                            doc["tag_user_company"] = "openeuler"
+                            doc["is_project_internal_user"] = 1
+                        else:
+                            doc["tag_user_company"] = "n/a"
+                            doc["is_project_internal_user"] = 0
                         id = m + "_" + sig['name'] + "_" + repo
+
                         action = common.getSingleAction(self.index_name, id,
                                                         doc)
                         actions += action
-        # self.esClient.safe_put_bulk(actions)
+            self.esClient.safe_put_bulk(actions)
+        print(self.sigs)
         f.close()
+        print("........ prepare_list end")
+
+    def collectTotalByType(self, from_time):
+        matchs = [{"name": "is_committer", "value": 1}]
+        from_date = datetime.strptime(from_time, "%Y%m%d")
+        to_date = datetime.today()
+        data = self.esClient.getCountByDateRange(matchs, from_date, to_date)
+        # print(data)
+        actions = ""
+        for d in data:
+            print("date = %s, count = %s" % (
+                d.get("to_as_string"), d.get("doc_count")))
+            created_at = d.get("to_as_string")
+            body = {
+                "all_count": d.get("doc_count"),
+                "created_at": created_at,
+                "updated_at": created_at,
+                "committer_total": 1
+            }
+
+            id = created_at + type + "_total"
+            action = common.getSingleAction(self.index_name, id, body)
+            actions += action
+        self.esClient.safe_put_bulk(actions)
+
+    def getItselfUsers(self, filename="users"):
+        f = open(filename, 'r')
+
+        users = []
+        for line in f.readlines():
+            if line != "\n":
+                users.append(line.split('\n')[0])
+        print(users)
+        print(len(users))
+        return users

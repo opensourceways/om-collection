@@ -23,6 +23,7 @@ import json
 
 ENTERPRISE_URL = "https://api.baidu.com/json/tongji/v1/ReportService/getData"
 URL = "https://openapi.baidu.com/rest/2.0/tongji/report/getData?"
+BAIDUTONGJI_REFRESH_TOKEN_URL = "http://openapi.baidu.com/oauth/2.0/token"
 
 class BaiDuTongjiClient():
 
@@ -66,4 +67,11 @@ class BaiDuTongjiClient():
 
         j = data.json()
         return j
+
+    def _refresh_access_token(self):
+        """Send a refresh post access to the Gitee Server"""
+        if self.token:
+            url = GITEE_REFRESH_TOKEN_URL + "?grant_type=refresh_token&refresh_token=" + self.token
+            logger.info("Refresh the access_token for Baidutongji API")
+            self.session.post(url, data=None, headers=None, stream=False, auth=None)
 
