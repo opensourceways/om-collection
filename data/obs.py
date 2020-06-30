@@ -123,7 +123,7 @@ class OBS(object):
         url = single_text.split('"')[1].split('"')[0]
 
         # Donload_path_prefix = ['0.1.0-alpha', '0.2.0-alpha']
-        if "alpha" not in path:
+        if self.object_prefix in path:
             return None, None
 
         location = self.esClient.getLocationByIP(ip)

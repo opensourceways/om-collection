@@ -78,6 +78,11 @@ class Nginx(object):
                     "lon": lon
                 }
             }
+            if ".iso" in path:
+                body["is_iso_download"] = 1
+            elif ".rpm" in path:
+                body["is_rpm_download"] = 1
+
 
             id = t + ip + path
             action = common.getSingleAction(self.index_name, id, body)
@@ -163,7 +168,7 @@ class Nginx(object):
 
             if ".iso" in path:
                 body["is_iso_download"] = 1
-            if ".rpm" in path:
+            elif ".rpm" in path:
                 body["is_rpm_download"] = 1
 
             print("filename=%s, ip=%s, time=%s" % (filename, ip, t))

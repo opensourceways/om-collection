@@ -145,6 +145,26 @@ class GiteeClient():
 
         return repo
 
+
+    def collaborators(self):
+        """Get collaborators data"""
+
+        commit_url = self.urijoin('collaborators')
+
+        return self.fetch_items(commit_url, {})
+
+
+    def enterprise_members(self):
+        """Get enterprise members data"""
+
+        url = self.urijoin('enterprises', self.owner, 'members')
+        payload = {
+            'role': 'all',
+            'per_page': PER_PAGE,
+        }
+
+        return self.fetch_items(url, payload)
+
     def org(self):
         """Get repository data"""
         commit_url = self.urijoin('orgs', self.owner, 'repos')

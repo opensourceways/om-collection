@@ -136,6 +136,37 @@ class BaiduTongji(object):
         return datetime.strptime(time, '%Y%m%d').strftime(
             '%Y-%m-%d') + "T" + endTime + ":59+08:00"
 
+    # def setToltalCount(self, from_date, count_key):
+    #     starTime = datetime.strptime(from_date, "%Y%m%d")
+    #     fromTime = datetime.strptime(from_date, "%Y%m%d")
+    #     to = datetime.today().strftime("%Y%m%d")
+    #
+    #     actions = ""
+    #     while fromTime.strftime("%Y%m%d") < to:
+    #         print(fromTime)
+    #
+    #         c = self.esClient.getCountByTermDate(
+    #             "source_type_title.keyword",
+    #             count_key,
+    #             starTime.strftime("%Y-%m-%dT00:00:00+08:00"),
+    #             fromTime.strftime("%Y-%m-%dT23:59:59+08:00"),
+    #             index_name=self.index_name)
+    #         # return
+    #         if c is not None:
+    #             user = {
+    #                 "all_" + count_key: c,
+    #                 "updated_at": fromTime.strftime("%Y-%m-%dT00:00:00+08:00"),
+    #                 "created_at": fromTime.strftime("%Y-%m-%dT23:59:59+08:00"),
+    #                 # "metadata__updated_on": fromTime.strftime("%Y-%m-%dT23:59:59+08:00"),
+    #                 "is_all" + count_key: 1
+    #             }
+    #             id = fromTime.strftime("%Y-%m-%dT00:00:00+08:00") + "all_" + count_key
+    #             action = common.getSingleAction(self.index_name, id, user)
+    #             actions += action
+    #         fromTime = fromTime + timedelta(days=1)
+    #
+    #     self.esClient.safe_put_bulk(actions)
+
 
     def run(self, from_time):
         print("baidutongji collect site id is:", self.site_id)
@@ -175,4 +206,9 @@ class BaiduTongji(object):
 
         for t in threads:
             t.join()
+
+        from_d = "20190914"
+
+        self.esClient.setToltalCount(from_d, "ip_count", field="source_type_title.keyword")
+        self.esClient.setToltalCount(from_d, "pv_count", field="source_type_title.keyword")
         print("All baidutongji thread finished")

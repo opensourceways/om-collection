@@ -31,6 +31,8 @@ class GiteeEvent(object):
     def __init__(self, config=None):
         self.config = config
         self.index_name = config.get('index_name')
+        self.is_from_log_files = config.get('is_from_log_files')
+        self.gitee_event_log_dir = config.get('gitee_event_log_dir')
         self.is_gitee_enterprise = config.get('is_gitee_enterprise')
         if config.get('orgs'):
             self.orgs = config.get('orgs').split(",")
@@ -122,8 +124,9 @@ class GiteeEvent(object):
         thread_func_args = {}
         files = []
         for file in glob.glob("*.csv"):
-            print(file)
-            files.append(file)
+            f = file.split(path)[1]
+            print(f)
+            files.append(f)
             # _thread.start_new_thread(writeGiteeDownDataByFile, (file, ))
         thread_func_args[self.writeGiteeDownDataByFile] = files
         return thread_func_args
@@ -182,8 +185,10 @@ class GiteeEvent(object):
 
 
     def run(self, from_date):
-        # thread_func_args = self.getRepoThreadFuncs(from_date)
-        # common.writeDataThread(thread_func_args)
-        thread_func_args = self.getThreadFuncs(from_date)
-        common.writeDataThread(thread_func_args)
+        if self.is_from_log_files == 'true':
+            thread_func_args = self.getThreadFuncs(from_date)
+            common.writeDataThread(thread_func_args)
+        else:
+            thread_func_args = self.getRepoThreadFuncs(from_date)
+            common.writeDataThread(thread_func_args)
         # writeGiteeDownDataByFile("仓库管理日志-2020-04-28_14_04_39.csv")

@@ -63,18 +63,27 @@ class Gitee(object):
         self.is_set_itself_author = config.get('is_set_itself_author')
         self.openeulerUsers = []
         self.all_user = []
+        self.all_user_info = []
+        self.companyinfos = []
+        self.enterpriseUsers = []
 
 
     def run(self, from_time):
+        # self.getUserInfoFromDataFile()
+        self.getEnterpriseUser()
+        # return
         startTime = datetime.datetime.now()
         self.openeulerUsers = self.getItselfUsers()
+
         if self.is_set_itself_author == 'true':
+            # self.tagUsers(tag_user_company="huawei")
             self.tagUsers()
         else:
-            # self.writeData(self.writeContributeForSingleRepo, from_time)
+            self.writeData(self.writeContributeForSingleRepo, from_time)
 
             # self.externalUpdateRepo()
-            # self.updateIsFirstCountributeItem()
+            self.updateIsFirstCountributeItem()
+            # self.collectTotal(from_time)
             #
             self.writeData(self.writeSWForSingleRepo, from_time)
 
@@ -153,16 +162,20 @@ class Gitee(object):
             org_data = self.getGenerator(client.org())
 
         if self.filters is None:
-            for org in org_data:
-                print(org['path'])
+            for repo in org_data:
+                print(repo['path'])
+                # if repo['public'] == False:
+                #     print("https://openeuler-ci-bot:edison12345@gitee.com/" + org + "/" + repo['path'] + ",")
+                # else:
+                #     print("https://gitee.com/" + org + "/" + repo['path'] + ",")
             return org_data
 
         repos = []
-        for org in org_data:
-            path = org['path']
-            if self.checkIsCollectRepo(path, org['public']) == True:
-                print(org['path'])
-                repos.append(org)
+        for repo in org_data:
+            path = repo['path']
+            if self.checkIsCollectRepo(path, repo['public']) == True:
+                print(repo['path'])
+                repos.append(repo)
 
         return repos
 
@@ -794,17 +807,35 @@ class Gitee(object):
         #     "user_linkedin": userInfo.get('linkedin'),
         #     "user_email": userInfo.get('email'),
         # }
+        #########################################
+        # userExtra = {}
+        # login_info = self.all_user_info.get(login)
+        # if login_info:
+        #     company_name = login_info.get('companies').get('company_name')
+        #     userExtra["tag_user_company"] = self.companyinfos.get(company_name)
+        #     userExtra["tag_user_organization"] = login_info.get('companies').get('organization_name')
+        #     userExtra["tag_user_name"] = login_info.get('user_name')
+        #     userExtra["is_project_internal_user"] = None
+        # else:
+        #     userExtra["tag_user_company"] = "n/a"
+        #     userExtra["tag_user_organization"] = "n/a"
+        ############################################
         userExtra = {}
-        if login in self.openeulerUsers:
-            userExtra["tag_user_company"] = "openeuler"
-            userExtra["is_project_internal_user"] = 1
+        if self.is_gitee_enterprise == 'true':
+            if login in self.enterpriseUsers:
+                userExtra["tag_user_company"] = "huawei"
+                userExtra["is_project_internal_user"] = 1
+            else:
+                userExtra["tag_user_company"] = "n/a"
+                userExtra["is_project_internal_user"] = 0
         else:
-            # if userInfo.get('company'):
-            #     userExtra["tag_user_company"] = userInfo.get('company')
-            #     userExtra["is_project_internal_user"] = None
-            # else:
-            userExtra["tag_user_company"] = "n/a"
-            userExtra["is_project_internal_user"] = None
+            if login in self.openeulerUsers:
+                userExtra["tag_user_company"] = "openeuler"
+                userExtra["is_project_internal_user"] = 1
+            else:
+                userExtra["tag_user_company"] = "n/a"
+                userExtra["is_project_internal_user"] = 0
+
         return userExtra
 
 
@@ -816,6 +847,7 @@ class Gitee(object):
                 continue
             user_name = user["key"]
             self.all_user.append(user_name)
+            print("start to update user:", user)
             self.esClient.setIsFirstCountributeItem(user_name)
 
 
@@ -884,20 +916,101 @@ class Gitee(object):
         print(len(users))
         return users
 
-    def tagUsers(self, from_date=None):
-        users = self.getItselfUsers()
-        for u in users:
-            actions = ""
-            ids = self.getAllIndex(u)
-            for id in ids:
+
+    def tagUsers(self, from_date=None, tag_user_company="openeuler"):
+        # users = self.getItselfUsers()
+        if self.is_gitee_enterprise == "true":
+            users = self.enterpriseUsers
+        else:
+            users = self.openeulerUsers
+        all_user = self.esClient.getTotalAuthorName(
+            field="user_login.keyword")
+        for user in all_user:
+            u = user["key"]
+            if u == "mindspore_ci":
+                continue
+            if u in users:
                 update_data = {
                     "doc": {
-                        "tag_user_company": "openeuler",
+                        "tag_user_company": tag_user_company,
                         "is_project_internal_user": 1,
                     }
                 }
+            else:
+                update_data = {
+                    "doc": {
+                        "tag_user_company": "n/a",
+                        "is_project_internal_user": 0,
+                    }
+                }
+        # for u in users:
+            actions = ""
+            ids = self.getAllIndex(u)
+            for id in ids:
+
                 action = common.getSingleAction(
                     self.index_name, id["key"], update_data, act="update")
                 actions += action
 
             self.esClient.safe_put_bulk(actions)
+
+
+    def collectTotal(self, from_time):
+        self.collectTotalByType(from_time, "is_gitee_pull_request")
+        self.collectTotalByType(from_time, "is_gitee_issue")
+
+    def collectTotalByType(self, from_time, type):
+        matchs = [{"name": type, "value": 1}]
+        from_date = datetime.datetime.strptime(from_time, "%Y%m%d")
+        to_date = datetime.datetime.today()
+        data = self.esClient.getCountByDateRange(matchs, from_date, to_date)
+        print(data)
+        actions = ""
+        for d in data:
+            print("date = %s, count = %s" % (
+                d.get("to_as_string"), d.get("doc_count")))
+            created_at = d.get("to_as_string")
+            body = {
+                "all_count": d.get("doc_count"),
+                "created_at": created_at,
+                "updated_at": created_at,
+                type + "_total": 1
+            }
+
+            id = created_at + type + "_total"
+            action = common.getSingleAction(self.index_name, id, body)
+            actions += action
+        self.esClient.safe_put_bulk(actions)
+
+
+    def getEnterpriseUser(self):
+        if self.is_gitee_enterprise != "true":
+            return
+
+        client = GiteeClient(self.orgs[0], "", self.gitee_token)
+
+        data = self.getGenerator(client.enterprise_members())
+        for d in data:
+            user = d.get("user").get("login")
+            print(user)
+            self.enterpriseUsers.append(user)
+
+
+    def getUserInfoFromDataFile(self):
+        f = open('data.json')
+        userInfos = json.load(f)
+        alluserinfos = []
+        for user in userInfos.get("users"):
+            print(user.get('gitee_id'))
+            print(user.get('github_id'))
+            print(user.get('companies'))
+            if user.get('gitee_id'):
+                alluserinfos.append({user.get('gitee_id'): user})
+        print(alluserinfos)
+        self.all_user_info = alluserinfos
+
+        for company in userInfos.get("companies"):
+            for alia in company.get("aliases"):
+                self.companyinfos[alia] = company.get("company_name")
+            for domain in company.get("domains"):
+                self.companyinfos[domain] = company.get("company_name")

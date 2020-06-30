@@ -71,6 +71,7 @@ class ESClient(object):
             res = requests.post(_url + "/_bulk", data=bulk_json,
                                 headers=_header, verify=False)
             res.raise_for_status()
+            print(res)
         except UnicodeEncodeError:
             # Related to body.encode('iso-8859-1'). mbox data
             logger.warning("Encondig error ... converting bulk to iso-8859-1")
@@ -266,7 +267,7 @@ class ESClient(object):
         # print("last update time type:", type(last_update))
         return last_update
 
-    def getTotalAuthorName(self, field="author_name", size=1500):
+    def getTotalAuthorName(self, field="user_login.keyword", size=1500):
         data_json = '''{"size": 0,
                      "aggs": {
                          "uniq_gender": {
@@ -289,14 +290,36 @@ class ESClient(object):
 
     def setIsFirstCountributeItem(self, user_login):
         # get min created at value by author name
+        # data_query = '''"query": {
+        #     "bool": {
+        #         "must": [
+        #             {"match": {"user_login": "%s"}}
+        #         ]
+        #     }
+        # },''' % (
+        #     user_login)
+
         data_query = '''"query": {
             "bool": {
                 "must": [
-                    {"match": {"user_login": "%s"}}
-                ]
-            }
-        },''' % (
-            user_login)
+                    {
+                        "match": {"user_login.keyword": "%s"}
+                    },
+                    {
+                        "bool": {
+                            "should": [
+                                {"match": {"is_gitee_pull_request": 1}},
+                                {"match": {"is_gitee_issue": 1}},
+                                {"match": {"is_gitee_issue_comment": 1}},
+                                {"match": {"is_gitee_review_comment": 1}},
+                                {"match": {"is_gitee_comment": 1}},
+                                {"match": {"is_gitee_fork": 1}}
+                            ]
+                        }
+                        }
+                    ]
+                }
+            },''' % (user_login)
         data_agg = '''
                 "aggs": {
                     "1": {
@@ -321,12 +344,13 @@ class ESClient(object):
         created_at_value = res['aggregations']['1']['value_as_string']
 
         # get author name item id with min created_at
-        data_json = '''{"size": 1, "query": {"bool": {"must": [{"match": {"user_login": "%s"}}, {"match": {"created_at": "%s"}}]}}}''' % (
+        data_json = '''{"size": 1, "query": {"bool": {"must": [{"match": {"user_login.keyword": "%s"}}, {"match": {"created_at": "%s"}}]}}}''' % (
             user_login, created_at_value)
         res = requests.get(self.getSearchUrl(), data=data_json,
                            headers=self.default_headers, verify=False)
 
         if res.status_code != 200:
+            print("get user(%s) id  fail" % user_login)
             return
         res = res.json()
         id = res['hits']['hits'][0]['_id']
@@ -345,7 +369,7 @@ class ESClient(object):
         if res.status_code != 200:
             print("update user name fail:", res.text)
             return
-        print("update is_first_contribute  success")
+        print("update user(%s) id(%s) is_first_contribute  success" % (user_login, id))
 
 
     def updateRepoCreatedName(self, org_name, repo_name, author_name, user_login, is_internal=False):
@@ -437,48 +461,144 @@ class ESClient(object):
         return data["aggregations"]["sum"]["value"]
 
 
-    def getCountByTermDate(self, term, field, from_date, to_date,
+    def getCountByTermDate(self, term=None, field=None, from_date=None, to_date=None,
                             url=None, index_name=None):
-        data_json = '''{
-            "size": 0,
-            "query": {
-                "range": {
-                    "created_at": {
-                        "gte": "%s",
-                        "lte": "%s"
+        if not term:
+            data_json = '''{
+                "size": 0,
+                "query": {
+                    "range": {
+                        "metadata__updated_on": {
+                            "gte": "%s",
+                            "lte": "%s"
+                        }
                     }
-                }
-            },
-            "aggs": {
-                "list": {
-                    "terms": {
-                        "field": "%s"
-                    },
-                    "aggs": {
+                },
+                "aggs": {
+                    "sum": {
                         "sum": {
-                            "sum": {
-                                "field": "%s"
-                            }
+                            "field": "%s"
                         }
                     }
                 }
-            }
-        }''' % (from_date, to_date, term, field)
+            }''' % (from_date, to_date, field)
+        else:
+            data_json = '''{
+                        "size": 3,
+                        "query": {
+                            "range": {
+                                "created_at": {
+                                    "gte": "%s",
+                                    "lte": "%s"
+                                }
+                            }
+                        },
+                        "aggs": {
+                            "list": {
+                                "terms": {
+                                    "field": "%s"
+                                },
+                                "aggs": {
+                                    "sum": {
+                                        "sum": {
+                                            "field": "%s"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }''' % (from_date, to_date, term, field)
+
 
         print(data_json)
+        # default_headers = {
+        #     'Content-Type': 'application/json'
+        # }
         res = requests.get(self.getSearchUrl(url, index_name), data=data_json,
                            headers=self.default_headers, verify=False)
         if res.status_code != 200:
-            print("The field (%s) not exist from time(%s) to (%s)"
-                  % (field, from_date, to_date))
+            print("The field (%s) not exist from time(%s) to (%s), err=%s"
+                  % (field, from_date, to_date, res))
             return None
 
         data = res.json()
+        print(data)
         count = 0
-        for b in data["aggregations"]["list"]["buckets"]:
-            count += b["sum"]["value"]
-        print(count)
+        if term is None:
+            count = data["aggregations"]["sum"]["value"]
+        else:
+            for b in data["aggregations"]["list"]["buckets"]:
+                count += b["sum"]["value"]
+        # count = data["aggregations"]["sum"]["value"]
+        # print(count)
         return count
+
+
+    def getCountByDateRange(self, matchs, from_date, to_date, interval=1):
+        terms = []
+        for match in matchs:
+            if not match:
+                continue
+            term = '''{"match" : { "%s" : %d}}''' % (
+                match['name'], match['value'])
+            terms.append(term)
+
+        data_query = '''"query": {"bool": {"must": [%s]}},''' % (
+            ','.join(terms))
+
+        # "aggs":{
+        #     "range": {
+        #         "date_range": {
+        #             "field": "created_at",
+        #             "ranges": [
+        #                 {"from": "2019-01-07T00:00:00+08:00",
+        #                  "to": "2020-06-09T23:00:00+08:00"},
+        #                 {"from": "2019-01-07T00:00:00+08:00",
+        #                  "to": "2020-06-08T00:00:00+08:00"},
+        #                 {"from": "2019-01-07T00:00:00+08:00",
+        #                  "to": "2020-06-07T00:00:00+08:00"}
+        #             ]
+        #         }
+        #     }
+        # }
+        ranges = []
+        tmp_date = from_date
+        while 1:
+            if tmp_date > to_date:
+                break
+
+            term = '''{"from" : "%s", "to": "%s"}''' % (
+                from_date.strftime("%Y-%m-%dT00:00:00+08:00"), tmp_date.strftime("%Y-%m-%dT23:59:59+08:00"))
+            ranges.append(term)
+            tmp_date = tmp_date + timedelta(days=interval)
+
+
+        data_agg = '''
+                "aggs": {
+                    "range": {
+                      "date_range": {
+                        "field": "created_at",
+                        "ranges": [%s]
+                      }
+                    }
+                }
+            ''' % ','.join(ranges)
+
+
+        data_json = '''
+            { "size": 0, %s  %s
+            } ''' % (data_query, data_agg)
+
+        print(data_json)
+        res = requests.get(self.getSearchUrl(), data=data_json,
+                           headers=self.default_headers, verify=False)
+        if res.status_code != 200:
+            print("Get result error:", res.status_code)
+            return None
+
+        data = res.json()
+        data = data.get("aggregations").get("range").get("buckets")
+        return data
 
 
     def initLocationGeoIPIndex(self):
@@ -607,6 +727,42 @@ class ESClient(object):
         print("set fork is_removed value to 1 success")
 
 
+    def setToltalCount(self, from_date, count_key,
+                       field="source_type_title.keyword"):
+        starTime = datetime.strptime(from_date, "%Y%m%d")
+        fromTime = datetime.strptime(from_date, "%Y%m%d")
+        to = datetime.today().strftime("%Y%m%d")
+
+        actions = ""
+        while fromTime.strftime("%Y%m%d") < to:
+            print(fromTime)
+
+            c = self.getCountByTermDate(
+                field,
+                count_key,
+                starTime.strftime("%Y-%m-%dT00:00:00+08:00"),
+                fromTime.strftime("%Y-%m-%dT23:59:59+08:00"),
+                index_name=self.index_name)
+            # return
+            if c is not None:
+                user = {
+                    "all_" + count_key: c,
+                    "updated_at": fromTime.strftime(
+                        "%Y-%m-%dT00:00:00+08:00"),
+                    "created_at": fromTime.strftime(
+                        "%Y-%m-%dT23:59:59+08:00"),
+                    # "metadata__updated_on": fromTime.strftime("%Y-%m-%dT23:59:59+08:00"),
+                    "is_all" + count_key: 1
+                }
+                id = fromTime.strftime(
+                    "%Y-%m-%dT00:00:00+08:00") + "all_" + count_key
+                action = getSingleAction(self.index_name, id, user)
+                actions += action
+            fromTime = fromTime + timedelta(days=1)
+
+        self.safe_put_bulk(actions)
+
+
 def get_date(time):
     if time:
         return time.split("+")[0]
@@ -724,6 +880,8 @@ def getSingleAction(index_name, id, body, act="index"):
     action = ""
     indexData = {
         act: {"_index": index_name, "_id": id}}
+    # indexData = {
+    #     act: {"_index": index_name, "_type": "items", "_id": id}}
     action += json.dumps(indexData) + '\n'
     action += json.dumps(body) + '\n'
     return action
@@ -771,3 +929,6 @@ def getGenerator(response):
         print("Gitee get JSONDecodeError, error: ", response)
 
     return data
+
+
+
