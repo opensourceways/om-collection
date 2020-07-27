@@ -38,3 +38,13 @@ mailman_core_user=admin
 mailman_core_password=password
 mailman_core_domain_name=cokdfe.org
 ```
+
+
+## Build docker image
+```
+git clone https://gitee.com/opensourceway/om-collections
+cd ..
+docker build -t om:0.0.2 .
+docker tag om:0.0.2 swr.cn-north-4.myhuaweicloud.com/om/om-collection:0.0.2
+docker push swr.cn-north-4.myhuaweicloud.com/om/om-collection:0.0.2
+```
