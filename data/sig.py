@@ -19,6 +19,10 @@ class SIG(object):
         self.index_name = config.get('index_name')
         self.gitee_token = config.get('gitee_token')
         self.sig_link = config.get('sig_link')
+        self.sig_file = config.get('sig_file')
+        self.sig_repo = config.get('sig_repo')
+        self.owner = config.get('owner')
+        self.internal_users = config.get('internal_users')
         self.esClient = ESClient(config)
         self.esClient.initLocationGeoIPIndex()
         self.comitter_time = {}
@@ -103,11 +107,11 @@ class SIG(object):
         # self.collectTotalByType(from_date)
 
     def getOpeneulerCommitter(self):
-        self.openeulerUsers = self.getItselfUsers()
+        self.openeulerUsers = self.getItselfUsers(self.internal_users)
         self.getCommiterAddedTime()
         self.prepare_list()
 
-    def getCreatedTime(self, filename="_成员管理日志-2020-06-20_13_46_19.csv"):
+    def getCreatedTime(self, filename="_成员管理日志-2020-07-16_17_39_24.csv"):
         f = open(filename, 'r')
 
         i = 0
@@ -168,7 +172,7 @@ class SIG(object):
 
 
     def getCommiterAddedTime(self):
-        client = GiteeClient("openeuler", "community", self.gitee_token)
+        client = GiteeClient(self.owner, self.sig_repo, self.gitee_token)
         data = self.getGenerator(client.pulls(state='merged'))
 
         for d in data:
@@ -190,7 +194,7 @@ class SIG(object):
 
     def checkFileNameContaintCommiter(self, file_name):
         fs = file_name.split("/")
-        if fs[0] != "sig":
+        if fs[0] != "sigs":
             return False
 
         if len(fs) != 3:
@@ -220,7 +224,7 @@ class SIG(object):
     def prepare_list(self):
         print("........ prepare_list start")
 
-        f = open('community/sig/sigs.yaml')
+        f = open(self.sig_file)
         y = yaml.load_all(f)
 
         # t = datetime.now().strftime('%Y-%m-%d')
@@ -228,40 +232,29 @@ class SIG(object):
             actions = ""
             for sig in data['sigs']:
                 print(sig['name'])
-                filename = "community/sig/" + sig['name'] + "/OWNERS"
+                filename = self.sig_repo + "/sigs/" + sig['name'] + "/OWNERS"
                 ownerFile = open(filename)
                 ownerFileData = yaml.load_all(ownerFile)
                 maintainers = []
+                committers = []
                 for d in ownerFileData:
                     for maintainer in d['maintainers']:
                         maintainers.append(maintainer)
+                    if d['committers']:
+                        for committer in d['committers']:
+                            committers.append(committer)
                 ownerFile.close()
 
                 for repo in sig['repositories']:
                     for m in maintainers:
-                        tmp_time = self.comitter_time.get(sig['name'] + "_" + m)
-                        if tmp_time is None:
-                            # print("get commiter (%s) created time is %s" % (
-                            #         sig['name'] + "_" + m,
-                            #         self.comitter_time.get(sig['name'] + "_" + m)))
-                            if sig['name'] not in self.sigs:
-                                self.sigs.append(sig['name'])
-                            tmp_time = self.committer_time_by_self.get(sig['name'], "2020-06-24T12:01:00+08:00")
-                        doc = {
-                             "sig_name": sig['name'],
-                             "repo_name": repo,
-                             "user_gitee_name": m,
-                             "created_at": tmp_time,
-                             "is_committer": 1
-                        }
-                        if m in self.openeulerUsers:
-                            doc["tag_user_company"] = "openeuler"
-                            doc["is_project_internal_user"] = 1
-                        else:
-                            doc["tag_user_company"] = "n/a"
-                            doc["is_project_internal_user"] = 0
+                        doc = self.getSingleV(m, sig, repo, "is_maintainer")
                         id = m + "_" + sig['name'] + "_" + repo
-
+                        action = common.getSingleAction(self.index_name, id,
+                                                        doc)
+                        actions += action
+                    for m in committers:
+                        doc = self.getSingleV(m, sig, repo, "is_committer")
+                        id = m + "_" + sig['name'] + "_" + repo
                         action = common.getSingleAction(self.index_name, id,
                                                         doc)
                         actions += action
@@ -269,6 +262,32 @@ class SIG(object):
         print(self.sigs)
         f.close()
         print("........ prepare_list end")
+
+    def getSingleV(self, m, sig, repo, key):
+        tmp_time = self.comitter_time.get(sig['name'] + "_" + m)
+        if tmp_time is None:
+            # print("get commiter (%s) created time is %s" % (
+            #         sig['name'] + "_" + m,
+            #         self.comitter_time.get(sig['name'] + "_" + m)))
+            if sig['name'] not in self.sigs:
+                self.sigs.append(sig['name'])
+            tmp_time = self.committer_time_by_self.get(sig['name'],
+                                                       "2020-06-24T12:01:00+08:00")
+        doc = {
+            "sig_name": sig['name'],
+            "repo_name": repo,
+            "user_gitee_name": m,
+            "created_at": tmp_time,
+            key: 1
+        }
+        if m in self.openeulerUsers:
+            doc["tag_user_company"] = "huawei"
+            doc["is_project_internal_user"] = 1
+        else:
+            doc["tag_user_company"] = "n/a"
+            doc["is_project_internal_user"] = 0
+        return doc
+
 
     def collectTotalByType(self, from_time):
         matchs = [{"name": "is_committer", "value": 1}]

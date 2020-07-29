@@ -37,6 +37,7 @@ BACKEND_MAPPING = {
     'github_swf': 'data.github_swf.GitHubSWF',
     'users': 'data.combine.users.Users',
     'huaweicloud': 'data.huaweicloud.HuaweiCloud',
+    'bilibili': 'data.bilibili.BILIBILI',
 }
 
 

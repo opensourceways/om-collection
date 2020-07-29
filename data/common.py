@@ -88,8 +88,8 @@ class ESClient(object):
         # 20200429
         last_time = last_time.split("T")[0].replace("-", "")
 
-        f = datetime.strptime(last_time, "%Y%m%d") + timedelta(days=1)
-        # 20200430
+        f = datetime.strptime(last_time, "%Y%m%d") + timedelta(days=-1)
+        # 20200428
         starTime = f.strftime("%Y%m%d")
         return starTime
 
@@ -468,7 +468,7 @@ class ESClient(object):
                 "size": 0,
                 "query": {
                     "range": {
-                        "metadata__updated_on": {
+                        "created_at": {
                             "gte": "%s",
                             "lte": "%s"
                         }
@@ -728,7 +728,7 @@ class ESClient(object):
 
 
     def setToltalCount(self, from_date, count_key,
-                       field="source_type_title.keyword"):
+                       field=None):
         starTime = datetime.strptime(from_date, "%Y%m%d")
         fromTime = datetime.strptime(from_date, "%Y%m%d")
         to = datetime.today().strftime("%Y%m%d")
