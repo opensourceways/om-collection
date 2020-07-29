@@ -111,18 +111,32 @@ class OBS(object):
         DATE_INDEX = 2
         IP_INDEX = 4
         PATH_INDEX = 8
+        OBJECT_TYPE = 7
         ID_INDEX = 6
         data = single_text.split( )
         buket_name = data[BUKET_NAME_INDEX]
         ip = data[IP_INDEX]
         path = data[PATH_INDEX]
         id = data[ID_INDEX]
+        object_type = data[OBJECT_TYPE]
+        type = data[9].replace('"', "")
+        method_path = data[10]
+
+        http_version = data[11].replace('"', "")
+        response_code = data[12]
+        tool = data[19].replace('"', "")
+
+        try:
+            from_system = single_text.split('(')[1].split(')')[0].split(";")[0]
+        except:
+            from_system = None
 
         created_date = single_text.split('[')[1].split(']')[0]
         print(self.changeToDate(created_date))
         url = single_text.split('"')[1].split('"')[0]
 
         # Donload_path_prefix = ['0.1.0-alpha', '0.2.0-alpha']
+        path = path.replace("%2F", "/")
         if self.object_prefix in path:
             return None, None
 
@@ -136,6 +150,13 @@ class OBS(object):
             "ip": ip,
             "path": path,
             "url": url,
+            "object_type": object_type,
+            "method": type,
+            "from_tool": tool,
+            "method_path": method_path,
+            "response_code": response_code,
+            "http_version": http_version,
+            "from_system": from_system,
             "location": location.get('location'),
             "country": location.get('country_iso_code'),
             "city": location.get('city_name'),

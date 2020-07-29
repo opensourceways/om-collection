@@ -105,13 +105,15 @@ class BaiduTongji(object):
 
 
     def getDateByTime(self, start_date, metric, method, index_name):
-
         fromTime = datetime.strptime(start_date, "%Y%m%d")
-        to = datetime.today().strftime("%Y%m%d")
+        # to = datetime.today().strftime("%Y%m%d")
+        to = datetime.today()
         baiduClient = BaiDuTongjiClient(self.config)
 
         actions = []
-        while fromTime.strftime("%Y%m%d") < to:
+        # while fromTime.strftime("%Y%m%d") < to:
+        # print("fromtime=%s, to=%s", fromTime, to)
+        while fromTime < to:
             collect_time = fromTime.strftime("%Y%m%d")
 
             print("collect data of ", collect_time, index_name, method)
@@ -132,9 +134,11 @@ class BaiduTongji(object):
 
     def getTime(self, time, endTime=None):
         if endTime is None:
-            endTime = "23:59"
+            endTime = "08:59"
+        # return datetime.strptime(time, '%Y%m%d').strftime(
+        #     '%Y-%m-%d') + "T" + endTime + ":59+08:00"
         return datetime.strptime(time, '%Y%m%d').strftime(
-            '%Y-%m-%d') + "T" + endTime + ":59+08:00"
+                '%Y-%m-%d') + "T" + endTime + ":59+08:00"
 
     # def setToltalCount(self, from_date, count_key):
     #     starTime = datetime.strptime(from_date, "%Y%m%d")
@@ -207,7 +211,7 @@ class BaiduTongji(object):
         for t in threads:
             t.join()
 
-        from_d = "20190914"
+        from_d = "20190801"
 
         self.esClient.setToltalCount(from_d, "ip_count", field="source_type_title.keyword")
         self.esClient.setToltalCount(from_d, "pv_count", field="source_type_title.keyword")

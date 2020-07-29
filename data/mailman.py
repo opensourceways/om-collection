@@ -82,7 +82,7 @@ class MailMan(object):
                         "created_at": user.created_on.split('.')[0] + "+08:00",
                         "updated_at": user.created_on.split('.')[0] + "+08:00",
                     }
-                    id = user.user_id + address.email
+                    id = user.user_id + address.email + mlist.fqdn_listname
 
                     action = common.getSingleAction(self.index_name, id, body)
                     actions += action

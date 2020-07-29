@@ -61,7 +61,11 @@ class Gitee(object):
         self.filters = config.get('gitee_repo_filter')
         self.is_update_repo_author = config.get('is_update_repo_author')
         self.is_set_itself_author = config.get('is_set_itself_author')
-        self.openeulerUsers = []
+        self.is_set_pr_issue_repo_fork = config.get('is_set_pr_issue_repo_fork')
+        self.is_set_first_contribute = config.get('is_set_first_contribute')
+        self.is_set_star_watch = config.get('is_set_star_watch')
+        self.internal_users = config.get('internal_users', 'users')
+        self.internalUsers = []
         self.all_user = []
         self.all_user_info = []
         self.companyinfos = []
@@ -73,19 +77,22 @@ class Gitee(object):
         self.getEnterpriseUser()
         # return
         startTime = datetime.datetime.now()
-        self.openeulerUsers = self.getItselfUsers()
+        self.internalUsers = self.getItselfUsers(self.internal_users)
 
         if self.is_set_itself_author == 'true':
-            # self.tagUsers(tag_user_company="huawei")
-            self.tagUsers()
+            self.tagUsers(tag_user_company="huawei")
+            # self.tagUsers()
         else:
-            self.writeData(self.writeContributeForSingleRepo, from_time)
+            if self.is_set_pr_issue_repo_fork == 'true':
+                self.writeData(self.writeContributeForSingleRepo, from_time)
 
-            # self.externalUpdateRepo()
-            self.updateIsFirstCountributeItem()
+            self.externalUpdateRepo()
+            if self.is_set_first_contribute == 'true':
+                self.updateIsFirstCountributeItem()
             # self.collectTotal(from_time)
-            #
-            self.writeData(self.writeSWForSingleRepo, from_time)
+
+            if self.is_set_star_watch == 'true':
+                self.writeData(self.writeSWForSingleRepo, from_time)
 
         endTime = datetime.datetime.now()
         print("Collect all gitee data finished, spend %s seconds" % (
@@ -293,7 +300,8 @@ class Gitee(object):
             action = {
                 "user_id": watch["id"],
                 "watch_id": watch_id,
-                "created_at": common.datetime_utcnow().strftime('%Y-%m-%d'),
+                "updated_at": common.datetime_utcnow().strftime('%Y-%m-%d'),
+                "created_at": watch["watch_at"],
                 "user_login": watch['login'],
                 "author_name": watch['name'],
                 "gitee_repo": "https://gitee.com/" + owner + "/" + repo,
@@ -327,6 +335,8 @@ class Gitee(object):
             "owner_login": repo_data['owner']['login'],
             "user_login": repo_data['owner']['login'],
             "repository": repo_data["full_name"],
+            "public": repo_data["public"],
+            "private": repo_data["private"],
             "gitee_repo": re.sub('.git$', '', repo_data['html_url']),
             "is_gitee_repo": 1,
         }
@@ -829,7 +839,7 @@ class Gitee(object):
                 userExtra["tag_user_company"] = "n/a"
                 userExtra["is_project_internal_user"] = 0
         else:
-            if login in self.openeulerUsers:
+            if login in self.internalUsers:
                 userExtra["tag_user_company"] = "openeuler"
                 userExtra["is_project_internal_user"] = 1
             else:
@@ -874,7 +884,7 @@ class Gitee(object):
                     user_login = d['base']['user']['login']
                     print(author_name)
                     is_internal = False
-                    if user_login in self.openeulerUsers:
+                    if user_login in self.internalUsers:
                         is_internal = True
                     self.esClient.updateRepoCreatedName(
                         p["filename"].split('/')[1].split('.')[0], repo_name,
@@ -922,7 +932,7 @@ class Gitee(object):
         if self.is_gitee_enterprise == "true":
             users = self.enterpriseUsers
         else:
-            users = self.openeulerUsers
+            users = self.internalUsers
         all_user = self.esClient.getTotalAuthorName(
             field="user_login.keyword")
         for user in all_user:
@@ -958,6 +968,7 @@ class Gitee(object):
     def collectTotal(self, from_time):
         self.collectTotalByType(from_time, "is_gitee_pull_request")
         self.collectTotalByType(from_time, "is_gitee_issue")
+
 
     def collectTotalByType(self, from_time, type):
         matchs = [{"name": type, "value": 1}]

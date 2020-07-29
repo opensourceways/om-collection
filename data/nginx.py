@@ -27,8 +27,10 @@ class Nginx(object):
     def __init__(self, config=None):
         self.config = config
         self.index_name = config.get('index_name')
+        self.vhost = config.get('vhost')
         self.download_log_dir = config.get('download_log_dir')
         self.esClient = ESClient(config)
+        self.esClient.initLocationGeoIPIndex()
 
 
     def writeIosDownDataByFile(self, filename):

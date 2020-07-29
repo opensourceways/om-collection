@@ -173,3 +173,5 @@ class HuaweiCloud(object):
                         "77acf4ff-7885-4a5b-817b-2c1bd5b677a2",
                         dim_name="publicip_id")
 
+        from_d = "20190914"
+        self.esClient.setToltalCount(from_d, "sum_value")
