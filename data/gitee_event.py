@@ -19,35 +19,49 @@ EVENT_CODE_HTTP_PULL = "HTTP PULL"
 EVENT_CODE_SSH_PUSH = "SSH PUSH"
 EVENT_CODE_DOWNLOAD_ZIP = "DOWNLOAD ZIP"
 OWNERS = ['mindspore']
+index_name_all={"openeuler": "gitee_openeuler_events_all_star_watch_20200706",
+                "opengauss": "gitee_opengauss_events_all_star_watch_20200709",
+                "openlookeng": "gitee_openlookeng_events_all_star_watch_20200709",
+                "MindSpore":"gitee_mindspore_events_all_star_watch_20200714"}
 
 
 from os import path
 from data import common
 from data.common import ESClient
 from collect.gitee import GiteeClient
+from configparser import ConfigParser
 
 
 class GiteeEvent(object):
     def __init__(self, config=None):
         self.config = config
         self.index_name = config.get('index_name')
+        self.index_name_log = config.get('index_name_log').split(",")
+        self.url = config.get('es_url')
         self.is_from_log_files = config.get('is_from_log_files')
-        self.gitee_event_log_dir = config.get('gitee_event_log_dir')
+        self.gitee_event_log_dir = config.get('gitee_event_log_dir').split(",")
         self.is_gitee_enterprise = config.get('is_gitee_enterprise')
+        self.headers = {'Content-Type': 'application/json'}
+        self.headers["Authorization"] = config.get('authorization')
         if config.get('orgs'):
             self.orgs = config.get('orgs').split(",")
         self.filters = config.get('filters')
         self.esClient = ESClient(config)
         self.esClient.initLocationGeoIPIndex()
         self.gitee_token = config.get('gitee_token')
+        self.gitee_token_mindspore = config.get('gitee_token_mindspore')
+        self.OWNERS = config.get('OWNERS')
 
 
-    def writeGiteeDownDataByFile(self, filename):
-        f = open(filename, 'r')
+    def writeGiteeDownDataByFile(self, filename, indexName=None):
+        with open(filename, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
 
         actions = ""
         i = 0
-        for line in f.readlines():
+        bfbi = 0
+        tlines = len(lines)
+        for line in lines:
             # line = f.readline()
             if line is None or not line:
                 continue
@@ -55,45 +69,65 @@ class GiteeEvent(object):
                 i += 1
                 continue
 
-            sLine = line.split(',')
-            author_id = sLine[0]
-            author_name = sLine[1]
-            time = sLine[2][1:]
-            event = sLine[3]
-            repo_full_name = sLine[4].split('(')[0]
-            ip = sLine[5][:-1]
-            # if ip == "127.0.0.1":
-            #     continue
+            try:
+                sLine = line.split(',')
+                author_id = sLine[0]
+                author_name = sLine[1]
+                time = sLine[2][1:]
+                event = sLine[3]
+                repo_full_name = sLine[4].split('(')[0]
+                ip = sLine[5][:-1]
+                # if ip == "127.0.0.1":
+                #     continue
 
-            time = time.split( )[0] + "T" + time.split( )[1] + "+08:00"
-            is_forked_repo = 0
-            if repo_full_name.split('/')[0] not in OWNERS:
-                is_forked_repo = 1
-            location = self.esClient.getLocationByIP(ip)
+                time = time.split( )[0] + "T" + time.split( )[1] + "+08:00"
+                is_forked_repo = 0
+                if repo_full_name.split('/')[0] not in OWNERS:
+                    is_forked_repo = 1
+                location = self.esClient.getLocationByIP(ip)
 
-            body = {
-                "author_id": author_id,
-                "country": location.get('country_iso_code'),
-                "city": location.get('city_name'),
-                "region_name": location.get('region_name'),
-                "continent_name": location.get('continent_name'),
-                "region_iso_code": location.get('region_iso_code'),
-                "author_name": author_name,
-                "ip": ip,
-                "created_at": time,
-                "updated_at": time,
-                "event": event,
-                "path": repo_full_name,
-                "is_forked_repo": is_forked_repo,
-                "location": location.get('location'),
-            }
+                body = {
+                    "author_id": author_id,
+                    "country": location.get('country_iso_code'),
+                    "city": location.get('city_name'),
+                    "region_name": location.get('region_name'),
+                    "continent_name": location.get('continent_name'),
+                    "region_iso_code": location.get('region_iso_code'),
+                    "author_name": author_name,
+                    "ip": ip,
+                    "created_at": time,
+                    "updated_at": time,
+                    "event": event,
+                    "path": repo_full_name,
+                    "is_forked_repo": is_forked_repo,
+                    "location": location.get('location'),
+                }
 
-            id = author_id + ip + event
-            action = common.getSingleAction(self.index_name, id, body)
-            actions += action
-            i += 1
+                id = author_id + ip + event
+                if not indexName:
+                    if 'openeuler' in filename:
+                        indexName = self.index_name_log[0]
+                    elif 'opengauss' in filename:
+                        indexName = self.index_name_log[1]
+                    elif 'mindspore' in filename:
+                        indexName = self.index_name_log[2]
+                    elif 'openlookeng' in filename:
+                        indexName = self.index_name_log[3]
+                action = common.getSingleAction(indexName, id, body)
+                actions += action
+                i += 1
+                if i % 1000 == 0:
+                    self.esClient.safe_put_bulk(actions)
+                    actions = ''
 
-        print(actions)
+                bfbii = bfbi
+                bfbi = "%.1f" % (i * 100 / tlines)
+                if bfbi != bfbii:
+                    print("%s%% :  %s / %s" % (bfbi, i, tlines))
+            except:
+                continue
+
+        print('100%')
         self.esClient.safe_put_bulk(actions)
         f.close()
 
@@ -101,7 +135,8 @@ class GiteeEvent(object):
     def get_repos(self, org):
         client = GiteeClient(org, None, self.gitee_token)
         print(self.is_gitee_enterprise)
-        if self.is_gitee_enterprise == "true":
+        if self.is_gitee_enterprise == "true" or org == 'MindSpore':
+            client = GiteeClient(org, None, self.gitee_token_mindspore)
             org_data = common.getGenerator(client.enterprises())
         else:
             org_data = common.getGenerator(client.org())
@@ -120,13 +155,13 @@ class GiteeEvent(object):
 
         return repos
 
-    def getThreadFuncs(self, from_date):
+    def getThreadFuncs(self, from_date, csv_path):
         thread_func_args = {}
         files = []
-        for file in glob.glob("*.csv"):
-            f = file.split(path)[1]
-            print(f)
-            files.append(f)
+        for file in glob.glob(csv_path):
+            # f = file.split(path)[1]
+            print(file)
+            files.append(file)
             # _thread.start_new_thread(writeGiteeDownDataByFile, (file, ))
         thread_func_args[self.writeGiteeDownDataByFile] = files
         return thread_func_args
@@ -149,29 +184,51 @@ class GiteeEvent(object):
         print("start  owner(%s) repo(%s) page=%d" % (
         owner, repo, page))
         client = GiteeClient(owner, repo, self.gitee_token)
+        if owner == 'MindSpore':
+            client = GiteeClient(owner, repo, self.gitee_token_mindspore)
+        index_name = index_name_all[owner]
+
         while 1:
             try:
-                actions = ""
                 response = client.events(page)
 
                 events_data = common.getGenerator(response)
                 print("owner(%s) repo(%s) envents data num=%s, page=%d" % (owner, repo, len(events_data), page))
+                # print(events_data)
+
                 if len(events_data) == 0:
                     print("owner(%s) repo(%s) get event break " % (owner, repo))
                     break
                 for e in events_data:
-                    id = owner + "_" + repo + "_"
-
-                    if e.get('id'):
-                        id = id + str(e.get('id'))
-                    if e.get('type'):
-                        id = id + e.get('type')
-                    action = common.getSingleAction(self.index_name, id,
-                                                    e)
-                    actions += action
+                    if e.get('type') == 'StarEvent':
+                        actor = e.get('actor')
+                        print(e)
+                        id = owner + "_" + repo + "_star_" + actor['login'] + "_" + actor['name']
+                        data = '''{"size":5000,
+  "query": {
+    "bool": {
+        "must": [{ "match_phrase": { "type": "StarEvent"}},
+        { "match_phrase": { "actor.login": "%s"}},
+        { "match_phrase": { "actor.name": "%s"}},
+        { "match_phrase": { "repo.full_name": "%s"}}]
+    }
+  }
+}''' % (actor['login'], actor['name'], owner+"/"+repo)
+                        url = self.url + '/' + index_name + '/_search'
+                        res = requests.get(url=url, headers=self.headers, verify=False, data=data.encode('utf-8'))
+                        r = res.content
+                        re = json.loads(r)
+                        print(re)
+                        ind = re['hits']['hits']
+                        newtime = e.get("created_at")
+                        if ind:
+                            oldtime = ind[0]['_source']['created_at']
+                            e['created_at'] = oldtime if oldtime > newtime else newtime
+                        action = common.getSingleAction(index_name, id,
+                                                        e)
+                        self.esClient.safe_put_bulk(action)
 
                 page += 1
-                self.esClient.safe_put_bulk(actions)
             except ValueError as e:
                 print("error=%s, page=%d", (e, page))
                 page += 1
@@ -186,8 +243,9 @@ class GiteeEvent(object):
 
     def run(self, from_date):
         if self.is_from_log_files == 'true':
-            thread_func_args = self.getThreadFuncs(from_date)
-            common.writeDataThread(thread_func_args)
+            for path in self.gitee_event_log_dir:
+                thread_func_args = self.getThreadFuncs(from_date, path + "*.csv")
+                common.writeDataThread(thread_func_args)
         else:
             thread_func_args = self.getRepoThreadFuncs(from_date)
             common.writeDataThread(thread_func_args)

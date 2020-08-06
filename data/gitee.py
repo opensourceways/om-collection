@@ -54,6 +54,7 @@ class Gitee(object):
         self.config = config
         self.orgs = self.getOrgs(config.get('orgs'))
         self.index_name = config.get('index_name')
+        self.index_name_all = config.get('index_name_all').split(',')
         self.gitee_token = config.get('gitee_token')
         self.skip_user = config.get('skip_user', "").split(',')
         self.esClient = ESClient(config)
@@ -66,6 +67,7 @@ class Gitee(object):
         self.is_set_star_watch = config.get('is_set_star_watch')
         self.internal_users = config.get('internal_users', 'users')
         self.internalUsers = []
+		self.openeulerUsers = []
         self.all_user = []
         self.all_user_info = []
         self.companyinfos = []
@@ -95,6 +97,7 @@ class Gitee(object):
                 self.writeData(self.writeSWForSingleRepo, from_time)
 
         endTime = datetime.datetime.now()
+        self.getSartUsersList()
         print("Collect all gitee data finished, spend %s seconds" % (
                 endTime - startTime).seconds)
         print("All gitee collect finished")
@@ -1025,3 +1028,19 @@ class Gitee(object):
                 self.companyinfos[alia] = company.get("company_name")
             for domain in company.get("domains"):
                 self.companyinfos[domain] = company.get("company_name")
+    def getSartUsersList(self):
+        try:
+            for index in range(len(self.orgs)):
+                client = GiteeClient(self.orgs[index], "", self.gitee_token)
+                respons = client.org_followers(self.orgs[index])
+
+                for r in respons:
+                    for user in json.loads(r):
+                        print(user)
+                        id = self.orgs[index] + '_star_' + str(user['id'])
+                        user['created_at'] = '2020-07-08'
+                        action = common.getSingleAction(self.index_name_all[index], id, user)
+                        print(action)
+                        self.esClient.safe_put_bulk(action)
+        except:
+            self.getSartUsersList()
