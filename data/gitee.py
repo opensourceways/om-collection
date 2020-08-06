@@ -67,7 +67,7 @@ class Gitee(object):
         self.is_set_star_watch = config.get('is_set_star_watch')
         self.internal_users = config.get('internal_users', 'users')
         self.internalUsers = []
-		self.openeulerUsers = []
+        self.openeulerUsers = []
         self.all_user = []
         self.all_user_info = []
         self.companyinfos = []
@@ -76,31 +76,31 @@ class Gitee(object):
 
     def run(self, from_time):
         # self.getUserInfoFromDataFile()
-        self.getEnterpriseUser()
-        # return
-        startTime = datetime.datetime.now()
-        self.internalUsers = self.getItselfUsers(self.internal_users)
-
-        if self.is_set_itself_author == 'true':
-            self.tagUsers(tag_user_company="huawei")
-            # self.tagUsers()
-        else:
-            if self.is_set_pr_issue_repo_fork == 'true':
-                self.writeData(self.writeContributeForSingleRepo, from_time)
-
-            self.externalUpdateRepo()
-            if self.is_set_first_contribute == 'true':
-                self.updateIsFirstCountributeItem()
-            # self.collectTotal(from_time)
-
-            if self.is_set_star_watch == 'true':
-                self.writeData(self.writeSWForSingleRepo, from_time)
-
-        endTime = datetime.datetime.now()
+        # self.getEnterpriseUser()
+        # # return
+        # startTime = datetime.datetime.now()
+        # self.internalUsers = self.getItselfUsers(self.internal_users)
+        #
+        # if self.is_set_itself_author == 'true':
+        #     self.tagUsers(tag_user_company="huawei")
+        #     # self.tagUsers()
+        # else:
+        #     if self.is_set_pr_issue_repo_fork == 'true':
+        #         self.writeData(self.writeContributeForSingleRepo, from_time)
+        #
+        #     self.externalUpdateRepo()
+        #     if self.is_set_first_contribute == 'true':
+        #         self.updateIsFirstCountributeItem()
+        #     # self.collectTotal(from_time)
+        #
+        #     if self.is_set_star_watch == 'true':
+        #         self.writeData(self.writeSWForSingleRepo, from_time)
+        #
+        # endTime = datetime.datetime.now()
         self.getSartUsersList()
-        print("Collect all gitee data finished, spend %s seconds" % (
-                endTime - startTime).seconds)
-        print("All gitee collect finished")
+        # print("Collect all gitee data finished, spend %s seconds" % (
+        #         endTime - startTime).seconds)
+        # print("All gitee collect finished")
 
 
     def writeData(self, func, from_time):
