@@ -75,7 +75,7 @@ class Gitee(object):
 
 
     def run(self, from_time):
-        self.getUserInfoFromDataFile()
+        # self.getUserInfoFromDataFile()
         self.getEnterpriseUser()
         # return
         startTime = datetime.datetime.now()
