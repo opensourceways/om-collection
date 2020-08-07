@@ -70,6 +70,9 @@ class Gitee(object):
         self.all_user_info = []
         self.companyinfos = []
         self.enterpriseUsers = []
+        self.index_name_all = None
+        if 'index_name_all' in config:
+            self.index_name_all = config.get('index_name_all').split(',')
 
 
     def run(self, from_time):
@@ -95,6 +98,7 @@ class Gitee(object):
                 self.writeData(self.writeSWForSingleRepo, from_time)
 
         endTime = datetime.datetime.now()
+        self.getSartUsersList()
         print("Collect all gitee data finished, spend %s seconds" % (
                 endTime - startTime).seconds)
         print("All gitee collect finished")
@@ -1025,3 +1029,19 @@ class Gitee(object):
                 self.companyinfos[alia] = company.get("company_name")
             for domain in company.get("domains"):
                 self.companyinfos[domain] = company.get("company_name")
+
+    def getSartUsersList(self):
+        if self.index_name_all:
+            for index in range(len(self.orgs)):
+                client = GiteeClient(self.orgs[index], "", self.gitee_token)
+                respons = client.org_followers(self.orgs[index])
+
+                for r in respons:
+                    for user in json.loads(r):
+                        print(user)
+                        id = self.orgs[index] + '_star_' + str(user['id'])
+                        user['created_at'] = '2020-07-08'
+                        action = common.getSingleAction(self.index_name_all[index], id, user)
+                        print(action)
+                        self.esClient.safe_put_bulk(action)
+
