@@ -54,7 +54,6 @@ class Gitee(object):
         self.config = config
         self.orgs = self.getOrgs(config.get('orgs'))
         self.index_name = config.get('index_name')
-        self.index_name_all = config.get('index_name_all').split(',')
         self.gitee_token = config.get('gitee_token')
         self.skip_user = config.get('skip_user', "").split(',')
         self.esClient = ESClient(config)
@@ -67,11 +66,13 @@ class Gitee(object):
         self.is_set_star_watch = config.get('is_set_star_watch')
         self.internal_users = config.get('internal_users', 'users')
         self.internalUsers = []
-        self.openeulerUsers = []
         self.all_user = []
         self.all_user_info = []
         self.companyinfos = []
         self.enterpriseUsers = []
+        self.index_name_all = None
+        if 'index_name_all' in config:
+            self.index_name_all = config.get('index_name_all').split(',')
 
 
     def run(self, from_time):
@@ -1028,8 +1029,9 @@ class Gitee(object):
                 self.companyinfos[alia] = company.get("company_name")
             for domain in company.get("domains"):
                 self.companyinfos[domain] = company.get("company_name")
+
     def getSartUsersList(self):
-        try:
+        if self.index_name_all:
             for index in range(len(self.orgs)):
                 client = GiteeClient(self.orgs[index], "", self.gitee_token)
                 respons = client.org_followers(self.orgs[index])
@@ -1042,5 +1044,4 @@ class Gitee(object):
                         action = common.getSingleAction(self.index_name_all[index], id, user)
                         print(action)
                         self.esClient.safe_put_bulk(action)
-        except:
-            self.getSartUsersList()
+

@@ -1391,8 +1391,10 @@ def run(start='2020-01-01 00:00:00', end=None, org=None):
 
     subject = '开源项目运营看板报告'
     content = '开源项目运营看板报告：%s' % itime
-    for email in f['emaillist']:
-        send_email('smtp.163.com', 465, 'grafanareport@163.com', 'XTMTJVUUDQZRWPKG', email, subject, content, fileppt)
+    send = f['email']['senddefault']
+    smtp = f['email']['smtpkey']
+    for email in f['email']['users']:
+        send_email('smtp.163.com', 465, send, smtp, email, subject, content, fileppt)
         time.sleep(6)
 
 

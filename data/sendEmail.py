@@ -50,6 +50,9 @@ if __name__ == "__main__":
     try:
         subject = 'Python 测试邮件'
         content = '这是一封来自 Python 编写的测试邮件。'
-        send_email('smtp.163.com', 465, 'grafanareport@163.com', 'XTMTJVUUDQZRWPKG', 'haoxiangyu3@huawei.com', subject, content)
+        sendemail = 'xxx@163.com'
+        toemail = 'xxx@huawei.com'
+        smtpkey = "xxx"
+        send_email('smtp.163.com', 465, sendemail, smtpkey, toemail, subject, content)
     except Exception as err:
         print(err)
