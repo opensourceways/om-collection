@@ -25,6 +25,9 @@ class CollectData(object):
         self.index_name_pypi_major = config.get('index_name_pypi_major')
         self.index_name_pypi_minor = config.get('index_name_pypi_minor')
         self.index_name_pypi_system = config.get('index_name_pypi_system')
+        self.index_name_openeuler_committers = config.get('index_name_openeuler_committers')
+        self.index_name_openeuler_mailist = config.get('index_name_openeuler_mailist')
+        self.index_name_openeuler_vpcdownload = config.get('index_name_openeuler_vpcdownload')
         self.url = config.get('es_url')
         self.authorization = config.get('authorization')
         # self.org = config.get('github_org')
@@ -342,8 +345,8 @@ class CollectData(object):
             print(numList)
 
     def get_committers(self):
-        url = self.url + "/openeuler_sig_20200629/_search"
-        index_name = 'openeuler_sig_20200629'
+        url = self.url + '/' + self.index_name_openeuler_committers + '/_search'
+        index_name = self.index_name_openeuler_committers
         date = '2019-12-01'
         macth = ',"must": [ { "match": { "is_committer": 1 }} ]'
         totalmark = 'is_committers_tatol_num'
@@ -351,8 +354,8 @@ class CollectData(object):
         self.get_totals(url, index_name, date, macth, totalmark, id, commit=True)
 
     def get_maillist_user(self):
-        url = self.url + "/maillist_user_20200519/_search"
-        index_name = "maillist_user_20200519"
+        url = self.url + '/' + self.index_name_openeuler_mailist + '/_search'
+        index_name = self.index_name_openeuler_mailist
         date = "2019-10-25"
         macth = ''
         totalmark = 'is_maillist_user_tatol_num'
@@ -360,8 +363,8 @@ class CollectData(object):
         self.get_totals(url, index_name, date, macth, totalmark, id)
 
     def get_donwlaod(self):
-        url = self.url + '/openeuler_huaweicloud_vpc/_search'
-        index_name = 'openeuler_huaweicloud_vpc'
+        url = self.url + '/' + self.index_name_openeuler_vpcdownload + '/_search'
+        index_name = self.index_name_openeuler_vpcdownload
         date = '2020-01-01'
         macth = ''
         totalmark = 'is_vpc_donwlaod_gb_tatol_num'

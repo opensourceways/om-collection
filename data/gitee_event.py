@@ -19,10 +19,6 @@ EVENT_CODE_HTTP_PULL = "HTTP PULL"
 EVENT_CODE_SSH_PUSH = "SSH PUSH"
 EVENT_CODE_DOWNLOAD_ZIP = "DOWNLOAD ZIP"
 OWNERS = ['mindspore']
-index_name_all={"openeuler": "gitee_openeuler_events_all_star_watch_20200706",
-                "opengauss": "gitee_opengauss_events_all_star_watch_20200709",
-                "openlookeng": "gitee_openlookeng_events_all_star_watch_20200709",
-                "MindSpore":"gitee_mindspore_events_all_star_watch_20200714"}
 
 
 from os import path
@@ -37,6 +33,7 @@ class GiteeEvent(object):
         self.config = config
         self.index_name = config.get('index_name')
         self.index_name_log = config.get('index_name_log').split(",")
+        self.index_name_all = json.loads(config.get('index_name_all'))
         self.url = config.get('es_url')
         self.is_from_log_files = config.get('is_from_log_files')
         self.gitee_event_log_dir = config.get('gitee_event_log_dir').split(",")
@@ -186,7 +183,7 @@ class GiteeEvent(object):
         client = GiteeClient(owner, repo, self.gitee_token)
         if owner == 'MindSpore':
             client = GiteeClient(owner, repo, self.gitee_token_mindspore)
-        index_name = index_name_all[owner]
+        index_name = self.index_name_all[owner]
 
         while 1:
             try:
