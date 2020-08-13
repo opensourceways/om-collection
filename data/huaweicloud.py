@@ -33,10 +33,10 @@ class HuaweiCloud(object):
         self.bandwidth_ids = config.get('bandwidth_ids')
         self.huaweicloud_password = config.get('huaweicloud_password')
         self.huaweicloud_username = config.get('huaweicloud_username')
-        self.huaweicloud_projectids = config.get('huaweicloud_projectids')
-        self.huaweicloud_userdomainids = config.get('huaweicloud_userdomainids')
-        self.huaweicloud_resourceids = config.get('huaweicloud_resourceids')
-        self.huaweicloud_endpoints = config.get('huaweicloud_endpoints')
+        self.huaweicloud_projectids = config.get('huaweicloud_projectids').split(',')
+        self.huaweicloud_userdomainids = config.get('huaweicloud_userdomainids').split(',')
+        self.huaweicloud_resourceids = config.get('huaweicloud_resourceids').split(',')
+        self.huaweicloud_endpoints = config.get('huaweicloud_endpoints').split(',')
 
 
         self.esClient = ESClient(config)
@@ -152,7 +152,7 @@ class HuaweiCloud(object):
             from_date = self.esClient.getLastFormatTime()
             print("[huaweicloud] Get last format from_data is", from_date)
 
-        for i in range(len(huaweicloud_projectids)):
+        for i in range(len(self.huaweicloud_projectids)):
             self.getMetrics(from_date, self.huaweicloud_username,
                             self.huaweicloud_password,
                             self.huaweicloud_projectids[i],
