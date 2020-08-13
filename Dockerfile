@@ -18,5 +18,11 @@ RUN wget https://github.com/huaweicloud/huaweicloud-sdk-python-obs/archive/v3.20
     tar -xvzf v3.20.7.tar.gz  && \
     cd huaweicloud-sdk-python-obs-3.20.7/src && python3 setup.py install
 
+RUN wget https://github.com/huaweicloud/huaweicloud-sdk-python/archive/v1.0.24.tar.gz && \
+    tar -xvzf v1.0.24.tar.gz && \
+    cd huaweicloud-sdk-python-1.0.24  &&\
+    pip3 install -r requirements.txt &&\
+    python3 setup.py install 
+
 CMD python3 -u  george.py
 
