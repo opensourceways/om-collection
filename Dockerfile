@@ -7,7 +7,7 @@ RUN mkdir -p /var/lib/om
 RUN mkdir -p ${LOG_DIR}
 WORKDIR /var/lib/om
 
-COPY ./george/ /var/lib/om
+COPY ./om-collections/ /var/lib/om
 
 RUN apt-get update && \
     pip install --upgrade pip && \
