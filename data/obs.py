@@ -140,6 +140,12 @@ class OBS(object):
         if self.object_prefix in path:
             return None, None
 
+        if path == "-":
+            return None, None
+
+        if path.endswith("/"):
+            return None, None
+
         location = self.esClient.getLocationByIP(ip)
         print(".......location=", location)
 
@@ -215,7 +221,9 @@ class OBS(object):
 
 
     def run(self, from_date=None):
-        startTime = datetime.now()
+        startTime = time.time()
+        print("Collect download data from obs(%s):"
+              " staring" % self.bucket_name)
 
         if from_date is None:
             from_date = self.esClient.getLastFormatTime()
@@ -224,7 +232,8 @@ class OBS(object):
         thread_func_args = self.getThreadFuncs(from_date)
         common.writeDataThread(thread_func_args)
 
-        endTime = datetime.now()
-        print("Collect obs download data finished, spend %s seconds" % (
-              endTime - startTime).seconds)
-
+        endTime = time.time()
+        spent_time = time.strftime("%H:%M:%S",
+                                   time.gmtime(endTime - startTime))
+        print("Collect download data from obs(%s):"
+              " finished after (%s)" % (self.bucket_name, spent_time))

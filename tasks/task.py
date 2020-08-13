@@ -52,8 +52,6 @@ class George:
         self.sections = self.config.sections()
         self.from_data = self.config.get('general', 'from_data')
         self.sleep_time = self.config.getint('general', 'sleep_time')
-        print(self.sleep_time)
-        print(type(self.sleep_time))
 
 
     def start(self):

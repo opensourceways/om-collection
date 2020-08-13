@@ -1,5 +1,17 @@
-
-#!/usr/bin/env python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright 2020 The community Authors.
+# A-Tune is licensed under the Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#     http://license.coscl.org.cn/MulanPSL2
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+# PURPOSE.
+# See the Mulan PSL v2 for more details.
+# Create: 2020-05
+#
 
 import os
 import sys
@@ -7,6 +19,7 @@ import sys
 import requests
 
 import json
+import time
 
 from datetime import datetime
 from data import common
@@ -24,11 +37,21 @@ class GitHubDown(object):
         self.headers[
             "Authorization"] = config.get('github_authorization')
 
+
     def run(self, from_date):
+        startTime = time.time()
+        print("Collect github download clone view data: staring")
         # self.setFromFile("github_clone_view_all.csv")
         full_names = self.getFullNames(self.org, from_date)
         self.getClone(full_names, self.org)
         self.getView(full_names, self.org)
+
+        endTime = time.time()
+        spent_time = time.strftime("%H:%M:%S",
+                                   time.gmtime(endTime - startTime))
+        print("Collect github download clone view data: finished after ",
+              spent_time)
+
 
     def setFromFile(self, filename):
         f = open(filename, 'r')
@@ -132,7 +155,6 @@ class GitHubDown(object):
                 print("No data")
                 continue
 
-            print(cloneObj)
             clone = cloneObj['clones']
             for i in range(len(clone)):
                 p = clone[i]

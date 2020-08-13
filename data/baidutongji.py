@@ -13,7 +13,7 @@
 # Create: 2020-05
 #
 
-
+import time
 from datetime import timedelta, datetime
 
 import threading
@@ -173,7 +173,8 @@ class BaiduTongji(object):
 
 
     def run(self, from_time):
-        print("baidutongji collect site id is:", self.site_id)
+        startTime = time.time()
+        print("Collect baidutongji site(%s) data: staring" % self.site_id)
 
         if from_time is None:
             from_time = self.esClient.getStartTime()
@@ -215,4 +216,8 @@ class BaiduTongji(object):
 
         self.esClient.setToltalCount(from_d, "ip_count", field="source_type_title.keyword")
         self.esClient.setToltalCount(from_d, "pv_count", field="source_type_title.keyword")
-        print("All baidutongji thread finished")
+
+        endTime = time.time()
+        spent_time = time.strftime("%H:%M:%S",
+                                   time.gmtime(endTime - startTime))
+        print("Collect baidutongji data: finished after ", spent_time)

@@ -139,6 +139,9 @@ class HuaweiCloud(object):
 
 
     def run(self, from_date=None):
+        startTime = time.time()
+        print("Collect download data from huaweicloud: staring")
+
         if from_date is None:
             from_date = self.esClient.getLastFormatTime()
             print("[huaweicloud] Get last format from_data is", from_date)
@@ -175,3 +178,9 @@ class HuaweiCloud(object):
 
         from_d = "20190914"
         self.esClient.setToltalCount(from_d, "sum_value")
+
+        endTime = time.time()
+        spent_time = time.strftime("%H:%M:%S",
+                                   time.gmtime(endTime - startTime))
+        print("Collect download data from huaweicloud:"
+              " finished after (%s)" % (spent_time))

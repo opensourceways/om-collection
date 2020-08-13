@@ -1,5 +1,17 @@
-
-#!/usr/bin/env python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright 2020 The community Authors.
+# A-Tune is licensed under the Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#     http://license.coscl.org.cn/MulanPSL2
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+# PURPOSE.
+# See the Mulan PSL v2 for more details.
+# Create: 2020-05
+#
 
 import os
 import sys
@@ -7,6 +19,7 @@ import sys
 import requests
 
 import json
+import time
 
 from datetime import datetime
 from data import common
@@ -24,7 +37,10 @@ class GitHubSWF(object):
         self.headers = {}
         self.github_authorization = config.get('github_authorization')
 
+
     def run(self, from_date):
+        startTime = time.time()
+        print("Collect github star watch fork data: staring")
         repoNames = self.getRepoNames()
         actions = ""
         for repo in repoNames:
@@ -33,13 +49,17 @@ class GitHubSWF(object):
             actions += action
         self.esClient.safe_put_bulk(actions)
 
+        endTime = time.time()
+        spent_time = time.strftime("%H:%M:%S", time.gmtime(endTime - startTime))
+        print("Collect github star watch fork data: finished after ", spent_time)
+
+
     def getRepoNames(self):
         gitclient = GithubClient(self.org, "", self.github_authorization)
         repos = gitclient.getAllrepo()
         repoNames = []
         for rep in repos:
             repoNames.append(self.ensure_str(rep['name']))
-        print("....get repoNames=", repoNames)
         return repoNames
 
     def ensure_str(self, s):

@@ -124,7 +124,7 @@ class ESClient(object):
         res = requests.get(self.getSearchUrl(), data=data_json,
                            headers=self.default_headers, verify=False)
         if res.status_code != 200:
-            print("The field (%s) not exist.")
+            print("The field (%s) not exist." % field)
             return None
         data = res.json()
         # print(data)

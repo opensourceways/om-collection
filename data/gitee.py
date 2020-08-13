@@ -30,6 +30,7 @@ import dateutil.parser
 import dateutil.rrule
 import dateutil.tz
 
+import time
 import datetime
 
 
@@ -65,6 +66,8 @@ class Gitee(object):
         self.is_set_first_contribute = config.get('is_set_first_contribute')
         self.is_set_star_watch = config.get('is_set_star_watch')
         self.internal_users = config.get('internal_users', 'users')
+        self.collect_from_time = config.get('collect_from_time')
+        self.is_set_collect = config.get('is_set_collect')
         self.internalUsers = []
         self.all_user = []
         self.all_user_info = []
@@ -77,9 +80,10 @@ class Gitee(object):
 
     def run(self, from_time):
         # self.getUserInfoFromDataFile()
+        print("Collect gitee data: staring")
         self.getEnterpriseUser()
         # return
-        startTime = datetime.datetime.now()
+        startTime = time.time()
         self.internalUsers = self.getItselfUsers(self.internal_users)
 
         if self.is_set_itself_author == 'true':
@@ -92,16 +96,16 @@ class Gitee(object):
             self.externalUpdateRepo()
             if self.is_set_first_contribute == 'true':
                 self.updateIsFirstCountributeItem()
-            # self.collectTotal(from_time)
+            if self.is_set_collect == 'true':
+                self.collectTotal(self.collect_from_time)
 
             if self.is_set_star_watch == 'true':
                 self.writeData(self.writeSWForSingleRepo, from_time)
 
-        endTime = datetime.datetime.now()
-        self.getSartUsersList()
-        print("Collect all gitee data finished, spend %s seconds" % (
-                endTime - startTime).seconds)
-        print("All gitee collect finished")
+        endTime = time.time()
+        spent_time = time.strftime("%H:%M:%S",
+                                   time.gmtime(endTime - startTime))
+        print("Collect all gitee data finished after %s" % spent_time)
 
 
     def writeData(self, func, from_time):
@@ -474,13 +478,16 @@ class Gitee(object):
         try:
             while 1:
                 if isinstance(response, types.GeneratorType):
-                    data += json.loads(next(response).encode('utf-8'))
+                    res_data = next(response)
+                    if isinstance(res_data, str):
+                        data += json.loads(res_data.encode('utf-8'))
+                    else:
+                        data += json.loads(res_data.decode('utf-8'))
                 else:
                     data = json.loads(response)
                     break
         except StopIteration:
-            # print(response)
-            print("...end")
+            return data
         except JSONDecodeError:
             print("Gitee get JSONDecodeError, error: ", response)
 
@@ -857,10 +864,10 @@ class Gitee(object):
         all_user = self.esClient.getTotalAuthorName(
             field="user_login.keyword")
         for user in all_user:
-            if user["key"] in self.all_user:
-                continue
+            # if user["key"] in self.all_user:
+            #     continue
             user_name = user["key"]
-            self.all_user.append(user_name)
+            # self.all_user.append(user_name)
             print("start to update user:", user)
             self.esClient.setIsFirstCountributeItem(user_name)
 
