@@ -33,6 +33,12 @@ class HuaweiCloud(object):
         self.bandwidth_ids = config.get('bandwidth_ids')
         self.huaweicloud_password = config.get('huaweicloud_password')
         self.huaweicloud_username = config.get('huaweicloud_username')
+        self.huaweicloud_projectids = config.get('huaweicloud_projectids')
+        self.huaweicloud_userdomainids = config.get('huaweicloud_userdomainids')
+        self.huaweicloud_resourceids = config.get('huaweicloud_resourceids')
+        self.huaweicloud_endpoints = config.get('huaweicloud_endpoints')
+
+
         self.esClient = ESClient(config)
 
 
@@ -146,35 +152,14 @@ class HuaweiCloud(object):
             from_date = self.esClient.getLastFormatTime()
             print("[huaweicloud] Get last format from_data is", from_date)
 
-        # hongkong 119.8.119.83 现在没有了
-        # self.getMetrics(from_date, self.huaweicloud_username, self.huaweicloud_password,
-        #                 "061254b4928026c02ffec017d91b5734",
-        #                 "060600ffbe00251e0f6fc0176531c800",
-        #                 "https://iam.ap-southeast-1.myhuaweicloud.com/v3",
-        #                 "e71a8702-5eb3-4d6a-822c-67bd51f998f6")
-
-        # cn-north-4 121.36.97.194的bandwidth 20200611中午换了bandwidth
-        # self.getMetrics(from_date, self.huaweicloud_username, self.huaweicloud_password,
-        #                 "0612bce5650026c12fbcc01710fb0df4",
-        #                 "060600ffbe00251e0f6fc0176531c800",
-        #                 "https://iam.cn-north-4.myhuaweicloud.com/v3",
-        #                 "eed8adb9-7d0f-4059-9f35-4c34127740b3")
-
-        # cn-north-4 121.36.97.194
-        self.getMetrics(from_date, self.huaweicloud_username, self.huaweicloud_password,
-                        "0612bce5650026c12fbcc01710fb0df4",
-                        "060600ffbe00251e0f6fc0176531c800",
-                        "https://iam.cn-north-4.myhuaweicloud.com/v3",
-                        "299fb435-6e65-4a2d-8848-fa672687d521",
-                        dim_name="publicip_id")
-
-        # hongkong 159.138.11.195
-        self.getMetrics(from_date, self.huaweicloud_username, self.huaweicloud_password,
-                        "061254b4928026c02ffec017d91b5734",
-                        "060600ffbe00251e0f6fc0176531c800",
-                        "https://iam.ap-southeast-1.myhuaweicloud.com/v3",
-                        "77acf4ff-7885-4a5b-817b-2c1bd5b677a2",
-                        dim_name="publicip_id")
+        for i in range(len(huaweicloud_projectids)):
+            self.getMetrics(from_date, self.huaweicloud_username,
+                            self.huaweicloud_password,
+                            self.huaweicloud_projectids[i],
+                            self.huaweicloud_userdomainids[i],
+                            self.huaweicloud_endpoints[i],
+                            self.huaweicloud_resourceids[i],
+                            dim_name="publicip_id")
 
         from_d = "20190914"
         self.esClient.setToltalCount(from_d, "sum_value")
