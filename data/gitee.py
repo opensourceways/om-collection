@@ -263,7 +263,6 @@ class Gitee(object):
 
 
     def writeStars(self, owner, repo):
-        print(".................writeStars  start")
         client = GiteeClient(owner, repo, self.gitee_token)
         star_data = self.getGenerator(client.stars())
         actions = ""
@@ -277,7 +276,8 @@ class Gitee(object):
             action = {
                 "user_id": star["id"],
                 "star_id": star_id,
-                "created_at": common.datetime_utcnow().strftime('%Y-%m-%d'),
+                "created_at": star["star_at"],
+                "updated_at": common.datetime_utcnow().strftime('%Y-%m-%d'),
                 "user_login": star['login'],
                 "author_name": star['name'],
                 "gitee_repo": "https://gitee.com/" + owner + "/" + repo,
