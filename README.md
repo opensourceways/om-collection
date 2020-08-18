@@ -46,11 +46,15 @@ mailman_core_domain_name=cokdfe.org
 git clone https://gitee.com/opensourceway/om-collections
 cd ..
 docker build -t om:0.0.2 .
-docker tag om:0.0.2 swr.cn-north-4.myhuaweicloud.com/om/om-collection:0.0.2
-docker push swr.cn-north-4.myhuaweicloud.com/om/om-collection:0.0.2
 ```
 
 run docker image
 ```
 docker run  -v /local_path/config.ini:/var/lib/om/config.ini -v /local_path/users:/var/lib/om/users  -d  om:0.0.2
+```
+
+## Push docker image to repository (Option)
+```
+docker tag om:0.0.2 swr.cn-north-4.myhuaweicloud.com/om/om-collection:0.0.2
+docker push swr.cn-north-4.myhuaweicloud.com/om/om-collection:0.0.2
 ```
