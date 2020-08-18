@@ -52,5 +52,5 @@ docker push swr.cn-north-4.myhuaweicloud.com/om/om-collection:0.0.2
 
 run docker image
 ```
-docker run  -v /local_path/config.ini:/var/lib/om/config.ini  -d  om:0.0.2
+docker run  -v /local_path/config.ini:/var/lib/om/config.ini -v /local_path/users:/var/lib/om/users  -d  om:0.0.2
 ```
