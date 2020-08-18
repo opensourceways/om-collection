@@ -21,13 +21,15 @@ class CollectData(object):
         self.config = config
         self.index_name = config.get('index_name')
         self.index_name_pypi = config.get('index_name_pypi')
-        self.index_name_pypi_ocerall = config.get('index_name_pypi_ocerall')
-        self.index_name_pypi_major = config.get('index_name_pypi_major')
-        self.index_name_pypi_minor = config.get('index_name_pypi_minor')
-        self.index_name_pypi_system = config.get('index_name_pypi_system')
-        self.index_name_openeuler_committers = config.get('index_name_openeuler_committers')
-        self.index_name_openeuler_mailist = config.get('index_name_openeuler_mailist')
-        self.index_name_openeuler_vpcdownload = config.get('index_name_openeuler_vpcdownload')
+        # self.index_name_pypi_ocerall = config.get('index_name_pypi_ocerall')
+        # self.index_name_pypi_major = config.get('index_name_pypi_major')
+        # self.index_name_pypi_minor = config.get('index_name_pypi_minor')
+        # self.index_name_pypi_system = config.get('index_name_pypi_system')
+        self.index_name_code_all = config.get('index_name_code_all').split(',')
+        self.sigs_code_all = config.get('sigs_code_all').split(',')
+        self.index_name_committers = config.get('index_name_committers')
+        self.index_name_mailist = config.get('index_name_mailist')
+        self.index_name_vpcdownload = config.get('index_name_vpcdownload')
         self.url = config.get('es_url')
         self.authorization = config.get('authorization')
         # self.org = config.get('github_org')
@@ -41,18 +43,18 @@ class CollectData(object):
         self.get_committers()
         self.get_donwlaod()
 
-        self.get_pypi_overall("2020-04-01", "mindspore")
-        self.get_pypi_python_major("2020-04-01", "mindspore")
-        self.get_pypi_python_minor("2020-04-01", "mindspore")
-        self.get_pypi_system("2020-04-01", "mindspore")
-        self.get_pypi_overall("2020-04-02", "mindspore-ascend")
-        self.get_pypi_python_major("2020-04-02", "mindspore-ascend")
-        self.get_pypi_python_minor("2020-04-02", "mindspore-ascend")
-        self.get_pypi_system("2020-04-02", "mindspore-ascend")
-        self.get_pypi_overall("2020-04-02", "mindspore-gpu")
-        self.get_pypi_python_major("2020-04-02", "mindspore-gpu")
-        self.get_pypi_python_minor("2020-04-02", "mindspore-gpu")
-        self.get_pypi_system("2020-04-02", "mindspore-gpu")
+        # self.get_pypi_overall("2020-04-01", "mindspore")
+        # self.get_pypi_python_major("2020-04-01", "mindspore")
+        # self.get_pypi_python_minor("2020-04-01", "mindspore")
+        # self.get_pypi_system("2020-04-01", "mindspore")
+        # self.get_pypi_overall("2020-04-02", "mindspore-ascend")
+        # self.get_pypi_python_major("2020-04-02", "mindspore-ascend")
+        # self.get_pypi_python_minor("2020-04-02", "mindspore-ascend")
+        # self.get_pypi_system("2020-04-02", "mindspore-ascend")
+        # self.get_pypi_overall("2020-04-02", "mindspore-gpu")
+        # self.get_pypi_python_major("2020-04-02", "mindspore-gpu")
+        # self.get_pypi_python_minor("2020-04-02", "mindspore-gpu")
+        # self.get_pypi_system("2020-04-02", "mindspore-gpu")
 
     def untar(self, fname, dirs='./'):
         cmd = 'tar -zxvf %s -C %s' %(fname, dirs)
@@ -191,98 +193,53 @@ class CollectData(object):
             res_all[repo] = reL
         return res_all
 
+    def get_sigs_code_all(self):
+        for index in range(len(self.index_name_code_all)):
+            # index_name = 'haoxiangyu_collect_code_12138'
+            index_name = self.index_name_code_all[index]
+            sig = self.sigs_code_all[index]
+            with open('projects.json', 'r') as f:
+                res = json.load(f)
+                repos = res[sig]['git']
+            res = self.collect_code(repos)
+            # with open('D:/openeuler_code.txt', 'w') as f:
+            #     f.write(json.dumps(res))
+            # for r in res:
+            #     for body in res[r]:
+            #         # body = {'date': '2020-06-19', 'add': 2099, 'remove': 2515, 'total': -416}
+            #         ID = r + '_' + body['date']
+            #         data = getSingleAction(index_name, ID, body)
+            #         safe_put_bulk(data)
+            #         print(data)
 
-    def openeluer_code_all(self):
-        # index_name = 'haoxiangyu_collect_code_12138'
-        index_name = 'haoxiangyu_collect_code_openeuler_all_12138'
-        with open('projects.json', 'r') as f:
-            res = json.load(f)
-            repos = res['openeuler']['git']
-        res = self.collect_code(repos)
-        # with open('D:/openeuler_code.txt', 'w') as f:
-        #     f.write(json.dumps(res))
-        # for r in res:
-        #     for body in res[r]:
-        #         # body = {'date': '2020-06-19', 'add': 2099, 'remove': 2515, 'total': -416}
-        #         ID = r + '_' + body['date']
-        #         data = getSingleAction(index_name, ID, body)
-        #         safe_put_bulk(data)
-        #         print(data)
+            all_code = []
 
-        all_code = []
-
-        for r in res:
-            # res[r]['created_at']
-            index = len(res[r])
-            resfist = res[r]
-            break
-        for i in range(index):
-            call = {}
-            call['created_at'] = resfist[i]['created_at']
-            call['add'] = 0
-            call['remove'] = 0
-            call['total'] = 0
             for r in res:
-                call['add'] += res[r][i]['add']
-                call['remove'] += res[r][i]['remove']
-                call['total'] += res[r][i]['total']
-            all_code.append(call)
+                # res[r]['created_at']
+                index = len(res[r])
+                resfist = res[r]
+                break
+            for i in range(index):
+                call = {}
+                call['created_at'] = resfist[i]['created_at']
+                call['add'] = 0
+                call['remove'] = 0
+                call['total'] = 0
+                for r in res:
+                    call['add'] += res[r][i]['add']
+                    call['remove'] += res[r][i]['remove']
+                    call['total'] += res[r][i]['total']
+                all_code.append(call)
 
-        # resall = json.dumps(all_code)
-        # with open('D:/openeuler_code_all.txt', 'w') as f:
-        #     f.write(resall)
+            # resall = json.dumps(all_code)
+            # with open('D:/openeuler_code_all.txt', 'w') as f:
+            #     f.write(resall)
 
-        for body in all_code:
-            ID = 'openeuler_all_' + body['created_at']
-            data = self.getSingleAction(index_name, ID, body)
-            self.safe_put_bulk(data)
-            print(data)
-
-    def mindspore_code_all(self):
-        # index_name = 'haoxiangyu_collect_code_12138'
-        index_name = 'haoxiangyu_collect_code_mindspore_all_12138'
-        with open('projects.json', 'r') as f:
-            res = json.load(f)
-            repos = res['mindspore']['git']
-        res = self.collect_code(repos)
-        # with open('D:/mindspore_code.txt', 'w') as f:
-        #     f.write(json.dumps(res))
-        # for r in res:
-        #     for body in res[r]:
-        #         # body = {'date': '2020-06-19', 'add': 2099, 'remove': 2515, 'total': -416}
-        #         ID = r + '_' + body['date']
-        #         data = getSingleAction(index_name, ID, body)
-        #         safe_put_bulk(data)
-        #         print(data)
-
-        all_code = []
-
-        for r in res:
-            # res[r]['created_at']
-            index = len(res[r])
-            resfist = res[r]
-            break
-        for i in range(index):
-            call = {}
-            call['created_at'] = resfist[i]['created_at']
-            call['add'] = 0
-            call['remove'] = 0
-            call['total'] = 0
-            for r in res:
-                call['add'] += res[r][i]['add']
-                call['remove'] += res[r][i]['remove']
-                call['total'] += res[r][i]['total']
-            all_code.append(call)
-
-        # resall = json.dumps(all_code)
-        # with open('D:/mindspore_code_all.txt', 'w') as f:
-        #     f.write(resall)
-
-        for body in all_code:
-            ID = 'mindspore_all_' + body['created_at']
-            data = self.getSingleAction(index_name, ID, body)
-            self.safe_put_bulk(data)
-            print(data)
+            for body in all_code:
+                ID = sig + '_all_' + body['created_at']
+                data = self.getSingleAction(index_name, ID, body)
+                self.safe_put_bulk(data)
+                print(data)
 
     def get_totals(self, url, index_name, date, mactch, totalmark, id, down=False, commit=False):
         datei = datetime.datetime.strptime(date, "%Y-%m-%d")
@@ -345,8 +302,8 @@ class CollectData(object):
             print(numList)
 
     def get_committers(self):
-        url = self.url + '/' + self.index_name_openeuler_committers + '/_search'
-        index_name = self.index_name_openeuler_committers
+        url = self.url + '/' + self.index_name_committers + '/_search'
+        index_name = self.index_name_committers
         date = '2019-12-01'
         macth = ',"must": [ { "match": { "is_committer": 1 }} ]'
         totalmark = 'is_committers_tatol_num'
@@ -354,8 +311,8 @@ class CollectData(object):
         self.get_totals(url, index_name, date, macth, totalmark, id, commit=True)
 
     def get_maillist_user(self):
-        url = self.url + '/' + self.index_name_openeuler_mailist + '/_search'
-        index_name = self.index_name_openeuler_mailist
+        url = self.url + '/' + self.index_name_mailist + '/_search'
+        index_name = self.index_name_mailist
         date = "2019-10-25"
         macth = ''
         totalmark = 'is_maillist_user_tatol_num'
@@ -363,8 +320,8 @@ class CollectData(object):
         self.get_totals(url, index_name, date, macth, totalmark, id)
 
     def get_donwlaod(self):
-        url = self.url + '/' + self.index_name_openeuler_vpcdownload + '/_search'
-        index_name = self.index_name_openeuler_vpcdownload
+        url = self.url + '/' + self.index_name_vpcdownload + '/_search'
+        index_name = self.index_name_vpcdownload
         date = '2020-01-01'
         macth = ''
         totalmark = 'is_vpc_donwlaod_gb_tatol_num'

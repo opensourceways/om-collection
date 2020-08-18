@@ -44,7 +44,7 @@ class GiteeEvent(object):
     def __init__(self, config=None):
         self.config = config
         self.index_name = config.get('index_name')
-        self.index_name_log = config.get('index_name_log').split(",")
+        self.index_name_log = json.loads(config.get('index_name_log'))
         self.index_name_all = json.loads(config.get('index_name_all'))
         self.url = config.get('es_url')
         self.is_from_log_files = config.get('is_from_log_files')
@@ -113,15 +113,7 @@ class GiteeEvent(object):
                 }
 
                 id = author_id + ip + event
-                if not indexName:
-                    if 'openeuler' in filename:
-                        indexName = self.index_name_log[0]
-                    elif 'opengauss' in filename:
-                        indexName = self.index_name_log[1]
-                    elif 'mindspore' in filename:
-                        indexName = self.index_name_log[2]
-                    elif 'openlookeng' in filename:
-                        indexName = self.index_name_log[3]
+                indexName = self.index_name_log[filename.split('_')[0]]
                 action = common.getSingleAction(indexName, id, body)
                 actions += action
                 i += 1
@@ -144,7 +136,7 @@ class GiteeEvent(object):
     def get_repos(self, org):
         client = GiteeClient(org, None, self.gitee_token)
         print(self.is_gitee_enterprise)
-        if self.is_gitee_enterprise == "true" or org == 'MindSpore':
+        if self.is_gitee_enterprise == "true":
             client = GiteeClient(org, None, self.gitee_token_mindspore)
             org_data = common.getGenerator(client.enterprises())
         else:

@@ -117,6 +117,7 @@ class SIG(object):
         # self.getCommitter("mindspore", "book")
 
         self.getOpeneulerCommitter()
+        self.getOpenlokkengCommitter()
 
         # self.collectTotalByType(from_date)
 
@@ -124,6 +125,60 @@ class SIG(object):
         self.openeulerUsers = self.getItselfUsers(self.internal_users)
         self.getCommiterAddedTime()
         self.prepare_list()
+
+    def getOpenlokkengCommitter(self):
+        repos = self.get_repos(self.sig)
+        for repo in repos:
+            repo_name = repo['full_name'].split('/')[1]
+            if repo_name == 'openLooKeng-installation':
+                continue
+            url = repo['html_url']
+            dir = self.clone_dir + '\\' + repo_name
+            self.exceGitPull(dir, url)
+            filename = dir + '\\OWNERS'
+            self.getCommitterFromOwner(filename, self.sig, repo_name)
+
+        # self.exceGitPull(self.clone_dir, self.clone_url)
+
+        # self.getCommitterFromOwner()
+
+    def exceGitPull(self, dir, url):
+        if not os.path.exists(dir):
+            git.Repo.clone_from(url=url, to_path=dir)
+        else:
+            g = git.Git(dir)
+            g.execute('git reset --hard')
+            g.execute('git pull origin master')
+
+    def get_repos(self, org):
+        client = GiteeClient(org, None, self.gitee_token)
+        print(self.is_gitee_enterprise)
+        if self.is_gitee_enterprise == "true":
+            org_data = self.getGenerator(client.enterprises())
+        else:
+            org_data = self.getGenerator(client.org())
+
+        repos = []
+        for repo in org_data:
+            repos.append(repo)
+
+        return repos
+
+    def getCommitterFromOwner(self, filename, sig, repo):
+        data = yaml.load_all(open(filename))
+        for d in data:
+            for key in d:
+                for owner in d[key]:
+                    doc = {
+                            "sig_name": sig,
+                            "repo_name": repo,
+                            "user_gitee_name": owner,
+                            "created_at": '2020-05-10T10:10:00+08:00',
+                            key: 1
+                            }
+                    id = owner + "_" + sig + "_" + repo
+                    action = common.getSingleAction(self.index_name, id, doc)
+                    self.esClient.safe_put_bulk(action)
 
     def getCreatedTime(self, filename="_成员管理日志-2020-07-16_17_39_24.csv"):
         f = open(filename, 'r')
@@ -242,9 +297,11 @@ class SIG(object):
         y = yaml.load_all(f)
 
         # t = datetime.now().strftime('%Y-%m-%d')
+        sig_name_all = []
         for data in y:
             actions = ""
             for sig in data['sigs']:
+                sig_name_all.append(sig['name'])
                 print(sig['name'])
                 filename = self.sig_repo + "/sigs/" + sig['name'] + "/OWNERS"
                 ownerFile = open(filename)
@@ -275,6 +332,10 @@ class SIG(object):
             self.esClient.safe_put_bulk(actions)
         print(self.sigs)
         f.close()
+        for dir in os.walk(self.clone_dir + '\\community\\sig').__next__()[1]:
+            if dir not in sig_name_all:
+                onwerfile = self.clone_dir + '\\community\\sig\\' + dir + '\\' + 'ONWERS'
+                self.getCommitterFromOwner(onwerfile, self.sig, dir)
         print("........ prepare_list end")
 
     def getSingleV(self, m, sig, repo, key):

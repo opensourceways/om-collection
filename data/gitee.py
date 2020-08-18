@@ -65,6 +65,7 @@ class Gitee(object):
         self.is_set_pr_issue_repo_fork = config.get('is_set_pr_issue_repo_fork')
         self.is_set_first_contribute = config.get('is_set_first_contribute')
         self.is_set_star_watch = config.get('is_set_star_watch')
+        self.is_set_sigs_star = config.get('is_set_sigs_star')
         self.internal_users = config.get('internal_users', 'users')
         self.collect_from_time = config.get('collect_from_time')
         self.is_set_collect = config.get('is_set_collect')
@@ -101,6 +102,8 @@ class Gitee(object):
 
             if self.is_set_star_watch == 'true':
                 self.writeData(self.writeSWForSingleRepo, from_time)
+            if self.is_set_sigs_star == 'true':
+                self.getSartUsersList()
 
         endTime = time.time()
         spent_time = time.strftime("%H:%M:%S",
@@ -1048,6 +1051,9 @@ class Gitee(object):
                         print(user)
                         id = self.orgs[index] + '_star_' + str(user['id'])
                         user['created_at'] = '2020-07-08'
+                        user['is_set_sigs_star'] = 1
+                        userExtra = self.getUserInfo(user['user_login'])
+                        user.update(userExtra)
                         action = common.getSingleAction(self.index_name_all[index], id, user)
                         print(action)
                         self.esClient.safe_put_bulk(action)
