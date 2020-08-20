@@ -21,14 +21,10 @@ class CollectData(object):
         self.config = config
         self.index_name = config.get('index_name')
         self.index_name_pypi = config.get('index_name_pypi')
-        # self.index_name_pypi_ocerall = config.get('index_name_pypi_ocerall')
-        # self.index_name_pypi_major = config.get('index_name_pypi_major')
-        # self.index_name_pypi_minor = config.get('index_name_pypi_minor')
-        # self.index_name_pypi_system = config.get('index_name_pypi_system')
-        self.index_name_code_all = config.get('index_name_code_all').split(',')
-        self.sigs_code_all = config.get('sigs_code_all').split(',')
+        # self.index_name_code_all = config.get('index_name_code_all').split(',')
+        # self.sigs_code_all = config.get('sigs_code_all').split(',')
         self.index_name_committers = config.get('index_name_committers')
-        self.index_name_mailist = config.get('index_name_mailist')
+        self.index_name_maillist = config.get('index_name_maillist')
         self.index_name_vpcdownload = config.get('index_name_vpcdownload')
         self.url = config.get('es_url')
         self.authorization = config.get('authorization')
@@ -37,24 +33,25 @@ class CollectData(object):
         # self.gitee = Gitee(config)
         self.headers = {'Content-Type': 'application/json'}
         self.headers["Authorization"] = config.get('authorization')
+        self.pypi_orgs = None
+        if 'pypi_orgs' in config:
+            self.pypi_orgs = config.get('pypi_orgs').split(',')
 
     def run(self, time=None):
-        self.get_maillist_user()
-        self.get_committers()
-        self.get_donwlaod()
+        if self.index_name_maillist:
+            self.get_maillist_user()
+        if self.index_name_committers:
+            self.get_committers()
+        if self.index_name_vpcdownload:
+            self.get_donwlaod()
 
-        # self.get_pypi_overall("2020-04-01", "mindspore")
-        # self.get_pypi_python_major("2020-04-01", "mindspore")
-        # self.get_pypi_python_minor("2020-04-01", "mindspore")
-        # self.get_pypi_system("2020-04-01", "mindspore")
-        # self.get_pypi_overall("2020-04-02", "mindspore-ascend")
-        # self.get_pypi_python_major("2020-04-02", "mindspore-ascend")
-        # self.get_pypi_python_minor("2020-04-02", "mindspore-ascend")
-        # self.get_pypi_system("2020-04-02", "mindspore-ascend")
-        # self.get_pypi_overall("2020-04-02", "mindspore-gpu")
-        # self.get_pypi_python_major("2020-04-02", "mindspore-gpu")
-        # self.get_pypi_python_minor("2020-04-02", "mindspore-gpu")
-        # self.get_pypi_system("2020-04-02", "mindspore-gpu")
+        if self.pypi_orgs:
+            startTime = datetime.datetime.strftime(datetime.datetime.now() - datetime.timedelta(days=170), "%Y-%m-%d")
+            for sig in self.pypi_orgs:
+                self.get_pypi_overall(startTime, sig)
+                self.get_pypi_python_major(startTime, sig)
+                self.get_pypi_python_minor(startTime, sig)
+                self.get_pypi_system(startTime, sig)
 
     def untar(self, fname, dirs='./'):
         cmd = 'tar -zxvf %s -C %s' %(fname, dirs)
@@ -311,8 +308,8 @@ class CollectData(object):
         self.get_totals(url, index_name, date, macth, totalmark, id, commit=True)
 
     def get_maillist_user(self):
-        url = self.url + '/' + self.index_name_mailist + '/_search'
-        index_name = self.index_name_mailist
+        url = self.url + '/' + self.index_name_maillist + '/_search'
+        index_name = self.index_name_maillist
         date = "2019-10-25"
         macth = ''
         totalmark = 'is_maillist_user_tatol_num'
