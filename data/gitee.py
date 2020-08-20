@@ -1052,7 +1052,9 @@ class Gitee(object):
                         id = self.orgs[index] + '_star_' + str(user['id'])
                         user['created_at'] = user['followed_at'].replace('Z', '+08:00')
                         user['is_set_sigs_star'] = 1
-                        userExtra = self.getUserInfo(user['user_login'])
+                        user['user_login'] = user['login']
+                        user['user_name'] = user['name']
+                        userExtra = self.getUserInfo(user['login'])
                         user.update(userExtra)
                         action = common.getSingleAction(self.index_name_all[index], id, user)
                         print(action)
