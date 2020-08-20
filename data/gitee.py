@@ -1050,7 +1050,7 @@ class Gitee(object):
                     for user in json.loads(r):
                         print(user)
                         id = self.orgs[index] + '_star_' + str(user['id'])
-                        user['created_at'] = '2020-07-08'
+                        user['created_at'] = user['followed_at'].replace('Z', '+08:00')
                         user['is_set_sigs_star'] = 1
                         userExtra = self.getUserInfo(user['user_login'])
                         user.update(userExtra)
