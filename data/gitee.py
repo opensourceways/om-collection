@@ -69,6 +69,7 @@ class Gitee(object):
         self.internal_users = config.get('internal_users', 'users')
         self.collect_from_time = config.get('collect_from_time')
         self.is_set_collect = config.get('is_set_collect')
+        self.internal_company_name = config.get('internal_company_name', 'internal_company')
         self.internalUsers = []
         self.all_user = []
         self.all_user_info = []
@@ -88,7 +89,7 @@ class Gitee(object):
         self.internalUsers = self.getItselfUsers(self.internal_users)
 
         if self.is_set_itself_author == 'true':
-            self.tagUsers(tag_user_company="huawei")
+            self.tagUsers(tag_user_company=self.internal_company_name)
             # self.tagUsers()
         else:
             if self.is_set_pr_issue_repo_fork == 'true':
@@ -847,7 +848,7 @@ class Gitee(object):
         userExtra = {}
         if self.is_gitee_enterprise == 'true':
             if login in self.enterpriseUsers:
-                userExtra["tag_user_company"] = "huawei"
+                userExtra["tag_user_company"] = self.internal_company_name
                 userExtra["is_project_internal_user"] = 1
             else:
                 userExtra["tag_user_company"] = "n/a"
