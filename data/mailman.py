@@ -16,6 +16,7 @@
 
 import os
 import signal
+import time
 from mailmanclient import Client
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 
@@ -36,7 +37,17 @@ class MailMan(object):
 
 
     def run(self, from_date=None):
+        startTime = time.time()
+        print("Collect download data from maillist: staring")
+
         self.prepare_list()
+
+        endTime = time.time()
+        spent_time = time.strftime("%H:%M:%S",
+                                   time.gmtime(endTime - startTime))
+        print("Collect download data from maillist:"
+              " finished after (%s)" % (spent_time))
+
 
     def prepare_list(self):
         # pre-check before handling mailman core service
@@ -44,7 +55,9 @@ class MailMan(object):
             print("Must specify 'domain_name' for mail list preparation.")
             return
 
+        print("Start to get mailistclient, Domain name:", self.domain_name)
         client = Client(self.endpoint, self.user, self.password)
+        print("Start to get mailistclient success.")
 
         actions = ""
         all_emails = []

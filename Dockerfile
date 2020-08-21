@@ -25,5 +25,9 @@ RUN wget https://github.com/huaweicloud/huaweicloud-sdk-python/archive/v1.0.24.t
     pip3 install -r requirements.txt &&\
     python3 setup.py install 
 
+RUN git clone https://gitee.com/opensourceway/mailmanclient && \
+    cd mailmanclient && \
+    python3 setup.py install
+
 CMD python3 -u  george.py
 
