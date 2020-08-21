@@ -11,6 +11,7 @@ COPY ./om-collections/ /var/lib/om
 
 RUN apt-get update && \
     pip install --upgrade pip && \
+    pip3 install --upgrade pip3 && \
     pip3 install -r requirements.txt
 
 

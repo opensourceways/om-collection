@@ -46,7 +46,7 @@ class CollectData(object):
             self.get_donwlaod()
 
         if self.pypi_orgs:
-            startTime = datetime.datetime.strftime(datetime.datetime.now() - datetime.timedelta(days=170), "%Y-%m-%d")
+            startTime = datetime.datetime.strftime(datetime.datetime.now() - datetime.timedelta(days=60), "%Y-%m-%d")
             for sig in self.pypi_orgs:
                 self.get_pypi_overall(startTime, sig)
                 self.get_pypi_python_major(startTime, sig)
