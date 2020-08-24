@@ -17,7 +17,7 @@
 import time
 from datetime import timedelta, datetime
 
-import json
+import ujson as json
 from os import path
 from data import common
 from data.common import ESClient
@@ -111,8 +111,12 @@ class Nginx(object):
         f = open(filename, 'r')
 
         actions = ""
+        count = 0
+        lineNum = 0
         for line in f.readlines():
             # line = f.readline()
+            print("Get lineNum=", lineNum)
+            lineNum += 1
             line_data = json.loads(line)
             log_data = line_data.get('_source').get('log')
             try:
@@ -122,7 +126,9 @@ class Nginx(object):
                 continue
             if 'time' not in json_data:
                 continue
-            # return
+
+            if self.vhost != json_data['vhost']:
+                continue
             '''
             {
             "time": "2020-05-15T04:16:35+00:00",
@@ -150,8 +156,16 @@ class Nginx(object):
             }
             '''
             t = json_data['time']
-            ip = json_data['proxy_remote_addr']
+            ip = json_data.get('proxy_remote_addr')
+            if ip is None or ip == "-":
+                ip = json_data.get('remote_addr')
             path = json_data['path']
+
+            if path == "-":
+                continue
+            if path.endswith("/"):
+                continue
+
             body = {
                   "country": json_data['geoip2_city_country_name'],
                   "city": json_data['geoip2_city'],
@@ -177,7 +191,18 @@ class Nginx(object):
             id = t + ip + path
             action = common.getSingleAction(self.index_name, id, body)
             actions += action
-
+            count += 1
+            try:
+                if count > 100000:
+                    print("Start to Write data to es")
+                    self.esClient.safe_put_bulk(actions)
+                    actions = ""
+                    count = 0
+                    print("Write data to es success")
+            except:
+                print("Write data to es failed, count=%d, request id=%s"% (count, json_data.get("request_id")))
+                count = 0
+                continue
         self.esClient.safe_put_bulk(actions)
         f.close()
 
@@ -200,12 +225,19 @@ class Nginx(object):
 
 
     def run(self, from_date=None):
+        startTime = time.time()
+
         nowDate = datetime.today()
         while datetime.strptime(from_date, "%Y%m%d") < nowDate:
-            self.writeDataToDB(from_date)
+            # self.writeDataToDB(from_date)
             self.writeESDataToDB(from_date)
 
             fromTime = datetime.strptime(from_date, "%Y%m%d") + timedelta(days=1)
             from_date = fromTime.strftime("%Y%m%d")
             print(from_date)
 
+        endTime = time.time()
+        spent_time = time.strftime("%H:%M:%S",
+                                   time.gmtime(endTime - startTime))
+        print("Collect download data from obs:"
+              " finished after (%s)" % (spent_time))
