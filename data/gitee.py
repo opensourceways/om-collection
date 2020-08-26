@@ -515,6 +515,11 @@ class Gitee(object):
             ecomment['pull_created_at'] = eitem['pull_created_at']
             ecomment['pull_updated_at'] = eitem['pull_updated_at']
 
+            ecomment['base_label'] = eitem['base_label']
+            ecomment['base_label_ref'] = eitem['base_label_ref']
+            ecomment['head_label'] = eitem['head_label']
+            ecomment['head_label_ref'] = eitem['head_label_ref']
+
             if 'pull_merged_at' in eitem:
                 ecomment['pull_merged_at'] = eitem['pull_merged_at']
             if 'pull_closed_at' in eitem:
@@ -630,6 +635,11 @@ class Gitee(object):
         #rich_pr['gitee_repo'] = rich_pr['repository'].replace(gitee, '')
         rich_pr['gitee_repo'] = re.sub('.git$', '', pull_request['base']['repo']['html_url'])
         rich_pr['org_name'] = pull_request['base']['repo']['namespace']['path']
+
+        rich_pr['base_label'] = pull_request['base']['label']
+        rich_pr['base_label_ref'] = pull_request['base']['ref']
+        rich_pr['head_label'] = pull_request['head']['label']
+        rich_pr['head_label_ref'] = pull_request['head']['ref']
         # GMD code development metrics
         #rich_pr['forks'] = pull_request['base']['repo']['forks_count']
         rich_pr['code_merge_duration'] = common.get_time_diff_days(pull_request['created_at'],
@@ -1049,15 +1059,14 @@ class Gitee(object):
 
                 for r in respons:
                     for user in json.loads(r):
-                        print(user)
                         id = self.orgs[index] + '_star_' + str(user['id'])
                         user['created_at'] = user['followed_at'].replace('Z', '+08:00')
                         user['is_set_sigs_star'] = 1
                         user['user_login'] = user['login']
                         user['user_name'] = user['name']
+                        user['author_name'] = user['name']
                         userExtra = self.getUserInfo(user['login'])
                         user.update(userExtra)
                         action = common.getSingleAction(self.index_name_all[index], id, user)
-                        print(action)
                         self.esClient.safe_put_bulk(action)
 
