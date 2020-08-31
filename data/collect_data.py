@@ -492,7 +492,8 @@ class CollectData(object):
                     times = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
                     break
 
-            owners = os.popen('git log -p OWNERS', 'r').read()
+            cmdowner = 'cd %s;git log -p OWNERS' % repo_path
+            owners = os.popen(cmdowner, 'r').read()
             ownerslist = owners.split('\n')
             n2 = 0
             rs2 = []
