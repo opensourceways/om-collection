@@ -9,10 +9,14 @@ import datetime
 import json
 import requests
 import time
+import yaml
 from configparser import ConfigParser
+from data import common
 from data.common import ESClient
 from data.gitee import Gitee
 import pypistats
+import traceback
+from collect.gitee import GiteeClient
 
 
 class CollectData(object):
@@ -26,11 +30,19 @@ class CollectData(object):
         self.index_name_committers = config.get('index_name_committers')
         self.index_name_maillist = config.get('index_name_maillist')
         self.index_name_vpcdownload = config.get('index_name_vpcdownload')
+        self.index_name_code_all = config.get('index_name_code_all')
         self.url = config.get('es_url')
         self.authorization = config.get('authorization')
         # self.org = config.get('github_org')
         self.esClient = ESClient(config)
         # self.gitee = Gitee(config)
+        self.org = config.get("org")
+        self.sigs_dir = config.get('sigs_dir')
+        self.sigs_url = config.get('sigs_url')
+        self.index_name_sigs = config.get('index_name_sigs')
+        self.is_gitee_enterprise=config.get("self.is_gitee_enterprise")
+        self.gitee_token = config.get('gitee_token')
+        self.sigs_source = config.get('sigs_source')
         self.headers = {'Content-Type': 'application/json'}
         self.headers["Authorization"] = config.get('authorization')
         self.pypi_orgs = None
@@ -44,7 +56,11 @@ class CollectData(object):
             self.get_committers()
         if self.index_name_vpcdownload:
             self.get_donwlaod()
-
+        if self.index_name_code_all:
+            self.get_sigs_code_all()
+        if self.index_name_sigs:
+            self.get_sigs()
+            self.get_sig_pr_issue()
         if self.pypi_orgs:
             startTime = datetime.datetime.strftime(datetime.datetime.now() - datetime.timedelta(days=60), "%Y-%m-%d")
             for sig in self.pypi_orgs:
@@ -189,6 +205,19 @@ class CollectData(object):
                 reL.append(result)
             res_all[repo] = reL
         return res_all
+
+    def get_repos(self, org):
+        client = GiteeClient(org, None, self.gitee_token)
+        print(self.is_gitee_enterprise)
+        if self.is_gitee_enterprise == "true":
+            client = GiteeClient(org, None, self.gitee_token)
+            org_data = common.getGenerator(client.enterprises())
+        else:
+            org_data = common.getGenerator(client.org())
+
+        for org in org_data:
+            print(org['path'])
+        return org_data
 
     def get_sigs_code_all(self):
         for index in range(len(self.index_name_code_all)):
@@ -419,6 +448,225 @@ class CollectData(object):
             num = content.group(1) if content else 0
         return int(num)
 
+    def get_sigs(self):
+
+        path = self.sigs_dir
+        # path = '/home/collect-code-clone/'
+        url = self.sigs_url
+
+        if not os.path.exists(path):
+            os.makedirs(path)
+
+        gitpath = path + 'community'
+        gc = git.Git(path)
+        g = git.Git(gitpath)
+        if not os.path.exists(gitpath):
+            cmdclone = 'git clone %s' % url
+            gc.execute(cmdclone)
+        else:
+            cmdpull = 'git pull'
+            g.execute(cmdpull)
+
+        # sigs
+        sig_dir = gitpath + '/sig'
+        for dir in os.walk(sig_dir).__next__()[1]:
+            repo_paht = sig_dir + '/' + dir
+            gr = git.Git(repo_paht)
+            cmdlog = 'git log -p README.md'
+            log = gr.execute(cmdlog)
+
+            loglist = log.split('\n')
+            n = 0
+            rs = []
+            for index in range(len(loglist)):
+                if re.search(r'^commit .*', loglist[index]):
+                    rs.append('\n'.join(loglist[n:index]))
+                    n = index
+            rs.append('\n'.join(loglist[n:]))
+            times = None
+            for r in rs:
+                if re.search(r'--- .*null\n\+\+\+ .*/README.md\n', r):
+                    date = re.search(r'Date: (.*)\n', r).group(1)
+                    time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
+                    times = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
+                    break
+
+            owners = gr.execute('git log -p OWNERS')
+            ownerslist = owners.split('\n')
+            n2 = 0
+            rs2 = []
+            for index in range(len(ownerslist)):
+                if re.search(r'^commit .*', ownerslist[index]):
+                    rs2.append('\n'.join(ownerslist[n:index]))
+                    n2 = index
+            rs2.append('\n'.join(ownerslist[n2:]))
+
+            onwer_file = repo_paht + '/' + 'OWNERS'
+            onwers = yaml.load_all(open(onwer_file)).__next__()['maintainers']
+            sig_file = sig_dir + '/' + 'sigs.yaml'
+            data = yaml.load_all(open(sig_file))
+            repo_mark = True
+            try:
+                for d in data.__next__()['sigs']:
+                    if d['name'] == dir:
+                        repos = d['repositories']
+                        for repo in repos:
+                            for onwer in onwers:
+                                times_onwer = None
+                                for r in rs2:
+                                    if re.search(r'\+- %s\n' % onwer, r):
+                                        date = re.search(r'Date: (.*)\n', r).group(1)
+                                        time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
+                                        times_onwer = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
+
+                                ID = self.org + '_' + dir + '_' + repo + '_' + onwer
+                                dataw = {"sig_name": dir,
+                                         "repo_name": repo,
+                                         "committer": onwer,
+                                         "created_at": times,
+                                         "committer_time": times_onwer,
+                                         "is_sig_repo_committer": 1}
+                                data = self.getSingleAction(self.index_name_sigs, ID, dataw)
+                                self.safe_put_bulk(data)
+                                print(data)
+                                repo_mark = False
+                if repo_mark:
+                    for onwer in onwers:
+                        repo = None
+                        times_onwer = None
+                        for r in rs2:
+                            if re.search(r'\+- %s\n' % onwer, r):
+                                date = re.search(r'Date: (.*)\n', r).group(1)
+                                time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
+                                times_onwer = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
+
+                        ID = self.org + '_' + dir + '_null_' + onwer
+                        dataw = {"sig_name": dir,
+                                 "repo_name": repo,
+                                 "committer": onwer,
+                                 "created_at": times,
+                                 "committer_time": times_onwer,
+                                 "is_sig_repo_committer": 1}
+                        data = self.getSingleAction(self.index_name_sigs, ID, dataw)
+                        self.safe_put_bulk(data)
+                        print(data)
+            except:
+                print(traceback.format_exc())
+
+    def get_sig_pr_issue(self):
+
+        path = self.sigs_dir
+        # path = '/home/collect-code-clone/'
+        url = self.sigs_url
+
+        if not os.path.exists(path):
+            os.makedirs(path)
+
+        gitpath = path + 'community'
+        gc = git.Git(path)
+        g = git.Git(gitpath)
+        if not os.path.exists(gitpath):
+            cmdclone = 'git clone %s' % url
+            gc.execute(cmdclone)
+        else:
+            cmdpull = 'git pull'
+            g.execute(cmdpull)
+
+        sigs_data = yaml.load_all(open(gitpath + '/sig/sigs.yaml')).__next__()
+
+        # pr
+        url = self.url + '/' + self.sigs_source + '/_search'
+        datei = datetime.datetime.strptime("2020-01-01", "%Y-%m-%d")
+        dateii = datei
+        while True:
+            datenow = datetime.datetime.strptime(datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d"),
+                                                 "%Y-%m-%d")
+            if dateii == datenow + datetime.timedelta(days=1):
+                break
+            dateiise = dateii
+            dateii += datetime.timedelta(days=1)
+            data = '''{"size":10000,
+              "query": {
+                "bool": {
+                  "filter":{
+                    "range":{
+                      "created_at":{
+                        "gte":"%sT00:00:00.000+0800",
+                        "lt":"%sT00:00:00.000+0800"
+                      }
+                    }
+                  },"must": [{ "match": { "is_gitee_pull_request":1}}]
+                }
+              }
+            }''' % (str(dateiise).split()[0], str(dateii).split()[0])
+            res = requests.get(url=url, headers=self.headers, verify=False, data=data)
+            r = res.content
+            re = json.loads(r)
+            ind = re['hits']['hits']
+            for i in ind:
+                repo = i['_source']['gitee_repo'].split('/')[-2] + '/' + i['_source']['gitee_repo'].split('/')[-1]
+                for sig in sigs_data['sigs']:
+                    if repo in sig['repositories']:
+                        body = i['_source']
+                        body['is_sig_pr'] = 1
+                        body['sig_name'] = sig['name']
+                        ID = sig['name'] + i['_id']
+                        if "pull_state" in body:
+                            if body['pull_state'] == "merged":
+                                body['is_pull_merged'] = 1
+                            if body['pull_state'] == "closed":
+                                body['is_pull_closed'] = 1
+                            if body['pull_state'] == "open":
+                                body['is_pull_open'] = 1
+                        data = self.getSingleAction(self.index_name_sigs, ID, body)
+                        self.safe_put_bulk(data)
+                        print("data:%s" % data)
+
+        # issue
+        url = self.url + '/' + self.sigs_source + '/_search'
+        datei = datetime.datetime.strptime("2020-01-01", "%Y-%m-%d")
+        dateii = datei
+        while True:
+            datenow = datetime.datetime.strptime(datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d"),
+                                                 "%Y-%m-%d")
+            if dateii == datenow + datetime.timedelta(days=1):
+                break
+            dateiise = dateii
+            dateii += datetime.timedelta(days=1)
+            data = '''{"size":10000,
+                      "query": {
+                        "bool": {
+                          "filter":{
+                            "range":{
+                              "created_at":{
+                                "gte":"%sT00:00:00.000+0800",
+                                "lt":"%sT00:00:00.000+0800"
+                              }
+                            }
+                          },"must": [{ "match": { "is_gitee_issue":1}}]
+                        }
+                      }
+                    }''' % (str(dateiise).split()[0], str(dateii).split()[0])
+            res = requests.get(url=url, headers=self.headers, verify=False, data=data)
+            r = res.content
+            re = json.loads(r)
+            ind = re['hits']['hits']
+            for i in ind:
+                repo = i['_source']['gitee_repo'].split('/')[-2] + '/' + i['_source']['gitee_repo'].split('/')[-1]
+                for sig in sigs_data['sigs']:
+                    if repo.strip() in sig['repositories']:
+                        body = i['_source']
+                        body['is_sig_issue'] = 1
+                        body['sig_name'] = sig['name']
+                        ID = sig['name'] + i['_id']
+                        if "issue_state" in body:
+                            if body['issue_state'] == "closed":
+                                body['is_issue_closed'] = 1
+                            if body['issue_state'] == "open":
+                                body['is_issue_open'] = 1
+                        data = self.getSingleAction(self.index_name_sigs, ID, body)
+                        self.safe_put_bulk(data)
+                        print("data:%s" % data)
 
 
 if __name__ == '__main__':
