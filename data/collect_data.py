@@ -451,7 +451,6 @@ class CollectData(object):
     def get_sigs(self):
 
         path = self.sigs_dir
-        # path = '/home/collect-code-clone/'
         url = self.sigs_url
 
         if not os.path.exists(path):
@@ -558,7 +557,6 @@ class CollectData(object):
     def get_sig_pr_issue(self):
 
         path = self.sigs_dir
-        # path = '/home/collect-code-clone/'
         url = self.sigs_url
 
         if not os.path.exists(path):
@@ -670,82 +668,3 @@ class CollectData(object):
                         self.safe_put_bulk(data)
                         print("data:%s" % data)
 
-
-if __name__ == '__main__':
-    alll = []
-    def test01(a,b):
-        down = False
-        commit = True
-        numList = []
-        url = "https://119.8.111.61:9200/openeuler_sig_20200629/_search"
-        headers = {'Content-Type': 'application/json',"Authorization": "Basic YWRtaW46b3BlbmV1bGVyQDEyMw=="}
-
-        data = '''{"size":10000,
-          "query": {
-            "bool": {
-              "filter":{
-                "range":{
-                  "created_at":{
-                    "gte":"2020-01-08T%s.000+0800",
-                    "lt":"2020-01-08T%s.000+0800"
-                  }
-                }
-              },"must": [ { "match": { "is_committer": 1 }} ]
-            }
-          },"aggs": {
-    "age_count": {
-      "cardinality": {
-        "field": "user_gitee_name.keyword"}}
-        }''' %(a, b)
-
-        res = requests.get(url=url, headers=headers, verify=False, data=data)
-        r = res.content
-        re = json.loads(r)
-        ind = re['hits']['hits']
-        print(len(ind))
-        if not down:
-            num = len(ind)
-        else:
-            if ind:
-                num = 0
-                for i in ind:
-                    if 'sum_value' in i['_source']:
-                        num += i['_source']['sum_value']
-            else:
-                num = 0
-        if commit:
-            if num:
-                userl = []
-                for i in ind:
-                    if 'user_gitee_name' in i['_source'] and i['_source']['user_gitee_name'] not in userl:
-                        userl.append(i['_source']['user_gitee_name'])
-                num = len(userl)
-        numList.append(num)
-
-        userl.sort()
-        print(numList)
-        print(userl)
-        print('----------------------')
-        global alll
-        alll += userl
-
-    # test01('11:50:00', '12:00:00')
-    # test01('15:40:00', '15:50:00')
-    # test01('15:50:00', '16:00:00')
-    # test01('17:55:00', '18:05:00')
-    # test01('18:30:00', '18:40:00')
-    #
-    # alll.sort()
-    # print(alll)
-    # print(len(alll))
-    datei = datetime.datetime.strptime('2020-01-01', "%Y-%m-%d")
-    dateii = datei
-    while True:
-        datenow = datetime.datetime.strptime(datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d"),
-                                             "%Y-%m-%d")
-        if dateii == datenow + datetime.timedelta(days=1):
-            break
-        dateiise = dateii
-        dateii += datetime.timedelta(days=1)
-        stime = datetime.datetime.strftime(dateiise, "%Y-%m-%d")
-        test01('00:00:00','23:59:59')
