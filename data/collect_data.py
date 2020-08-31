@@ -461,19 +461,20 @@ class CollectData(object):
         gc = git.Git(path)
         g = git.Git(gitpath)
         if not os.path.exists(gitpath):
-            cmdclone = 'git clone %s' % url
-            gc.execute(cmdclone)
+            cmdclone = 'cd %s;git clone %s' % (path, url)
+            os.system(cmdclone)
         else:
-            cmdpull = 'git pull'
-            g.execute(cmdpull)
+            cmdpull = 'cd %s;git pull' % path
+            os.system(cmdpull)
 
         # sigs
         sig_dir = gitpath + '/sig'
-        for dir in os.walk(sig_dir).__next__()[1]:
-            repo_paht = sig_dir + '/' + dir
-            gr = git.Git(repo_paht)
-            cmdlog = 'git log -p README.md'
-            log = gr.execute(cmdlog)
+        dirs = os.walk(sig_dir).__next__()[1]
+        for dir in dirs:
+            repo_path = sig_dir + '/' + dir
+            gr = git.Git(repo_path)
+            cmdlog = 'cd %s;git log -p README.md' % repo_path
+            log = os.popen(cmdlog, 'r').read()
 
             loglist = log.split('\n')
             n = 0
@@ -491,7 +492,7 @@ class CollectData(object):
                     times = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
                     break
 
-            owners = gr.execute('git log -p OWNERS')
+            owners = os.popen('git log -p OWNERS', 'r').read()
             ownerslist = owners.split('\n')
             n2 = 0
             rs2 = []
@@ -501,7 +502,7 @@ class CollectData(object):
                     n2 = index
             rs2.append('\n'.join(ownerslist[n2:]))
 
-            onwer_file = repo_paht + '/' + 'OWNERS'
+            onwer_file = repo_path + '/' + 'OWNERS'
             onwers = yaml.load_all(open(onwer_file)).__next__()['maintainers']
             sig_file = sig_dir + '/' + 'sigs.yaml'
             data = yaml.load_all(open(sig_file))
@@ -566,11 +567,11 @@ class CollectData(object):
         gc = git.Git(path)
         g = git.Git(gitpath)
         if not os.path.exists(gitpath):
-            cmdclone = 'git clone %s' % url
-            gc.execute(cmdclone)
+            cmdclone = 'cd %s;git clone %s' % (path, url)
+            os.system(cmdclone)
         else:
-            cmdpull = 'git pull'
-            g.execute(cmdpull)
+            cmdpull = 'cd %s;git pull' % path
+            os.system(cmdpull)
 
         sigs_data = yaml.load_all(open(gitpath + '/sig/sigs.yaml')).__next__()
 
