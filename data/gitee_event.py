@@ -214,7 +214,7 @@ class GiteeEvent(object):
                     print("owner(%s) repo(%s) get event break " % (owner, repo))
                     break
                 for e in events_data:
-
+                    e.append(json_type)
                     id = owner + "-" + repo + "_"
                     if e.get(id):
                         id = id + str(e.get('id'))
