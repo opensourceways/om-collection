@@ -35,7 +35,7 @@ class CollectData(object):
         self.authorization = config.get('authorization')
         # self.org = config.get('github_org')
         self.esClient = ESClient(config)
-        # self.gitee = Gitee(config)
+        self.gitee = Gitee(config)
         self.org = config.get("org")
         self.sigs_dir = config.get('sigs_dir')
         self.sigs_url = config.get('sigs_url')
@@ -467,6 +467,7 @@ class CollectData(object):
             os.system(cmdpull)
 
         # sigs
+        self.gitee.getEnterpriseUser()
         sig_dir = gitpath + '/sig'
         dirs = os.walk(sig_dir).__next__()[1]
         for dir in dirs:
@@ -527,6 +528,8 @@ class CollectData(object):
                                          "created_at": times,
                                          "committer_time": times_onwer,
                                          "is_sig_repo_committer": 1}
+                                userExtra = self.gitee.getUserInfo(onwer)
+                                dataw.update(userExtra)
                                 data = self.getSingleAction(self.index_name_sigs, ID, dataw)
                                 self.safe_put_bulk(data)
                                 print(data)
