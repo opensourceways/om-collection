@@ -507,10 +507,11 @@ class CollectData(object):
             onwer_file = repo_path + '/' + 'OWNERS'
             onwers = yaml.load_all(open(onwer_file)).__next__()['maintainers']
             sig_file = sig_dir + '/' + 'sigs.yaml'
-            data = yaml.load_all(open(sig_file))
+            data = yaml.load_all(open(sig_file)).__next__()['sigs']
             repo_mark = True
+            datas = ''
             try:
-                for d in data.__next__()['sigs']:
+                for d in data:
                     if d['name'] == dir:
                         repos = d['repositories']
                         for repo in repos:
@@ -532,8 +533,7 @@ class CollectData(object):
                                 userExtra = self.gitee.getUserInfo(onwer)
                                 dataw.update(userExtra)
                                 data = self.getSingleAction(self.index_name_sigs, ID, dataw)
-                                self.safe_put_bulk(data)
-                                print(data)
+                                datas += data
                                 repo_mark = False
                 if repo_mark:
                     for onwer in onwers:
@@ -552,9 +552,13 @@ class CollectData(object):
                                  "created_at": times,
                                  "committer_time": times_onwer,
                                  "is_sig_repo_committer": 1}
+                        userExtra = self.gitee.getUserInfo(onwer)
+                        dataw.update(userExtra)
                         data = self.getSingleAction(self.index_name_sigs, ID, dataw)
-                        self.safe_put_bulk(data)
-                        print(data)
+                        datas += data
+                self.safe_put_bulk(datas)
+                print("this sig done: %s" % dir)
+                time.sleep(1)
             except:
                 print(traceback.format_exc())
 
