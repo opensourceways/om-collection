@@ -468,6 +468,7 @@ class CollectData(object):
 
         # sigs
         self.gitee.getEnterpriseUser()
+        self.gitee.internalUsers = self.gitee.getItselfUsers(self.gitee.internal_users)
         sig_dir = gitpath + '/sig'
         dirs = os.walk(sig_dir).__next__()[1]
         for dir in dirs:
