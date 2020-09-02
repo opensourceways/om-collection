@@ -518,8 +518,8 @@ class CollectData(object):
                             for onwer in onwers:
                                 times_onwer = None
                                 for r in rs2:
-                                    if re.search(r'\+- %s\n' % onwer, r):
-                                        date = re.search(r'Date: (.*)\n', r).group(1)
+                                    if re.search(r'\+\s*-\s*%s\n' % onwer, r):
+                                        date = re.search(r'Date:\s*(.*)\n', r).group(1)
                                         time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
                                         times_onwer = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
 
@@ -540,8 +540,8 @@ class CollectData(object):
                         repo = None
                         times_onwer = None
                         for r in rs2:
-                            if re.search(r'\+- %s\n' % onwer, r):
-                                date = re.search(r'Date: (.*)\n', r).group(1)
+                            if re.search(r'\+\s*-\s*%s\n' % onwer, r):
+                                date = re.search(r'Date:\s*(.*)\n', r).group(1)
                                 time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
                                 times_onwer = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
 
