@@ -222,7 +222,6 @@ class GiteeEvent(object):
                         is_type='is_gitee_'+e.get('type')
                         e[is_type]=1
                         id = id + e.get('type')
-                    print(e.get('actor')['login'])
                     is_inner_user = self.esClient.getUserInfo(e.get('actor')['login'])
                     e.update(is_inner_user)
                     action = common.getSingleAction(self.index_name, id, e)
