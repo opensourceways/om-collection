@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
 # Copyright 2020 The community Authors.
@@ -222,7 +222,8 @@ class GiteeEvent(object):
                         is_type='is_gitee_'+e.get('type')
                         e[is_type]=1
                         id = id + e.get('type')
-                    is_inner_user = client.getUserInfo(e.get('actor')['login'])
+                    print(e.get('actor')['login'])
+                    is_inner_user = self.esClient.getUserInfo(e.get('actor')['login'])
                     e.update(is_inner_user)
                     action = common.getSingleAction(self.index_name, id, e)
                     self.esClient.safe_put_bulk(action)
