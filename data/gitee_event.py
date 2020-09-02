@@ -61,7 +61,6 @@ class GiteeEvent(object):
         self.gitee_token_mindspore = config.get('gitee_token_mindspore')
         self.OWNERS = config.get('OWNERS')
 
-
     def writeGiteeDownDataByFile(self, filename, indexName=None):
         with open(filename, 'r', encoding='utf-8') as f:
             lines = f.readlines()
@@ -210,6 +209,7 @@ class GiteeEvent(object):
                     "is_gitee_DeleteEvent":0,
                     "is_gitee_CommitCommentEvent":0,                 
                 }
+                
                 if len(events_data) == 0:
                     print("owner(%s) repo(%s) get event break " % (owner, repo))
                     break
@@ -222,7 +222,8 @@ class GiteeEvent(object):
                         is_type='is_gitee_'+e.get('type')
                         e[is_type]=1
                         id = id + e.get('type')
-
+                    is_inner_user = client.getUserInfo(e.get('actor')['login'])
+                    e.update(is_inner_user)
                     action = common.getSingleAction(self.index_name, id, e)
                     self.esClient.safe_put_bulk(action)
 

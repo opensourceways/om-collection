@@ -832,29 +832,6 @@ class Gitee(object):
 
 
     def getUserInfo(self, login):
-        # client = GiteeClient("", "", self.gitee_token)
-        # userInfo = self.getGenerator(client.user(login))
-        # # 'company': None, 'profession': None, 'wechat': None, 'qq': None, 'linkedin': None, 'email': None
-        # userExtra = {
-        #     "user_company": userInfo.get('company'),
-        #     "user_wechat": userInfo.get('wechat'),
-        #     "user_qq": userInfo.get('qq'),
-        #     "user_linkedin": userInfo.get('linkedin'),
-        #     "user_email": userInfo.get('email'),
-        # }
-        #########################################
-        # userExtra = {}
-        # login_info = self.all_user_info.get(login)
-        # if login_info:
-        #     company_name = login_info.get('companies').get('company_name')
-        #     userExtra["tag_user_company"] = self.companyinfos.get(company_name)
-        #     userExtra["tag_user_organization"] = login_info.get('companies').get('organization_name')
-        #     userExtra["tag_user_name"] = login_info.get('user_name')
-        #     userExtra["is_project_internal_user"] = None
-        # else:
-        #     userExtra["tag_user_company"] = "n/a"
-        #     userExtra["tag_user_organization"] = "n/a"
-        ############################################
         userExtra = {}
         if self.is_gitee_enterprise == 'true':
             if login in self.enterpriseUsers:

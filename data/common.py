@@ -42,10 +42,45 @@ class ESClient(object):
         self.default_headers = {
             'Content-Type': 'application/json'
         }
+        self.internalUsers = []
+        self.internalUsers = self.getItselfUsers()
+        self.internal_company_name = config.get('internal_company_name', 'internal_company')
+        self.is_gitee_enterprise = config.get('is_gitee_enterprise')
+        self.enterpriseUsers = []
         if self.authorization:
             self.default_headers['Authorization'] = self.authorization
 
+    def getUserInfo(self, login):
+        userExtra = {}
+        if self.is_gitee_enterprise == 'true':
+            if login in self.enterpriseUsers:
+                userExtra["tag_user_company"] = self.internal_company_name
+                userExtra["is_project_internal_user"] = 1
+            else:
+                userExtra["tag_user_company"] = "n/a"
+                userExtra["is_project_internal_user"] = 0
+        else:
+            if login in self.internalUsers:
+                userExtra["tag_user_company"] = self.internal_company_name
+                userExtra["is_project_internal_user"] = 1
+            else:
+                userExtra["tag_user_company"] = "n/a"
+                userExtra["is_project_internal_user"] = 0
 
+        return userExtra
+
+    def getItselfUsers(self, filename="users"):
+        f = open(filename, 'r')
+
+        users = []
+        for line in f.readlines():
+            if line != "\n":
+                users.append(line.split('\n')[0])
+        print(users)
+        print(len(users))
+        return users
+
+    
     def safe_put_bulk(self, bulk_json, header=None, url=None):
         """Bulk items to a target index `url`. In case of UnicodeEncodeError,
         the bulk is encoded with iso-8859-1.
