@@ -457,8 +457,6 @@ class CollectData(object):
             os.makedirs(path)
 
         gitpath = path + 'community'
-        gc = git.Git(path)
-        g = git.Git(gitpath)
         if not os.path.exists(gitpath):
             cmdclone = 'cd %s;git clone %s' % (path, url)
             os.system(cmdclone)
@@ -473,7 +471,6 @@ class CollectData(object):
         dirs = os.walk(sig_dir).__next__()[1]
         for dir in dirs:
             repo_path = sig_dir + '/' + dir
-            gr = git.Git(repo_path)
             cmdlog = 'cd %s;git log -p README.md' % repo_path
             log = os.popen(cmdlog, 'r').read()
 
@@ -487,7 +484,7 @@ class CollectData(object):
             rs.append('\n'.join(loglist[n:]))
             times = None
             for r in rs:
-                if re.search(r'--- .*null\n\+\+\+ .*/README.md\n', r):
+                if re.search(r'--- .*null\n\+\+\+ .*/README.md', r):
                     date = re.search(r'Date: (.*)\n', r).group(1)
                     time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
                     times = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
@@ -500,7 +497,7 @@ class CollectData(object):
             rs2 = []
             for index in range(len(ownerslist)):
                 if re.search(r'^commit .*', ownerslist[index]):
-                    rs2.append('\n'.join(ownerslist[n:index]))
+                    rs2.append('\n'.join(ownerslist[n2:index]))
                     n2 = index
             rs2.append('\n'.join(ownerslist[n2:]))
 
@@ -508,21 +505,21 @@ class CollectData(object):
             onwers = yaml.load_all(open(onwer_file)).__next__()['maintainers']
             sig_file = sig_dir + '/' + 'sigs.yaml'
             data = yaml.load_all(open(sig_file)).__next__()['sigs']
-            repo_mark = True
             datas = ''
             try:
-                for d in data:
-                    if d['name'] == dir:
-                        repos = d['repositories']
-                        for repo in repos:
-                            for onwer in onwers:
-                                times_onwer = None
-                                for r in rs2:
-                                    if re.search(r'\+- %s\n' % onwer, r):
-                                        date = re.search(r'Date: (.*)\n', r).group(1)
-                                        time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
-                                        times_onwer = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
+                for onwer in onwers:
+                    times_onwer = None
+                    for r in rs2:
+                        if re.search(r'\+\s*-\s*%s' % onwer, r):
+                            date = re.search(r'Date:\s*(.*)\n', r).group(1)
+                            time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
+                            times_onwer = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
 
+                    repo_mark = True
+                    for d in data:
+                        if d['name'] == dir:
+                            repos = d['repositories']
+                            for repo in repos:
                                 ID = self.org + '_' + dir + '_' + repo + '_' + onwer
                                 dataw = {"sig_name": dir,
                                          "repo_name": repo,
@@ -532,30 +529,23 @@ class CollectData(object):
                                          "is_sig_repo_committer": 1}
                                 userExtra = self.gitee.getUserInfo(onwer)
                                 dataw.update(userExtra)
-                                data = self.getSingleAction(self.index_name_sigs, ID, dataw)
-                                datas += data
+                                datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
+                                datas += datar
                                 repo_mark = False
-                if repo_mark:
-                    for onwer in onwers:
-                        repo = None
-                        times_onwer = None
-                        for r in rs2:
-                            if re.search(r'\+- %s\n' % onwer, r):
-                                date = re.search(r'Date: (.*)\n', r).group(1)
-                                time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
-                                times_onwer = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
 
+                    if repo_mark:
                         ID = self.org + '_' + dir + '_null_' + onwer
                         dataw = {"sig_name": dir,
-                                 "repo_name": repo,
+                                 "repo_name": None,
                                  "committer": onwer,
                                  "created_at": times,
                                  "committer_time": times_onwer,
                                  "is_sig_repo_committer": 1}
                         userExtra = self.gitee.getUserInfo(onwer)
                         dataw.update(userExtra)
-                        data = self.getSingleAction(self.index_name_sigs, ID, dataw)
-                        datas += data
+                        datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
+                        datas += datar
+
                 self.safe_put_bulk(datas)
                 print("this sig done: %s" % dir)
                 time.sleep(1)
@@ -571,8 +561,6 @@ class CollectData(object):
             os.makedirs(path)
 
         gitpath = path + 'community'
-        gc = git.Git(path)
-        g = git.Git(gitpath)
         if not os.path.exists(gitpath):
             cmdclone = 'cd %s;git clone %s' % (path, url)
             os.system(cmdclone)
