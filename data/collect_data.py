@@ -497,7 +497,7 @@ class CollectData(object):
             rs2 = []
             for index in range(len(ownerslist)):
                 if re.search(r'^commit .*', ownerslist[index]):
-                    rs2.append('\n'.join(ownerslist[n:index]))
+                    rs2.append('\n'.join(ownerslist[n2:index]))
                     n2 = index
             rs2.append('\n'.join(ownerslist[n2:]))
 
