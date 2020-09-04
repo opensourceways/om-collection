@@ -70,7 +70,10 @@ class ESClient(object):
         return userExtra
 
     def getItselfUsers(self, filename="users"):
-        f = open(filename, 'r')
+        try:
+            f = open(filename, 'r')
+        except:
+            return []
 
         users = []
         for line in f.readlines():
