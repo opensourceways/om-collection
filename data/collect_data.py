@@ -49,6 +49,7 @@ class CollectData(object):
         self.sig_repo_name = config.get('sig_repo_name')
         self.sig_yaml_path = config.get('sig_yaml_path')
         self.sigs_dirs_path = config.get('sigs_dirs_path')
+        self.get_repo_name_without_sig = config.get("get_repo_name_without_sig")
         if 'pypi_orgs' in config:
             self.pypi_orgs = config.get('pypi_orgs').split(',')
 
@@ -605,6 +606,8 @@ class CollectData(object):
             ind = re['hits']['hits']
             for i in ind:
                 repo = i['_source']['gitee_repo'].split('/')[-2] + '/' + i['_source']['gitee_repo'].split('/')[-1]
+                if self.get_repo_name_without_sig:
+                    repo = i['_source']['gitee_repo'].split('/')[-1]
                 for sig in sigs_data['sigs']:
                     if repo in sig['repositories']:
                         body = i['_source']
