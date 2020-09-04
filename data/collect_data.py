@@ -656,6 +656,8 @@ class CollectData(object):
             ind = re['hits']['hits']
             for i in ind:
                 repo = i['_source']['gitee_repo'].split('/')[-2] + '/' + i['_source']['gitee_repo'].split('/')[-1]
+                if self.get_repo_name_without_sig:
+                    repo = i['_source']['gitee_repo'].split('/')[-1]
                 for sig in sigs_data['sigs']:
                     if repo.strip() in sig['repositories']:
                         body = i['_source']
