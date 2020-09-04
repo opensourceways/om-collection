@@ -48,6 +48,7 @@ class CollectData(object):
         self.pypi_orgs = None
         self.sig_repo_name = config.get('sig_repo_name')
         self.sig_yaml_path = config.get('sig_yaml_path')
+        self.sigs_dirs_path = config.get('sigs_dirs_path')
         if 'pypi_orgs' in config:
             self.pypi_orgs = config.get('pypi_orgs').split(',')
 
@@ -463,16 +464,15 @@ class CollectData(object):
             cmdclone = 'cd %s;git clone %s' % (path, url)
             os.system(cmdclone)
         else:
-            cmdpull = 'cd %s;git pull' % path
+            cmdpull = 'cd %s;git pull' % gitpath
             os.system(cmdpull)
 
         # sigs
         self.gitee.getEnterpriseUser()
         self.gitee.internalUsers = self.gitee.getItselfUsers(self.gitee.internal_users)
-        sig_dir = gitpath + '/sig'
-        dirs = os.walk(sig_dir).__next__()[1]
+        dirs = os.walk(self.sigs_dirs_path).__next__()[1]
         for dir in dirs:
-            repo_path = sig_dir + '/' + dir
+            repo_path = self.sigs_dirs_path + '/' + dir
             cmdlog = 'cd %s;git log -p README.md' % repo_path
             log = os.popen(cmdlog, 'r').read()
 
@@ -529,7 +529,7 @@ class CollectData(object):
                                              "created_at": times,
                                              "committer_time": times_onwer,
                                              "is_sig_repo_committer": 1,
-                                             "owner_key": key}
+                                             "owner_type": key}
                                     userExtra = self.gitee.getUserInfo(onwer)
                                     dataw.update(userExtra)
                                     datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
@@ -544,7 +544,7 @@ class CollectData(object):
                                      "created_at": times,
                                      "committer_time": times_onwer,
                                      "is_sig_repo_committer": 1,
-                                     "owner_key": key}
+                                     "owner_type": key}
                             userExtra = self.gitee.getUserInfo(onwer)
                             dataw.update(userExtra)
                             datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
@@ -564,12 +564,12 @@ class CollectData(object):
         if not os.path.exists(path):
             os.makedirs(path)
 
-        gitpath = path + 'community'
+        gitpath = path + self.sig_repo_name
         if not os.path.exists(gitpath):
             cmdclone = 'cd %s;git clone %s' % (path, url)
             os.system(cmdclone)
         else:
-            cmdpull = 'cd %s;git pull' % path
+            cmdpull = 'cd %s;git pull' % gitpath
             os.system(cmdpull)
 
         sigs_data = yaml.load_all(open(gitpath + '/sig/sigs.yaml')).__next__()
