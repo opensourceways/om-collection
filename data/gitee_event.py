@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
 # Copyright 2020 The community Authors.
@@ -48,7 +48,7 @@ class GiteeEvent(object):
         self.index_name_all = json.loads(config.get('index_name_all'))
         self.url = config.get('es_url')
         self.is_from_log_files = config.get('is_from_log_files')
-        self.gitee_event_log_dir = config.get('gitee_event_log_dir').split(",")
+        self.gitee_event_log_dir = config.get('gitee_event_log_dir', "").split(",")
         self.is_gitee_enterprise = config.get('is_gitee_enterprise')
         self.headers = {'Content-Type': 'application/json'}
         self.headers["Authorization"] = config.get('authorization')
