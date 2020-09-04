@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
 # Copyright 2020 The community Authors.
@@ -60,7 +60,6 @@ class GiteeEvent(object):
         self.gitee_token = config.get('gitee_token')
         self.gitee_token_mindspore = config.get('gitee_token_mindspore')
         self.OWNERS = config.get('OWNERS')
-
 
     def writeGiteeDownDataByFile(self, filename, indexName=None):
         with open(filename, 'r', encoding='utf-8') as f:
@@ -196,38 +195,37 @@ class GiteeEvent(object):
                 events_data = common.getGenerator(response)
                 print("owner(%s) repo(%s) envents data num=%s, page=%d" % (owner, repo, len(events_data), page))
                 # print(events_data)
-
+                json_type ={
+                    "is_gitee_StarEvent":0,
+                    "is_gitee_PushEvent":0,
+                    "is_gitee_PullRequestCommentEvent":0,
+                    "is_gitee_ProjectCommentEvent":0,
+                    "is_gitee_MilestonEevent":0,
+                    "is_gitee_MemberEvent":0,
+                    "is_gitee_IssueEvent":0,
+                    "is_gitee_IssueCommentEvent":0,
+                    "is_gitee_ForkEvent":0,
+                    "is_gitee_CreateEvent":0,
+                    "is_gitee_DeleteEvent":0,
+                    "is_gitee_CommitCommentEvent":0,                 
+                }
+                
                 if len(events_data) == 0:
                     print("owner(%s) repo(%s) get event break " % (owner, repo))
                     break
                 for e in events_data:
-                    if e.get('type') == 'StarEvent':
-                        actor = e.get('actor')
-                        print(e)
-                        id = owner + "_" + repo + "_star_" + actor['login'] + "_" + actor['name']
-                        data = '''{"size":5000,
-  "query": {
-    "bool": {
-        "must": [{ "match_phrase": { "type": "StarEvent"}},
-        { "match_phrase": { "actor.login": "%s"}},
-        { "match_phrase": { "actor.name": "%s"}},
-        { "match_phrase": { "repo.full_name": "%s"}}]
-    }
-  }
-}''' % (actor['login'], actor['name'], owner+"/"+repo)
-                        url = self.url + '/' + index_name + '/_search'
-                        res = requests.get(url=url, headers=self.headers, verify=False, data=data.encode('utf-8'))
-                        r = res.content
-                        re = json.loads(r)
-                        print(re)
-                        ind = re['hits']['hits']
-                        newtime = e.get("created_at")
-                        if ind:
-                            oldtime = ind[0]['_source']['created_at']
-                            e['created_at'] = oldtime if oldtime > newtime else newtime
-                        action = common.getSingleAction(index_name, id,
-                                                        e)
-                        self.esClient.safe_put_bulk(action)
+                    e.update(json_type)
+                    id = owner + "-" + repo + "_"
+                    if e.get(id):
+                        id = id + str(e.get('id'))
+                    if e.get('type'):
+                        is_type='is_gitee_'+e.get('type')
+                        e[is_type]=1
+                        id = id + e.get('type')
+                    is_inner_user = self.esClient.getUserInfo(e.get('actor')['login'])
+                    e.update(is_inner_user)
+                    action = common.getSingleAction(self.index_name, id, e)
+                    self.esClient.safe_put_bulk(action)
 
                 page += 1
             except ValueError as e:
