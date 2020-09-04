@@ -572,7 +572,7 @@ class CollectData(object):
             cmdpull = 'cd %s;git pull' % gitpath
             os.system(cmdpull)
 
-        sigs_data = yaml.load_all(open(gitpath + '/sig/sigs.yaml')).__next__()
+        sigs_data = yaml.load_all(open(self.sig_yaml_path)).__next__()
 
         # pr
         url = self.url + '/' + self.sigs_source + '/_search'
