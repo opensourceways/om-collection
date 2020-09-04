@@ -46,6 +46,8 @@ class CollectData(object):
         self.headers = {'Content-Type': 'application/json'}
         self.headers["Authorization"] = config.get('authorization')
         self.pypi_orgs = None
+        self.sig_repo_name = config.get('sig_repo_name')
+        self.sig_yaml_path = config.get('sig_yaml_path')
         if 'pypi_orgs' in config:
             self.pypi_orgs = config.get('pypi_orgs').split(',')
 
@@ -456,7 +458,7 @@ class CollectData(object):
         if not os.path.exists(path):
             os.makedirs(path)
 
-        gitpath = path + 'community'
+        gitpath = path + self.sig_repo_name
         if not os.path.exists(gitpath):
             cmdclone = 'cd %s;git clone %s' % (path, url)
             os.system(cmdclone)
@@ -502,49 +504,51 @@ class CollectData(object):
             rs2.append('\n'.join(ownerslist[n2:]))
 
             onwer_file = repo_path + '/' + 'OWNERS'
-            onwers = yaml.load_all(open(onwer_file)).__next__()['maintainers']
-            sig_file = sig_dir + '/' + 'sigs.yaml'
-            data = yaml.load_all(open(sig_file)).__next__()['sigs']
+            onwers = yaml.load_all(open(onwer_file)).__next__()
+            data = yaml.load_all(open(self.sig_yaml_path)).__next__()['sigs']
             datas = ''
             try:
-                for onwer in onwers:
-                    times_onwer = None
-                    for r in rs2:
-                        if re.search(r'\+\s*-\s*%s' % onwer, r):
-                            date = re.search(r'Date:\s*(.*)\n', r).group(1)
-                            time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
-                            times_onwer = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
+                for key, val in onwers.items():
+                    for onwer in val:
+                        times_onwer = None
+                        for r in rs2:
+                            if re.search(r'\+\s*-\s*%s' % onwer, r):
+                                date = re.search(r'Date:\s*(.*)\n', r).group(1)
+                                time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
+                                times_onwer = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
 
-                    repo_mark = True
-                    for d in data:
-                        if d['name'] == dir:
-                            repos = d['repositories']
-                            for repo in repos:
-                                ID = self.org + '_' + dir + '_' + repo + '_' + onwer
-                                dataw = {"sig_name": dir,
-                                         "repo_name": repo,
-                                         "committer": onwer,
-                                         "created_at": times,
-                                         "committer_time": times_onwer,
-                                         "is_sig_repo_committer": 1}
-                                userExtra = self.gitee.getUserInfo(onwer)
-                                dataw.update(userExtra)
-                                datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
-                                datas += datar
-                                repo_mark = False
+                        repo_mark = True
+                        for d in data:
+                            if d['name'] == dir:
+                                repos = d['repositories']
+                                for repo in repos:
+                                    ID = self.org + '_' + dir + '_' + repo + '_' + onwer
+                                    dataw = {"sig_name": dir,
+                                             "repo_name": repo,
+                                             "committer": onwer,
+                                             "created_at": times,
+                                             "committer_time": times_onwer,
+                                             "is_sig_repo_committer": 1,
+                                             "owner_key": key}
+                                    userExtra = self.gitee.getUserInfo(onwer)
+                                    dataw.update(userExtra)
+                                    datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
+                                    datas += datar
+                                    repo_mark = False
 
-                    if repo_mark:
-                        ID = self.org + '_' + dir + '_null_' + onwer
-                        dataw = {"sig_name": dir,
-                                 "repo_name": None,
-                                 "committer": onwer,
-                                 "created_at": times,
-                                 "committer_time": times_onwer,
-                                 "is_sig_repo_committer": 1}
-                        userExtra = self.gitee.getUserInfo(onwer)
-                        dataw.update(userExtra)
-                        datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
-                        datas += datar
+                        if repo_mark:
+                            ID = self.org + '_' + dir + '_null_' + onwer
+                            dataw = {"sig_name": dir,
+                                     "repo_name": None,
+                                     "committer": onwer,
+                                     "created_at": times,
+                                     "committer_time": times_onwer,
+                                     "is_sig_repo_committer": 1,
+                                     "owner_key": key}
+                            userExtra = self.gitee.getUserInfo(onwer)
+                            dataw.update(userExtra)
+                            datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
+                            datas += datar
 
                 self.safe_put_bulk(datas)
                 print("this sig done: %s" % dir)
