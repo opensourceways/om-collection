@@ -63,9 +63,11 @@ class CollectData(object):
             self.get_donwlaod()
         if self.index_name_code_all:
             self.get_sigs_code_all()
+
         if self.index_name_sigs:
             self.get_sigs()
             self.get_sig_pr_issue()
+
         if self.pypi_orgs:
             startTime = datetime.datetime.strftime(datetime.datetime.now() - datetime.timedelta(days=60), "%Y-%m-%d")
             for sig in self.pypi_orgs:
