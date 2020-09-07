@@ -50,6 +50,7 @@ class CollectData(object):
         self.sig_yaml_path = config.get('sig_yaml_path')
         self.sigs_dirs_path = config.get('sigs_dirs_path')
         self.get_repo_name_without_sig = config.get("get_repo_name_without_sig")
+        self.from_data = config.get("from_data")
         if 'pypi_orgs' in config:
             self.pypi_orgs = config.get('pypi_orgs').split(',')
 
@@ -577,7 +578,8 @@ class CollectData(object):
 
         # pr
         url = self.url + '/' + self.sigs_source + '/_search'
-        datei = datetime.datetime.strptime("2020-01-01", "%Y-%m-%d")
+        start_time = self.from_data[:4] + '-' + self.from_data[4:6] + '-' + self.from_data[6:]
+        datei = datetime.datetime.strptime(start_time, "%Y-%m-%d")
         dateii = datei
         while True:
             datenow = datetime.datetime.strptime(datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d"),
