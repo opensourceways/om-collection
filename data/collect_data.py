@@ -40,7 +40,7 @@ class CollectData(object):
         self.sigs_dir = config.get('sigs_dir')
         self.sigs_url = config.get('sigs_url')
         self.index_name_sigs = config.get('index_name_sigs')
-        self.is_gitee_enterprise=config.get("self.is_gitee_enterprise")
+        self.is_gitee_enterprise=config.get("is_gitee_enterprise")
         self.gitee_token = config.get('gitee_token')
         self.sigs_source = config.get('sigs_source')
         self.headers = {'Content-Type': 'application/json'}
