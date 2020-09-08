@@ -56,6 +56,7 @@ class CollectData(object):
         self.start_time_total_committer = config.get("start_time_total_committer")
         self.start_time_total_maillist = config.get("start_time_total_maillist")
         self.start_time_total_download = config.get("start_time_total_download")
+        self.gitee_token_enterprise = config.get("gitee_token_enterprise")
         self.sig_mark = config.get("sig_mark")
         if 'pypi_orgs' in config:
             self.pypi_orgs = config.get('pypi_orgs').split(',')
@@ -225,7 +226,7 @@ class CollectData(object):
         client = GiteeClient(org, None, self.gitee_token)
         print(self.is_gitee_enterprise)
         if self.is_gitee_enterprise == "true":
-            client = GiteeClient(org, None, self.gitee_token)
+            client = GiteeClient(org, None, self.gitee_token_enterprise)
             org_data = common.getGenerator(client.enterprises())
         else:
             org_data = common.getGenerator(client.org())
