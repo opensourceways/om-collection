@@ -597,19 +597,23 @@ class CollectData(object):
                 os.system(cmdpull)
 
             # sigs
-            cmdowner = 'cd %s;git log -p OWNERS' % gitpath
-            owners = os.popen(cmdowner, 'r').read()
-            ownerslist = owners.split('\n')
-            n2 = 0
-            rs2 = []
-            for index in range(len(ownerslist)):
-                if re.search(r'^commit .*', ownerslist[index]):
-                    rs2.append('\n'.join(ownerslist[n2:index]))
-                    n2 = index
-            rs2.append('\n'.join(ownerslist[n2:]))
+            try:
+                cmdowner = 'cd %s;git log -p OWNERS' % gitpath
+                owners = os.popen(cmdowner, 'r').read()
+                ownerslist = owners.split('\n')
+                n2 = 0
+                rs2 = []
+                for index in range(len(ownerslist)):
+                    if re.search(r'^commit .*', ownerslist[index]):
+                        rs2.append('\n'.join(ownerslist[n2:index]))
+                        n2 = index
+                rs2.append('\n'.join(ownerslist[n2:]))
 
-            onwer_file = gitpath + '/' + 'OWNERS'
-            onwers = yaml.load_all(open(onwer_file)).__next__()
+                onwer_file = gitpath + '/' + 'OWNERS'
+                onwers = yaml.load_all(open(onwer_file)).__next__()
+            except:
+                print(traceback.format_exc())
+
             datas = ''
             try:
                 for key, val in onwers.items():
