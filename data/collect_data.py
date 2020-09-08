@@ -613,6 +613,7 @@ class CollectData(object):
                 onwers = yaml.load_all(open(onwer_file)).__next__()
             except:
                 print(traceback.format_exc())
+                continue
 
             datas = ''
             try:
@@ -637,10 +638,11 @@ class CollectData(object):
                         datas += datar
 
                 self.safe_put_bulk(datas)
-                print("this sig done: %s" % dir)
+                print("this repo done: %s" % reponame)
                 time.sleep(1)
             except:
                 print(traceback.format_exc())
+                continue
 
     def get_sig_pr_issue(self):
 
