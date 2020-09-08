@@ -51,6 +51,12 @@ class CollectData(object):
         self.sigs_dirs_path = config.get('sigs_dirs_path')
         self.get_repo_name_without_sig = config.get("get_repo_name_without_sig")
         self.from_data = config.get("from_data")
+        self.start_time_sig_pr = config.get("start_time_sig_pr")
+        self.start_time_sig_issue = config.get("start_time_sig_issue")
+        self.start_time_total_committer = config.get("start_time_total_committer")
+        self.start_time_total_maillist = config.get("start_time_total_maillist")
+        self.start_time_total_download = config.get("start_time_total_download")
+        self.sig_mark = config.get("sig_mark")
         if 'pypi_orgs' in config:
             self.pypi_orgs = config.get('pypi_orgs').split(',')
 
@@ -64,9 +70,11 @@ class CollectData(object):
         if self.index_name_code_all:
             self.get_sigs_code_all()
 
-        if self.index_name_sigs:
+        if self.index_name_sigs and self.sig_mark:
             self.get_sigs()
             self.get_sig_pr_issue()
+        elif self.index_name_sigs:
+            self.get_repo_committer()
 
         if self.pypi_orgs:
             startTime = datetime.datetime.strftime(datetime.datetime.now() - datetime.timedelta(days=60), "%Y-%m-%d")
@@ -337,7 +345,10 @@ class CollectData(object):
     def get_committers(self):
         url = self.url + '/' + self.index_name_committers + '/_search'
         index_name = self.index_name_committers
-        date = '2019-12-01'
+        if self.start_time_total_committer:
+            date = self.start_time_total_committer[:4] + '-' + self.start_time_total_committer[4:6] + '-' + self.start_time_total_committer[6:]
+        else:
+            date = self.from_data[:4] + '-' + self.from_data[4:6] + '-' + self.from_data[6:]
         macth = ',"must": [ { "match": { "is_committer": 1 }} ]'
         totalmark = 'is_committers_tatol_num'
         id = 'hao_committers_tatol_'
@@ -346,7 +357,10 @@ class CollectData(object):
     def get_maillist_user(self):
         url = self.url + '/' + self.index_name_maillist + '/_search'
         index_name = self.index_name_maillist
-        date = "2019-10-25"
+        if self.start_time_total_maillist:
+            date = self.start_time_total_maillist[:4] + '-' + self.start_time_total_maillist[4:6] + '-' + self.start_time_total_maillist[6:]
+        else:
+            date = self.from_data[:4] + '-' + self.from_data[4:6] + '-' + self.from_data[6:]
         macth = ''
         totalmark = 'is_maillist_user_tatol_num'
         id = 'hao_maillist_user_tatol_'
@@ -355,7 +369,10 @@ class CollectData(object):
     def get_donwlaod(self):
         url = self.url + '/' + self.index_name_vpcdownload + '/_search'
         index_name = self.index_name_vpcdownload
-        date = '2020-01-01'
+        if self.start_time_total_download:
+            date = self.start_time_total_download[:4] + '-' + self.start_time_total_download[4:6] + '-' + self.start_time_total_download[6:]
+        else:
+            date = self.from_data[:4] + '-' + self.from_data[4:6] + '-' + self.from_data[6:]
         macth = ''
         totalmark = 'is_vpc_donwlaod_gb_tatol_num'
         id = 'hao_vpc_donwlaod_gb_tatol_'
@@ -560,6 +577,67 @@ class CollectData(object):
             except:
                 print(traceback.format_exc())
 
+    def get_repo_committer(self):
+
+        infos = self.get_repos(self.org)
+        if not os.path.exists(self.sigs_dir):
+            os.makedirs(self.sigs_dir)
+        self.gitee.getEnterpriseUser()
+        self.gitee.internalUsers = self.gitee.getItselfUsers(self.gitee.internal_users)
+
+        for info in infos:
+            reponame = info['path']
+            url = info['html_url']
+            gitpath = self.sigs_dir + reponame
+            if not os.path.exists(gitpath):
+                cmdclone = 'cd %s;git clone %s' % (self.sigs_dir, url)
+                os.system(cmdclone)
+            else:
+                cmdpull = 'cd %s;git pull' % gitpath
+                os.system(cmdpull)
+
+            # sigs
+            cmdowner = 'cd %s;git log -p OWNERS' % gitpath
+            owners = os.popen(cmdowner, 'r').read()
+            ownerslist = owners.split('\n')
+            n2 = 0
+            rs2 = []
+            for index in range(len(ownerslist)):
+                if re.search(r'^commit .*', ownerslist[index]):
+                    rs2.append('\n'.join(ownerslist[n2:index]))
+                    n2 = index
+            rs2.append('\n'.join(ownerslist[n2:]))
+
+            onwer_file = gitpath + '/' + 'OWNERS'
+            onwers = yaml.load_all(open(onwer_file)).__next__()
+            datas = ''
+            try:
+                for key, val in onwers.items():
+                    for onwer in val:
+                        for r in rs2:
+                            if re.search(r'\+\s*-\s*%s' % onwer, r):
+                                date = re.search(r'Date:\s*(.*)\n', r).group(1)
+                                time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
+                                times_onwer = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
+
+                        ID = self.org + '_' + '_' + reponame + '_' + onwer
+                        dataw = {
+                                 "repo_name": reponame,
+                                 "committer": onwer,
+                                 "created_at": times_onwer,
+                                 "is_sig_repo_committer": 1,
+                                 "owner_type": key}
+                        userExtra = self.gitee.getUserInfo(onwer)
+                        dataw.update(userExtra)
+                        datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
+                        datas += datar
+
+                self.safe_put_bulk(datas)
+                print("this sig done: %s" % dir)
+                time.sleep(1)
+            except:
+                print(traceback.format_exc())
+
     def get_sig_pr_issue(self):
 
         path = self.sigs_dir
@@ -580,7 +658,10 @@ class CollectData(object):
 
         # pr
         url = self.url + '/' + self.sigs_source + '/_search'
-        start_time = self.from_data[:4] + '-' + self.from_data[4:6] + '-' + self.from_data[6:]
+        if self.start_time_sig_pr:
+            start_time = self.start_time_sig_pr[:4] + '-' + self.start_time_sig_pr[4:6] + '-' + self.start_time_sig_pr[6:]
+        else:
+            start_time = self.from_data[:4] + '-' + self.from_data[4:6] + '-' + self.from_data[6:]
         datei = datetime.datetime.strptime(start_time, "%Y-%m-%d")
         dateii = datei
         while True:
@@ -631,7 +712,11 @@ class CollectData(object):
 
         # issue
         url = self.url + '/' + self.sigs_source + '/_search'
-        datei = datetime.datetime.strptime("2020-01-01", "%Y-%m-%d")
+        if self.start_time_sig_issue:
+            start_time = self.start_time_sig_issue[:4] + '-' + self.start_time_sig_issue[4:6] + '-' + self.start_time_sig_issue[6:]
+        else:
+            start_time = self.from_data[:4] + '-' + self.from_data[4:6] + '-' + self.from_data[6:]
+        datei = datetime.datetime.strptime(self.start_time_sig_issue, "%Y-%m-%d")
         dateii = datei
         while True:
             datenow = datetime.datetime.strptime(datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d"),
