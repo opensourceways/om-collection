@@ -589,7 +589,7 @@ class CollectData(object):
             for data in datas:
                 ID = self.org + '_' + str(data['id']) + '_' + data['name']
                 admin = 1 if data['permissions']['admin'] else 0
-                dataw = {"repo_name": data['path'],
+                dataw = {"repo_name": info['path'],
                     "committer_name": data['name'],
                     "committer_login": data['login'],
                     "created_at": '2020-08-09',
