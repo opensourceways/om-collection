@@ -584,18 +584,21 @@ class CollectData(object):
         infos =self.get_repos(self.org)
         for info in infos:
             client = GiteeClient(self.org, info['path'], self.gitee_token)
-            data = common.getGenerator(client.collaborators())
-            ID = self.org + '_' + '_' + data['id'] + '_' + data['name']
-            admin = 1 if data['permissions']['admin'] else 0
-            dataw = {"repo_name": data['path'],
-                "committer_name": data['name'],
-                "committer_login": data['login'],
-                "created_at": '2020-08-09',
-                "is_enterprise_committer": 1,
-                "is_admin": admin}
-            userExtra = self.gitee.getUserInfo(data['login'])
-            dataw.update(userExtra)
-            datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
+            datas = common.getGenerator(client.collaborators())
+            datar = ''
+            for data in datas:
+                ID = self.org + '_' + '_' + data['id'] + '_' + data['name']
+                admin = 1 if data['permissions']['admin'] else 0
+                dataw = {"repo_name": data['path'],
+                    "committer_name": data['name'],
+                    "committer_login": data['login'],
+                    "created_at": '2020-08-09',
+                    "is_enterprise_committer": 1,
+                    "is_admin": admin}
+                userExtra = self.gitee.getUserInfo(data['login'])
+                dataw.update(userExtra)
+                datac = self.getSingleAction(self.index_name_sigs, ID, dataw)
+                datar += datac
             self.safe_put_bulk(datar)
             print("this repo done: %s" % info['path'])
 
