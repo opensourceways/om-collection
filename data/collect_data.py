@@ -580,6 +580,7 @@ class CollectData(object):
                 print(traceback.format_exc())
 
     def gte_enterprise_committers(self):
+        self.gitee.getEnterpriseUser()
         self.gitee.internalUsers = self.gitee.getItselfUsers(self.gitee.internal_users)
         infos =self.get_repos(self.org)
         for info in infos:
@@ -747,7 +748,7 @@ class CollectData(object):
             start_time = self.start_time_sig_issue[:4] + '-' + self.start_time_sig_issue[4:6] + '-' + self.start_time_sig_issue[6:]
         else:
             start_time = self.from_data[:4] + '-' + self.from_data[4:6] + '-' + self.from_data[6:]
-        datei = datetime.datetime.strptime(self.start_time_sig_issue, "%Y-%m-%d")
+        datei = datetime.datetime.strptime(start_time, "%Y-%m-%d")
         dateii = datei
         while True:
             datenow = datetime.datetime.strptime(datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d"),
