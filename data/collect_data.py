@@ -56,7 +56,6 @@ class CollectData(object):
         self.start_time_total_committer = config.get("start_time_total_committer")
         self.start_time_total_maillist = config.get("start_time_total_maillist")
         self.start_time_total_download = config.get("start_time_total_download")
-        self.gitee_token_enterprise = config.get("gitee_token_enterprise")
         self.sig_mark = config.get("sig_mark")
         if 'pypi_orgs' in config:
             self.pypi_orgs = config.get('pypi_orgs').split(',')
@@ -74,6 +73,8 @@ class CollectData(object):
         if self.index_name_sigs and self.sig_mark:
             self.get_sigs()
             self.get_sig_pr_issue()
+        elif self.index_name_sigs and self.is_gitee_enterprise:
+            self.gte_enterprise_committers()
         elif self.index_name_sigs:
             self.get_repo_committer()
 
@@ -226,7 +227,7 @@ class CollectData(object):
         client = GiteeClient(org, None, self.gitee_token)
         print(self.is_gitee_enterprise)
         if self.is_gitee_enterprise == "true":
-            client = GiteeClient(org, None, self.gitee_token_enterprise)
+            client = GiteeClient(org, None, self.gitee_token)
             org_data = common.getGenerator(client.enterprises())
         else:
             org_data = common.getGenerator(client.org())
@@ -578,6 +579,26 @@ class CollectData(object):
             except:
                 print(traceback.format_exc())
 
+    def gte_enterprise_committers(self):
+        self.gitee.internalUsers = self.gitee.getItselfUsers(self.gitee.internal_users)
+        infos =self.get_repos(self.org)
+        for info in infos:
+            client = GiteeClient(self.org, info['path'], self.gitee_token)
+            data = common.getGenerator(client.collaborators())
+            ID = self.org + '_' + '_' + data['id'] + '_' + data['name']
+            admin = 1 if data['permissions']['admin'] else 0
+            dataw = {"repo_name": data['path'],
+                "committer_name": data['name'],
+                "committer_login": data['login'],
+                "created_at": '2020-08-09',
+                "is_enterprise_committer": 1,
+                "is_admin": admin}
+            userExtra = self.gitee.getUserInfo(data['login'])
+            dataw.update(userExtra)
+            datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
+            self.safe_put_bulk(datar)
+            print("this repo done: %s" % info['path'])
+
     def get_repo_committer(self):
 
         infos = self.get_repos(self.org)
@@ -768,4 +789,5 @@ class CollectData(object):
                         data = self.getSingleAction(self.index_name_sigs, ID, body)
                         self.safe_put_bulk(data)
                         print("data:%s" % data)
+
 
