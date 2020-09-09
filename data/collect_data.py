@@ -587,7 +587,7 @@ class CollectData(object):
             datas = common.getGenerator(client.collaborators())
             datar = ''
             for data in datas:
-                ID = self.org + '_' + '_' + data['id'] + '_' + data['name']
+                ID = self.org + '_' + str(data['id']) + '_' + data['name']
                 admin = 1 if data['permissions']['admin'] else 0
                 dataw = {"repo_name": data['path'],
                     "committer_name": data['name'],
