@@ -580,6 +580,7 @@ class CollectData(object):
                 print(traceback.format_exc())
 
     def gte_enterprise_committers(self):
+        self.gitee.getEnterpriseUser()
         self.gitee.internalUsers = self.gitee.getItselfUsers(self.gitee.internal_users)
         infos =self.get_repos(self.org)
         for info in infos:
