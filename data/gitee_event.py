@@ -216,7 +216,7 @@ class GiteeEvent(object):
                 for e in events_data:
                     e.update(json_type)
                     id = owner + "-" + repo + "_"
-                    if e.get(id):
+                    if e.get('id'):
                         id = id + str(e.get('id'))
                     if e.get('type'):
                         is_type='is_gitee_'+e.get('type')
