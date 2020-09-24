@@ -56,7 +56,14 @@ class CollectData(object):
         self.start_time_total_committer = config.get("start_time_total_committer")
         self.start_time_total_maillist = config.get("start_time_total_maillist")
         self.start_time_total_download = config.get("start_time_total_download")
+        self.start_time_sig_committer_total = config.get("start_time_sig_committer_total")
+        self.start_time_sig_total = config.get("start_time_sig_total")
         self.sig_mark = config.get("sig_mark")
+        self.index_name_bilibili = config.get('index_name_bilibili')
+        self.start_time_bilibili_live_total = config.get("start_time_bilibili_live_total")
+        self.start_time_bilibili_popularity_total = config.get("start_time_bilibili_popularity_total")
+        self.index_name_gitee_download = config.get('index_name_gitee_download')
+        self.start_time_gitee_download = config.get('start_time_gitee_download')
         if 'pypi_orgs' in config:
             self.pypi_orgs = config.get('pypi_orgs').split(',')
 
@@ -73,10 +80,19 @@ class CollectData(object):
         if self.index_name_sigs and self.sig_mark:
             self.get_sigs()
             self.get_sig_pr_issue()
+            self.get_sigs_total()
+            self.get_sigs_committer_total()
         elif self.index_name_sigs and self.is_gitee_enterprise:
             self.gte_enterprise_committers()
         elif self.index_name_sigs:
             self.get_repo_committer()
+
+        if self.index_name_gitee_download:
+            self.get_gitee_download_total()
+
+        if self.index_name_bilibili:
+            self.get_bilibili_live_total()
+            self.get_bilibili_popularity_total()
 
         if self.pypi_orgs:
             startTime = datetime.datetime.strftime(datetime.datetime.now() - datetime.timedelta(days=60), "%Y-%m-%d")
@@ -794,4 +810,143 @@ class CollectData(object):
                         self.safe_put_bulk(data)
                         print("data:%s" % data)
 
+    def transform_total_base(self, url, index_name, date, mactch, totalmark, id, aggs='', created_at='created_at'):
+        datei = datetime.datetime.strptime(date, "%Y-%m-%d")
+        dateii = datei
+        numList = []
+        datenow = datetime.datetime.strptime(datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d"),
+                                             "%Y-%m-%d")
+        while True:
+            if dateii == datenow+datetime.timedelta(days=1):
+                break
+            dateii += datetime.timedelta(days=1)
+            stime = datetime.datetime.strftime(dateii, "%Y-%m-%d")
+            if aggs == 'True':
+                commitdata = '''',"aggs": {
+    "agg_count": {
+      "cardinality": {"field": "user_gitee_name.keyword"}}}'''
+            else:
+                commitdata = ''',"aggs": {
+    "agg_count": {%s}}''' % aggs
+            data = '''{"size":10000,
+  "query": {
+    "bool": {
+      "filter":{
+        "range":{
+          "%s":{
+            "gte":"%sT00:00:00.000+0800",
+            "lt":"%sT00:00:00.000+0800"
+          }
+        }
+      }%s
+    }
+  }%s
+}''' % (created_at, str(datei).split()[0], str(dateii).split()[0], mactch, commitdata)
+
+            res = requests.get(url=url, headers=self.headers, verify=False, data=data)
+            r = res.content
+            re = json.loads(r)
+            num = re["aggregations"]["agg_count"]["value"]
+
+            body = {'created_at': stime+'T00:00:00.000+0800', totalmark: 1, 'tatol_num': num}
+            ID = id + stime
+            data = self.getSingleAction(index_name, ID, body)
+            self.safe_put_bulk(data)
+            print(data)
+
+    def get_count_base(self, url, index_name, date, mactch, totalmark, id, created_at='created_at'):
+        datei = datetime.datetime.strptime(date, "%Y-%m-%d")
+        dateii = datei
+        datenow = datetime.datetime.strptime(datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d"),
+                                             "%Y-%m-%d")
+        while True:
+            if dateii == datenow + datetime.timedelta(days=1):
+                break
+            dateii += datetime.timedelta(days=1)
+            stime = datetime.datetime.strftime(dateii, "%Y-%m-%d")
+            data = '''{
+             "query": {
+               "bool": {
+                 "filter":{
+                   "range":{
+                     "%s":{
+                       "gte":"%sT00:00:00.000+0800",
+                       "lt":"%sT00:00:00.000+0800"
+                     }
+                   }
+                 }%s
+               }
+             }
+           }''' % (created_at, str(datei).split()[0], str(dateii).split()[0], mactch)
+
+            res = requests.get(url=url, headers=self.headers, verify=False, data=data)
+            r = res.content
+            re = json.loads(r)
+            num = re["count"]
+
+            body = {created_at: stime + 'T00:00:00.000+0800', totalmark: 1, 'total_num': num}
+            ID = id + stime
+            data = self.getSingleAction(index_name, ID, body)
+            self.safe_put_bulk(data)
+            print(data)
+
+    def get_sigs_committer_total(self):
+        url = self.url + '/' + self.index_name_sigs + '/_search'
+        index_name = self.index_name_sigs
+        start = self.start_time_sig_committer_total if self.start_time_sig_committer_total else self.from_data
+        date = start[:4] + '-' + start[4:6] + '-' + start[6:]
+        macth = ',"must": [ { "match": { "is_sig_repo_committer": 1 }} ]'
+        totalmark = 'is_sigs_committer_total_num'
+        id = 'sigs_committer_total_'
+        aggs = '"cardinality": {"field": "committer.keyword"}'
+        self.transform_total_base(url, index_name, date, macth, totalmark, id, aggs=aggs, created_at='committer_time')
+
+    def get_sigs_total(self):
+        url = self.url + '/' + self.index_name_sigs + '/_search'
+        index_name = self.index_name_sigs
+        start = self.start_time_sig_total if self.start_time_sig_total else self.from_data
+        date = start[:4] + '-' + start[4:6] + '-' + start[6:]
+        macth = ',"must": [ { "match": { "is_sig_repo_committer": 1 }} ]'
+        totalmark = 'is_sigs_total_num'
+        id = 'sigs_total_'
+        aggs = '"cardinality": {"field": "sig_name.keyword"}'
+        self.transform_total_base(url, index_name, date, macth, totalmark, id, aggs=aggs)
+
+    def get_bilibili_live_total(self):
+        url = self.url + '/' + self.index_name_bilibili + '/_search'
+        index_name = self.index_name_bilibili
+        start = self.start_time_bilibili_live_total if self.start_time_bilibili_live_total else self.from_data
+        date = start[:4] + '-' + start[4:6] + '-' + start[6:]
+        macth = ',"must_not": [ { "match": { "is_topic": 1 }} ]'
+        totalmark = 'is_bilibili_live_total_num'
+        id = 'bilibili_live_total_'
+        aggs = '"sum": {"field": "live_time"}'
+        self.transform_total_base(url, index_name, date, macth, totalmark, id, aggs=aggs)
+
+    def get_bilibili_popularity_total(self):
+        url = self.url + '/' + self.index_name_bilibili + '/_search'
+        index_name = self.index_name_bilibili
+        start = self.start_time_bilibili_popularity_total if self.start_time_bilibili_popularity_total else self.from_data
+        date = start[:4] + '-' + start[4:6] + '-' + start[6:]
+        macth = ',"must_not": [ { "match": { "is_topic": 1 }} ]'
+        totalmark = 'is_bilibili_popularity_total_num'
+        id = 'bilibili_popularity_total_'
+        aggs = '"sum": {"field": "peak_popularity"}'
+        self.transform_total_base(url, index_name, date, macth, totalmark, id, aggs=aggs)
+
+    def get_gitee_download_total(self):
+        url = self.url + '/' + self.index_name_gitee_download + '/_count'
+        index_name = self.index_name_gitee_download
+        start = self.start_time_gitee_download if self.start_time_gitee_download else self.from_data
+        date = start[:4] + '-' + start[4:6] + '-' + start[6:]
+        macth = ',"must": [{ "match": { "event":"DOWNLOAD ZIP"}}]'
+        totalmark = 'is_gitee_download_num_total'
+        id = 'gitee_download_num_total_'
+        self.get_count_base(url, index_name, date, macth, totalmark, id)
+
+        url = self.url + '/' + self.index_name_gitee_download + '/_search'
+        totalmark = 'is_gitee_download_user_total'
+        id = 'gitee_download_user_total_'
+        aggs = '"cardinality": {"field": "author_name.keyword"}'
+        self.transform_total_base(url, index_name, date, macth, totalmark, id, aggs=aggs)
 
