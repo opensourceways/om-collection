@@ -39,6 +39,7 @@ BACKEND_MAPPING = {
     'huaweicloud': 'data.huaweicloud.HuaweiCloud',
     'bilibili': 'data.bilibili.BILIBILI',
     'collect_data': 'data.collect_data.CollectData',
+    'transform_data': 'data.transform_data.TransformData',
 }
 
 
