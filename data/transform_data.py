@@ -16,6 +16,8 @@ class TransformData(object):
         self.password = config.get('password')
         self.database = config.get('database')
         self.table = config.get('table')
+        self.url = config.get('es_url')
+        self.authorization = config.get('authorization')
 
     def run(self):
         self.cla_mysql_to_es(self.host, self.user, self.password, self.database, self.table)
