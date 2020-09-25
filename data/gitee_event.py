@@ -44,22 +44,20 @@ class GiteeEvent(object):
     def __init__(self, config=None):
         self.config = config
         self.index_name = config.get('index_name')
-        self.index_name_log = json.loads(config.get('index_name_log'))
-        self.index_name_all = json.loads(config.get('index_name_all'))
         self.url = config.get('es_url')
         self.is_from_log_files = config.get('is_from_log_files')
-        self.gitee_event_log_dir = config.get('gitee_event_log_dir', "").split(",")
         self.is_gitee_enterprise = config.get('is_gitee_enterprise')
         self.headers = {'Content-Type': 'application/json'}
-        self.headers["Authorization"] = config.get('authorization')
-        if config.get('orgs'):
-            self.orgs = config.get('orgs').split(",")
+        self.org = config.get('org')
         self.filters = config.get('filters')
         self.esClient = ESClient(config)
         self.esClient.initLocationGeoIPIndex()
         self.gitee_token = config.get('gitee_token')
-        self.gitee_token_mindspore = config.get('gitee_token_mindspore')
         self.OWNERS = config.get('OWNERS')
+        if self.is_from_log_files == 'true':
+            self.index_name_log = json.loads(config.get('index_name_log'))
+            self.index_name_all = json.loads(config.get('index_name_all'))
+            self.gitee_event_log_dir = config.get('gitee_event_log_dir', "").split(",")
 
     def writeGiteeDownDataByFile(self, filename, indexName=None):
         with open(filename, 'r', encoding='utf-8') as f:
@@ -136,7 +134,7 @@ class GiteeEvent(object):
         client = GiteeClient(org, None, self.gitee_token)
         print(self.is_gitee_enterprise)
         if self.is_gitee_enterprise == "true":
-            client = GiteeClient(org, None, self.gitee_token_mindspore)
+            client = GiteeClient(org, None, self.gitee_token)
             org_data = common.getGenerator(client.enterprises())
         else:
             org_data = common.getGenerator(client.org())
@@ -170,10 +168,9 @@ class GiteeEvent(object):
     def getRepoThreadFuncs(self, from_date):
         thread_func_args = {}
         values = []
-        for org in self.orgs:
-            repos = self.get_repos(org)
-            for repo in repos:
-                values.append((org, repo['path']))
+        repos = self.get_repos(self.org)
+        for repo in repos:
+            values.append((self.org, repo['path']))
 
         thread_func_args[self.getEventFromRepo] = values
         return thread_func_args
@@ -184,9 +181,6 @@ class GiteeEvent(object):
         print("start  owner(%s) repo(%s) page=%d" % (
         owner, repo, page))
         client = GiteeClient(owner, repo, self.gitee_token)
-        if owner == 'MindSpore':
-            client = GiteeClient(owner, repo, self.gitee_token_mindspore)
-        index_name = self.index_name_all[owner]
 
         while 1:
             try:
