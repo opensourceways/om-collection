@@ -26,6 +26,7 @@ from json import JSONDecodeError
 from urllib.parse import quote
 from datetime import timedelta, datetime
 import urllib3
+from collect.gitee import GiteeClient
 urllib3.disable_warnings()
 
 import requests
@@ -47,6 +48,8 @@ class ESClient(object):
         self.internal_company_name = config.get('internal_company_name', 'internal_company')
         self.is_gitee_enterprise = config.get('is_gitee_enterprise')
         self.enterpriseUsers = []
+        self.orgs = self.getOrgs(config.get('orgs'))
+        self.gitee_token = config.get('gitee_token')
         if self.authorization:
             self.default_headers['Authorization'] = self.authorization
 
@@ -83,7 +86,47 @@ class ESClient(object):
         print(len(users))
         return users
 
-    
+    def getEnterpriseUser(self):
+        if self.is_gitee_enterprise != "true":
+            return
+
+        client = GiteeClient(self.orgs[0], "", self.gitee_token)
+
+        data = self.getGenerator(client.enterprise_members())
+        for d in data:
+            user = d.get("user").get("login")
+            print(user)
+            self.enterpriseUsers.append(user)
+
+    def getOrgs(self, orgsStr):
+        orgs = []
+        if orgsStr:
+            orgs = orgsStr.split(",")
+            print(orgs)
+        else:
+            print("The 'orgs' field must be set")
+        return orgs
+
+    def getGenerator(self, response):
+        data = []
+        try:
+            while 1:
+                if isinstance(response, types.GeneratorType):
+                    res_data = next(response)
+                    if isinstance(res_data, str):
+                        data += json.loads(res_data.encode('utf-8'))
+                    else:
+                        data += json.loads(res_data.decode('utf-8'))
+                else:
+                    data = json.loads(response)
+                    break
+        except StopIteration:
+            return data
+        except JSONDecodeError:
+            print("Gitee get JSONDecodeError, error: ", response)
+
+        return data
+
     def safe_put_bulk(self, bulk_json, header=None, url=None):
         """Bulk items to a target index `url`. In case of UnicodeEncodeError,
         the bulk is encoded with iso-8859-1.

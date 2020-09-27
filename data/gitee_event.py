@@ -19,7 +19,6 @@ import glob
 import time
 import requests
 import json
-from data.gitee import Gitee
 
 
 EVENT_ADD_REPO = "新增了仓库"
@@ -59,6 +58,8 @@ class GiteeEvent(object):
             self.index_name_log = json.loads(config.get('index_name_log'))
             self.index_name_all = json.loads(config.get('index_name_all'))
             self.gitee_event_log_dir = config.get('gitee_event_log_dir', "").split(",")
+        self.esClient.getEnterpriseUser()
+        self.esClient.internalUsers = self.esClient.getItselfUsers(self.esClient.internal_users)
 
     def writeGiteeDownDataByFile(self, filename, indexName=None):
         with open(filename, 'r', encoding='utf-8') as f:
@@ -182,9 +183,7 @@ class GiteeEvent(object):
         print("start  owner(%s) repo(%s) page=%d" % (
         owner, repo, page))
         client = GiteeClient(owner, repo, self.gitee_token)
-        self.gitee.getEnterpriseUser()
-        self.gitee.internalUsers = self.gitee.getItselfUsers(self.gitee.internal_users)
-
+        actions = ''
         while 1:
             try:
                 response = client.events(page)
@@ -219,11 +218,10 @@ class GiteeEvent(object):
                         is_type='is_gitee_'+e.get('type')
                         e[is_type]=1
                         id = id + e.get('type')
-                    is_inner_user = self.gitee.getUserInfo(e.get('actor')['login'])
+                    is_inner_user = self.esClient.getUserInfo(e.get('actor')['login'])
                     e.update(is_inner_user)
                     action = common.getSingleAction(self.index_name, id, e)
-                    self.esClient.safe_put_bulk(action)
-
+                    actions += action
                 page += 1
             except ValueError as e:
                 print("error=%s, page=%d", (e, page))
@@ -234,6 +232,7 @@ class GiteeEvent(object):
                 page += 1
                 continue
 
+        self.esClient.safe_put_bulk(actions)
         print("owner(%s) repo(%s) end page=%d" % (owner, repo, page))
 
 
