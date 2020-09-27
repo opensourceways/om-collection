@@ -19,6 +19,7 @@ import glob
 import time
 import requests
 import json
+from data.gitee import Gitee
 
 
 EVENT_ADD_REPO = "新增了仓库"
@@ -181,6 +182,8 @@ class GiteeEvent(object):
         print("start  owner(%s) repo(%s) page=%d" % (
         owner, repo, page))
         client = GiteeClient(owner, repo, self.gitee_token)
+        self.gitee.getEnterpriseUser()
+        self.gitee.internalUsers = self.gitee.getItselfUsers(self.gitee.internal_users)
 
         while 1:
             try:
@@ -216,7 +219,7 @@ class GiteeEvent(object):
                         is_type='is_gitee_'+e.get('type')
                         e[is_type]=1
                         id = id + e.get('type')
-                    is_inner_user = self.esClient.getUserInfo(e.get('actor')['login'])
+                    is_inner_user = self.gitee.getUserInfo(e.get('actor')['login'])
                     e.update(is_inner_user)
                     action = common.getSingleAction(self.index_name, id, e)
                     self.esClient.safe_put_bulk(action)
