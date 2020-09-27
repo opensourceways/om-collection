@@ -45,6 +45,8 @@ class ESClient(object):
         }
         self.internalUsers = []
         self.internalUsers = self.getItselfUsers()
+        self.internal_users = config.get('internal_users', 'users')
+        self.enterpriseUsers = []
         self.internal_company_name = config.get('internal_company_name', 'internal_company')
         self.is_gitee_enterprise = config.get('is_gitee_enterprise')
         self.enterpriseUsers = []
