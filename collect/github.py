@@ -60,7 +60,7 @@ class GithubClient(object):
 
     def getAllrepo(self):
         full_names = []
-        r = requests.get('https://api.github.com/users/' + self.org + '/repos',
+        r = requests.get('https://api.github.com/users/' + self.org + '/repos' + '?pape=1&per_page=10000',
                          headers=self.headers)
         data = r.json()
         return data
