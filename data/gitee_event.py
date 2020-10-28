@@ -84,7 +84,7 @@ class GiteeEvent(object):
                 time = sLine[2][1:]
                 event = sLine[3]
                 repo_full_name = sLine[4].split('(')[0]
-                ip = sLine[5][:-1]
+                ip = sLine[5].split()
                 # if ip == "127.0.0.1":
                 #     continue
 
@@ -112,7 +112,7 @@ class GiteeEvent(object):
                 }
 
                 id = author_id + ip + event
-                indexName = self.index_name_log[filename.split('_')[0]]
+                indexName = self.index_name_log[filename.split('/')[-1].split('_')[0]]
                 action = common.getSingleAction(indexName, id, body)
                 actions += action
                 i += 1
@@ -205,7 +205,7 @@ class GiteeEvent(object):
                     "is_gitee_DeleteEvent":0,
                     "is_gitee_CommitCommentEvent":0,                 
                 }
-                
+
                 if len(events_data) == 0:
                     print("owner(%s) repo(%s) get event break " % (owner, repo))
                     break

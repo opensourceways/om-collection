@@ -22,7 +22,7 @@ class TransformData(object):
         self.url = config.get('es_url')
         self.authorization = config.get('authorization')
 
-    def run(self):
+    def run(self, from_time):
         self.cla_mysql_to_es(self.host, self.user, self.password, self.database, self.table)
 
     def exeMysql(self, host, user, pwd, name, qury, des=False):
@@ -46,7 +46,7 @@ class TransformData(object):
             return cursor.description
 
         db.close()
-        print(results)
+        # print(results)
         return results
 
     def cla_mysql_to_es(self, host, user, pwd, database, table):
@@ -65,6 +65,8 @@ class TransformData(object):
                 index += 1
             ID = data[0]
             body['created_at'] = body['created_at'].replace(' ', 'T') + "+08:00"
+            if body['date'] == '':
+                body['date'] = body['created_at']
             datar = common.getSingleAction(self.index_name, ID, body)
             datap += datar
         self.esClient.safe_put_bulk(datap)
