@@ -46,7 +46,7 @@ class TransformData(object):
             return cursor.description
 
         db.close()
-        print(results)
+        # print(results)
         return results
 
     def cla_mysql_to_es(self, host, user, pwd, database, table):
