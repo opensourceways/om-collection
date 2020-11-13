@@ -380,7 +380,7 @@ class Gitee(object):
         client = GiteeClient(owner, repo, self.gitee_token)
 
         if public == True:
-            client = GiteeClient(owner, repo, None)
+            client = GiteeClient(owner, repo, self.gitee_token)
             print("repo is public")
 
         # collect pull request
@@ -444,7 +444,7 @@ class Gitee(object):
 
         # common.
         if public == True:
-            client = GiteeClient(owner, repo, None)
+            client = GiteeClient(owner, repo, self.gitee_token)
             print("repo is public")
 
         # collect issue
