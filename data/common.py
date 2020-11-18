@@ -21,7 +21,7 @@ import dateutil.parser
 import dateutil.rrule
 import dateutil.tz
 import threading
-
+import traceback
 from json import JSONDecodeError
 from urllib.parse import quote
 from datetime import timedelta, datetime
@@ -162,6 +162,52 @@ class ESClient(object):
             res = requests.put(url, data=bulk_json, headers=headers)
             res.raise_for_status()
 
+    def post_delete_index_name(self, index_name=None, header=None, url=None):
+        if not index_name:
+            return
+
+        _header = {
+            "Content-Type": 'application/x-ndjson',
+            'Authorization': self.authorization
+        }
+        if header:
+            _header = header
+
+        _url = self.url
+        if url:
+            _url = url
+
+        try:
+            res = requests.delete(_url + "/" + index_name, headers=_header, verify=False)
+            res.raise_for_status()
+            print(res)
+        except:
+            print(traceback.format_exc())
+
+    def post_delete_delete_by_query(self, bulk_json, index_name, header=None, url=None):
+        if not bulk_json:
+            return
+
+        if not index_name:
+            return
+
+        _header = {
+            "Content-Type": 'application/json',
+            'Authorization': self.authorization
+        }
+        if header:
+            _header = header
+
+        _url = self.url
+        if url:
+            _url = url
+
+        try:
+            res = requests.post(_url + "/" + index_name + '/_delete_by_query', headers=_header, verify=False, data=bulk_json)
+            res.raise_for_status()
+            print(res)
+        except:
+            print(traceback.format_exc())
 
     def getStartTime(self):
         # 2020-04-29T15:59:59.000Z

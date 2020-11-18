@@ -491,6 +491,7 @@ class CollectData(object):
         return int(num)
 
     def get_sigs(self):
+        self.esClient.post_delete_index_name(self.index_name_sigs)
 
         path = self.sigs_dir
         url = self.sigs_url
