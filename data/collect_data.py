@@ -755,6 +755,16 @@ class CollectData(object):
                                 body['is_pull_closed'] = 1
                             if body['pull_state'] == "open":
                                 body['is_pull_open'] = 1
+                                create = datetime.datetime.strptime(body['issue_created_at'], '%Y-%m-%dT%H:%M:%S+08:00')
+                                openDays = (datetime.datetime.now() - create).days
+                                if openDays < 15:
+                                    body['openDays_0-15'] = 1
+                                elif 15 <= openDays < 30:
+                                    body['openDays_15-30'] = 1
+                                elif 30 <= openDays < 60:
+                                    body['openDays_30-60'] = 1
+                                elif openDays > 60:
+                                    body['openDays_60-'] = 1
                         data = self.getSingleAction(self.index_name_sigs, ID, body)
                         self.safe_put_bulk(data)
                         print("data:%s" % data)
