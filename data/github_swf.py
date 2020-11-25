@@ -44,6 +44,7 @@ class GitHubSWF(object):
         self.github_size = config.get('github_size')
         self.github_field = config.get('github_field')
         self.github_index_name = config.get('github_index_name')
+        self.github_index_name_total = config.get('github_index_name_total')
         if 'gitee_types' in config:
             self.gitee_types = config.get('gitee_types').split(',')
         self.gitee_field = config.get('gitee_field')
@@ -68,7 +69,7 @@ class GitHubSWF(object):
                               field=self.github_field,size=self.github_size, mark='github')
         if self.gitee_index_name:
             for type in self.gitee_types:
-                self.getTotal(type=type, index_name=self.gitee_index_name, total_index=self.gitee_index_nametotal,
+                self.getTotal(type=type, index_name=self.gitee_index_name, total_index=self.gitee_index_name_total,
                               field=self.gitee_field,size=self.gitee_size, search=',"must": [{ "match": { "is_gitee_repo":1 }}]', mark='gitee')
 
         endTime = time.time()
