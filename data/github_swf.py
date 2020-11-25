@@ -49,6 +49,7 @@ class GitHubSWF(object):
         self.gitee_field = config.get('gitee_field')
         self.gitee_size = config.get('gitee_size')
         self.gitee_index_name = config.get('gitee_index_name')
+        self.gitee_index_name_total = config.get('gitee_index_name_total')
 
     def run(self, from_date):
         startTime = time.time()
@@ -132,7 +133,7 @@ class GitHubSWF(object):
             num = sum([int(r['3']['value']) for r in res["aggregations"]["2"]["buckets"]])
             body = {'created_at': stime+'T00:00:00.000+0800', totalmark: 1, 'total_num': num}
             ID = totalmark + stime
-            data = common.getSingleAction('github_swf_mindspore_20200604_test', ID, body)
+            data = common.getSingleAction(self.gitee_index_name_total, ID, body)
             if num > 0:
                 print('%s:%s' % (stime, num))
                 self.esClient.safe_put_bulk(data)
