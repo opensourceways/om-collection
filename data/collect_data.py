@@ -17,6 +17,7 @@ from data.gitee import Gitee
 import pypistats
 import traceback
 from collect.gitee import GiteeClient
+import subprocess
 
 
 class CollectData(object):
@@ -491,7 +492,6 @@ class CollectData(object):
         return int(num)
 
     def get_sigs(self):
-        self.esClient.post_delete_index_name(self.index_name_sigs)
 
         path = self.sigs_dir
         url = self.sigs_url
@@ -514,8 +514,8 @@ class CollectData(object):
         for dir in dirs:
             repo_path = self.sigs_dirs_path + '/' + dir
             cmdlog = 'cd %s;git log -p README.md' % repo_path
-            log = os.popen(cmdlog, 'r').read()
-
+            log_popen = subprocess.Popen(cmdlog, stdout=subprocess.PIPE, shell=True)
+            log = str(log_popen.stdout.read())
             loglist = log.split('\n')
             n = 0
             rs = []
@@ -533,7 +533,8 @@ class CollectData(object):
                     break
 
             cmdowner = 'cd %s;git log -p OWNERS' % repo_path
-            owners = os.popen(cmdowner, 'r').read()
+            owners_popen = subprocess.Popen(cmdowner, stdout=subprocess.PIPE, shell=True)
+            owners = str(owners_popen.stdout.read())
             ownerslist = owners.split('\n')
             n2 = 0
             rs2 = []
