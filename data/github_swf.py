@@ -62,23 +62,27 @@ class GitHubSWF(object):
             actions += action
         self.esClient.safe_put_bulk(actions)
 
-        for type in self.github_types:
-            self.getTotal(type=type, index_name=self.github_index_name, field=self.github_field, size=self.github_size)
-        for type in self.gitee_types:
-            self.getTotal(type=type, index_name=self.gitee_index_name, field=self.gitee_field, size=self.gitee_size, search=',"must": [{ "match": { "is_gitee_repo":1 }}]')
+        if self.github_index_name:
+            for type in self.github_types:
+                self.getTotal(type=type, index_name=self.github_index_name, total_index=self.github_index_name_total,
+                              field=self.github_field,size=self.github_size, mark='github')
+        if self.gitee_index_name:
+            for type in self.gitee_types:
+                self.getTotal(type=type, index_name=self.gitee_index_name, total_index=self.gitee_index_nametotal,
+                              field=self.gitee_field,size=self.gitee_size, search=',"must": [{ "match": { "is_gitee_repo":1 }}]', mark='gitee')
 
         endTime = time.time()
         spent_time = time.strftime("%H:%M:%S", time.gmtime(endTime - startTime))
         print("Collect github star watch fork data: finished after ", spent_time)
 
-    def getTotal(self, type, index_name, url=None, date=None, field=None, size='10', search=''):
+    def getTotal(self, type, index_name, total_index, url=None, date=None, field=None, size='10', search='', mark=None):
         if not url:
             url = self.url + '/' + index_name + '/_search'
         if not date:
             date = self.from_data[:4] + '-' + self.from_data[4:6] + '-' + self.from_data[6:]
         datei = datetime.datetime.strptime(date, "%Y-%m-%d")
         dateii = datei
-        totalmark = 'is_github_' + type + '_total'
+        totalmark = 'is_' + mark + '_' + type + '_total'
         while True:
             datenow = datetime.datetime.strptime(datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d"),
                                                  "%Y-%m-%d")
@@ -133,7 +137,7 @@ class GitHubSWF(object):
             num = sum([int(r['3']['value']) for r in res["aggregations"]["2"]["buckets"]])
             body = {'created_at': stime+'T00:00:00.000+0800', totalmark: 1, 'total_num': num}
             ID = totalmark + stime
-            data = common.getSingleAction(self.gitee_index_name_total, ID, body)
+            data = common.getSingleAction(total_index, ID, body)
             if num > 0:
                 print('%s:%s' % (stime, num))
                 self.esClient.safe_put_bulk(data)
