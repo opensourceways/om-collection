@@ -39,11 +39,13 @@ class GitHubSWF(object):
         self.url = config.get('es_url')
         self.from_data = config.get("from_data")
         self.headers = {'Content-Type': 'application/json', 'Authorization': config.get('authorization')}
-        self.github_types = config.get('github_types').split(',')
+        if 'github_types' in config:
+            self.github_types = config.get('github_types').split(',')
         self.github_size = config.get('github_size')
         self.github_field = config.get('github_field')
         self.github_index_name = config.get('github_index_name')
-        self.gitee_types = config.get('gitee_types').split(',')
+        if 'gitee_types' in config:
+            self.gitee_types = config.get('gitee_types').split(',')
         self.gitee_field = config.get('gitee_field')
         self.gitee_size = config.get('gitee_size')
         self.gitee_index_name = config.get('gitee_index_name')
