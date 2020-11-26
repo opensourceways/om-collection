@@ -222,6 +222,15 @@ class ESClient(object):
         starTime = f.strftime("%Y%m%d")
         return starTime
 
+    def searchEsList(self, index_name, search=None):
+        url = self.url + '/' + index_name + '/search'
+        data = '''{"size":10000,"query": {"bool": {%s}}}''' % search
+        try:
+            res = json.loads(
+                requests.get(url=url, headers=self.default_headers, verify=False, data=data.encode('utf-8')).content)
+            return res['hits']['hits']
+        except:
+            print(traceback.format_exc())
 
     def getLastFormatTime(self):
         # 2020-04-29T15:59:59.000Z

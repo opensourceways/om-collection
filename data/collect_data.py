@@ -551,6 +551,8 @@ class CollectData(object):
             try:
                 for key, val in onwers.items():
                     for onwer in val:
+                        search = '"must": [{ "match": { "sig_name":"%s"}},{ "match": { "committer":"%s"}}]' %(dir, onwer)
+                        ID_list = [r['_id'] for r in self.esClient.searchEsList(self.index_name_sigs, search)]
                         times_onwer = None
                         for r in rs2:
                             if re.search(r'\+\s*-\s*%s' % onwer, r):
@@ -564,6 +566,8 @@ class CollectData(object):
                                 repos = d['repositories']
                                 for repo in repos:
                                     ID = self.org + '_' + dir + '_' + repo + '_' + onwer
+                                    if ID in ID_list:
+                                        ID_list.remove(ID)
                                     dataw = {"sig_name": dir,
                                              "repo_name": repo,
                                              "committer": onwer,
@@ -579,6 +583,8 @@ class CollectData(object):
 
                         if repo_mark:
                             ID = self.org + '_' + dir + '_null_' + onwer
+                            if ID in ID_list:
+                                ID_list.remove(ID)
                             dataw = {"sig_name": dir,
                                      "repo_name": None,
                                      "committer": onwer,
@@ -590,7 +596,10 @@ class CollectData(object):
                             dataw.update(userExtra)
                             datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
                             datas += datar
-
+                        for id in ID_list:
+                            data = '''{"size":10000,"query": {"bool": {"must": [{ "match": { "_id":%s }}]}}}''' % id
+                            self.esClient.post_delete_delete_by_query(data, self.index_name_sigs)
+                            print('delete ID: %s' % id)
                 self.safe_put_bulk(datas)
                 print("this sig done: %s" % dir)
                 time.sleep(1)
