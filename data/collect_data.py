@@ -65,6 +65,7 @@ class CollectData(object):
         self.start_time_bilibili_popularity_total = config.get("start_time_bilibili_popularity_total")
         self.index_name_gitee_download = config.get('index_name_gitee_download')
         self.start_time_gitee_download = config.get('start_time_gitee_download')
+        self.is_gitee_api_get = config.get("is_gitee_api_get")
         if 'pypi_orgs' in config:
             self.pypi_orgs = config.get('pypi_orgs').split(',')
 
@@ -83,7 +84,7 @@ class CollectData(object):
             self.get_sig_pr_issue()
             self.get_sigs_total()
             self.get_sigs_committer_total()
-        elif self.index_name_sigs and self.is_gitee_enterprise:
+        elif self.index_name_sigs and self.is_gitee_api_get:
             self.gte_enterprise_committers()
         elif self.index_name_sigs:
             self.get_repo_committer()
