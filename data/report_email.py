@@ -38,6 +38,34 @@ class ReportEmail(object):
         self.email_list = config.get('email_list').split(',')
         self.send = config.get('send')
         self.smtp = config.get('smtp')
+        self.repo = config.get('repo')
+        self.github_star = config.get('github_star')
+        self.gitee_issue = config.get('gitee_issue')
+        self.committersNotHuawei = config.get('committersNotHuawei')
+        self.github_watch = config.get('github_watch')
+        self.gitee_fork_user = config.get('gitee_fork_user')
+        self.contributorNotHuawei = config.get('contributorNotHuawei')
+        self.downloadall = config.get('downloadall')
+        self.contributor = config.get('contributor')
+        self.downlaod_ip = config.get('downlaod_ip')
+        self.contributorHuawei = config.get('contributorHuawei')
+        self.maillist = config.get('maillist')
+        self.gitee_star_user = config.get('gitee_star_user')
+        self.D0_user = config.get('D0_user')
+        self.downlaod = config.get('downlaod')
+        self.deep_contributor = config.get('deep_contributor')
+        self.webvisitor = config.get('webvisitor')
+        self.users = config.get('users')
+        self.committersHuawei = config.get('committersHuawei')
+        self.video = config.get('video')
+        self.github_fork = config.get('github_fork')
+        self.maillistnum = config.get('maillistnum')
+        self.gitee_issue_user = config.get('gitee_issue_user')
+        self.gitee_pr_user = config.get('gitee_pr_user')
+        self.gitee_watch_user = config.get('gitee_watch_user')
+        self.paly_video = config.get('paly_video')
+        self.website = config.get('website')
+        self.committers = config.get('committers')
 
     def run(self, from_date):
         self.do(org=self.org)
@@ -105,7 +133,7 @@ class ReportEmail(object):
               "sum": {
                 "field": "ip_count"}}}
         }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/baidutongji_openeuler_20200702/_search'
+            url = self.webvisitor
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["webvisitor"] = result["openeuler"]["D0_user"] = int(res["aggregations"]["ip_count"]["value"])
 
@@ -143,7 +171,7 @@ class ReportEmail(object):
                   "sum": {
                     "field": "pv_count"}}}
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/baidutongji_openeuler_20200702/_search'
+            url = self.website
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["website"] = int(res["aggregations"]["pv_count"]["value"])
 
@@ -165,7 +193,7 @@ class ReportEmail(object):
                   "sum": {
                     "field": "sum_value_gb"}}}
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/openeuler_huaweicloud_vpc/_search'
+            url = self.downlaod
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["downlaod"] = int(int(res["aggregations"]["sum_value_gb"]["value"]) / 6)
             result["openeuler"]["downlaod_gb"] = int(res["aggregations"]["sum_value_gb"]["value"])
@@ -189,7 +217,7 @@ class ReportEmail(object):
                           "cardinality": {
                             "field": "ip.keyword"}}}
                     }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/openeuler_download_20200824/_search'
+            url = self.downlaod_ip
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["downlaod_ip"] = int(res["aggregations"]["ip"]["value"])
 
@@ -210,7 +238,7 @@ class ReportEmail(object):
               "cardinality": {
                 "field": "user_id.keyword"}}}
         }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/openeuler_maillist_user/_search'
+            url = self.maillist
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["maillist"] = int(res["aggregations"]["user_id"]["value"])
 
@@ -231,7 +259,7 @@ class ReportEmail(object):
                   "sum": {
                     "field": "is_hyperkitty_message"}}}
             }''' % (starttime, endtime)
-            url = 'https://10.0.1.130:9200/openeuler_hyperkitty_enriched/_search'
+            url = self.maillistnum
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["maillistnum"] = int(res["aggregations"]["user_id"]["value"])
 
@@ -253,7 +281,7 @@ class ReportEmail(object):
               "cardinality": {
                 "field": "author_name.keyword"}}}
         }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_log_event_openeuler_all_20200701/_search'
+            url = self.repo
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["repo"] = int(res["aggregations"]["author_name"]["value"])
 
@@ -275,7 +303,7 @@ class ReportEmail(object):
               "sum": {
                 "field": "new_followers"}}}
         }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/bilibili_openeuler_20200710/_search'
+            url = self.video
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["video"] = int(res["aggregations"]["new_followers"]["value"])
 
@@ -297,7 +325,7 @@ class ReportEmail(object):
               "sum": {
                 "field": "sum_value_gb"}}}
         }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/openeuler_download_20200519/_search'
+            url = self.users
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["users"] = int(res["aggregations"]["sum_value_gb"]["value"] / 6)
 
@@ -319,7 +347,7 @@ class ReportEmail(object):
                   "sum": {
                     "field": "sum_value_gb"}}}
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/openeuler_huaweicloud_vpc/_search'
+            url = self.downloadall
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["downloadall"] = int(res["aggregations"]["sum_value_gb"]["value"] / 6)
 
@@ -340,7 +368,7 @@ class ReportEmail(object):
                       "sum": {
                         "field": "is_gitee_issue"}}}
                 }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_openeuler_all_20200519_2/_search'
+            url = self.gitee_issue
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["gitee_issue"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -361,7 +389,7 @@ class ReportEmail(object):
                   "sum": {
                     "field": "is_gitee_star"}}}
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_openeuler_all_20200519_2/_search'
+            url = self.gitee_star_user
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["gitee_star_user"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -382,7 +410,7 @@ class ReportEmail(object):
                       "sum": {
                         "field": "is_gitee_fork"}}}
                 }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_openeuler_all_20200519_2/_search'
+            url = self.gitee_fork_user
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["gitee_fork_user"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -403,7 +431,7 @@ class ReportEmail(object):
                       "sum": {
                         "field": "is_gitee_watch"}}}
                 }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_openeuler_all_20200519_2/_search'
+            url = self.gitee_watch_user
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["gitee_watch_user"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -424,7 +452,7 @@ class ReportEmail(object):
                           "sum": {
                             "field": "is_gitee_pull_request"}}}
                     }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_openeuler_all_20200519_2/_search'
+            url = self.gitee_pr_user
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["gitee_pr_user"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -445,7 +473,7 @@ class ReportEmail(object):
                               "sum": {
                                 "field": "is_gitee_issue"}}}
                         }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_openeuler_all_20200519_2/_search'
+            url = self.gitee_issue_user
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["gitee_issue_user"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -491,7 +519,7 @@ class ReportEmail(object):
                 }
               }
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/github_swf_openeuler_20200805/_search'
+            url = self.github_fork
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["github_fork"] = sum([int(r['3']['value']) for r in res["aggregations"]["2"]["buckets"]])
 
@@ -537,7 +565,7 @@ class ReportEmail(object):
                     }
                   }
                 }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/github_swf_openeuler_20200805/_search'
+            url = self.github_watch
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["github_watch"] = sum([int(r['3']['value']) for r in res["aggregations"]["2"]["buckets"]])
 
@@ -583,7 +611,7 @@ class ReportEmail(object):
                         }
                       }
                     }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/github_swf_openeuler_20200805/_search'
+            url = self.github_star
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["github_star"] = sum([int(r['3']['value']) for r in res["aggregations"]["2"]["buckets"]])
 
@@ -636,7 +664,7 @@ class ReportEmail(object):
               "cardinality": {
                 "field": "user_login.keyword"}}}
         }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_openeuler_all_20200519_2/_search'
+            url = self.contributor
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["contributor"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -685,7 +713,7 @@ class ReportEmail(object):
                   "cardinality": {
                     "field": "user_login.keyword"}}}
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_openeuler_all_20200519_2/_search'
+            url = self.deep_contributor
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["deep_contributor"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -738,7 +766,7 @@ class ReportEmail(object):
               "cardinality": {
                 "field": "user_login.keyword"}}}
         }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_openeuler_all_20200519_2/_search'
+            url = self.contributorHuawei
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["contributorHuawei"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -791,7 +819,7 @@ class ReportEmail(object):
                   "cardinality": {
                     "field": "user_login.keyword"}}}
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_openeuler_all_20200519_2/_search'
+            url = self.contributorNotHuawei
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["contributorNotHuawei"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -812,7 +840,7 @@ class ReportEmail(object):
               "cardinality": {
                 "field": "committer.keyword"}}}
         }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/openeuler_sigs_committers_20200901/_search'
+            url = self.committers
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["committers"] = int(res["aggregations"]["user_gitee_name"]["value"])
 
@@ -833,7 +861,7 @@ class ReportEmail(object):
                   "cardinality": {
                     "field": "committer.keyword"}}}
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/openeuler_sigs_committers_20200901/_search'
+            url = self.committersHuawei
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["committersHuawei"] = int(res["aggregations"]["user_gitee_name"]["value"])
 
@@ -854,9 +882,10 @@ class ReportEmail(object):
                   "cardinality": {
                     "field": "committer.keyword"}}}
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/openeuler_sigs_committers_20200901/_search'
+            url = self.committersNotHuawei
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["committersNotHuawei"] = int(res["aggregations"]["user_gitee_name"]["value"])
+
         elif org == 'mindspore':
             # mindspore
             data = '''{"size":10000,
@@ -893,7 +922,7 @@ class ReportEmail(object):
                   "sum": {
                     "field": "ip_count"}}}
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/baidutongji_mindspore_20200603/_search'
+            url = self.webvisitor
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["mindspore"]["webvisitor"] = result["mindspore"]["D0_user"] = int(res["aggregations"]["ip_count"]["value"])
 
@@ -931,7 +960,7 @@ class ReportEmail(object):
                       "sum": {
                         "field": "pv_count"}}}
                 }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/baidutongji_mindspore_20200603/_search'
+            url = self.website
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["mindspore"]["website"] = int(res["aggregations"]["pv_count"]["value"])
 
@@ -952,7 +981,7 @@ class ReportEmail(object):
                   "cardinality": {
                     "field": "user_id.keyword"}}}
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/mindspore_maillist_user/_search'
+            url = self.maillist
             res = json.loads(requests.get(url=url, headers=header01, verify=False, data=data.encode('utf-8')).content)
             result["mindspore"]["maillist"] = int(res["aggregations"]["user_id"]["value"])
 
@@ -973,7 +1002,7 @@ class ReportEmail(object):
                               "sum": {
                                 "field": "is_hyperkitty_message"}}}
                         }''' % (starttime, endtime)
-            url = 'https://10.0.1.130:9200/mindspore_hyperkitty_enriched/_search'
+            url = self.maillistnum
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["mindspore"]["maillistnum"] = int(res["aggregations"]["user_id"]["value"])
 
@@ -995,7 +1024,7 @@ class ReportEmail(object):
                   "cardinality": {
                     "field": "author_name.keyword"}}}
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_log_event_mindspore_all_20200604/_search'
+            url = self.repo
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["mindspore"]["repo"] = int(res["aggregations"]["author_name"]["value"])
 
@@ -1017,7 +1046,7 @@ class ReportEmail(object):
                   "sum": {
                     "field": "new_followers"}}}
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/bilibili_mindspore_20200710/_search'
+            url = self.video
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["mindspore"]["video"] = int(res["aggregations"]["new_followers"]["value"])
 
@@ -1039,7 +1068,7 @@ class ReportEmail(object):
                   "cardinality": {
                     "field": "ip.keyword"}}}
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/mindspore_obs_20200515/_search'
+            url = self.users
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["mindspore"]["users"] = int(res["aggregations"]["ip"]["value"])
 
@@ -1061,7 +1090,7 @@ class ReportEmail(object):
                       "cardinality": {
                         "field": "user_login.keyword"}}}
                 }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_test_mindspore_all_20200511/_search'
+            url = self.gitee_star_user
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["mindspore"]["gitee_star_user"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -1083,7 +1112,7 @@ class ReportEmail(object):
                           "cardinality": {
                             "field": "user_login.keyword"}}}
                     }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_test_mindspore_all_20200511/_search'
+            url = self.gitee_fork_user
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["mindspore"]["gitee_fork_user"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -1105,7 +1134,7 @@ class ReportEmail(object):
                           "cardinality": {
                             "field": "user_login.keyword"}}}
                     }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_test_mindspore_all_20200511/_search'
+            url = self.gitee_watch_user
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["mindspore"]["gitee_watch_user"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -1127,7 +1156,7 @@ class ReportEmail(object):
                               "cardinality": {
                                 "field": "user_login.keyword"}}}
                         }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_test_mindspore_all_20200511/_search'
+            url = self.gitee_pr_user
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["mindspore"]["gitee_pr_user"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -1148,7 +1177,7 @@ class ReportEmail(object):
                                           "sum": {
                                             "field": "is_gitee_issue"}}}
                                     }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_test_mindspore_all_20200511/_search'
+            url = self.gitee_issue
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["mindspore"]["gitee_issue"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -1194,7 +1223,7 @@ class ReportEmail(object):
                             }
                           }
                         }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/github_swf_mindspore_20200604/_search'
+            url = self.github_fork
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["mindspore"]["github_fork"] = sum([int(r['3']['value']) for r in res["aggregations"]["2"]["buckets"]])
 
@@ -1240,7 +1269,7 @@ class ReportEmail(object):
                                 }
                               }
                             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/github_swf_mindspore_20200604/_search'
+            url = self.github_watch
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["mindspore"]["github_watch"] = sum([int(r['3']['value']) for r in res["aggregations"]["2"]["buckets"]])
 
@@ -1286,7 +1315,7 @@ class ReportEmail(object):
                                     }
                                   }
                                 }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/github_swf_mindspore_20200604/_search'
+            url = self.github_star
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["mindspore"]["github_star"] = sum([int(r['3']['value']) for r in res["aggregations"]["2"]["buckets"]])
 
@@ -1304,7 +1333,7 @@ class ReportEmail(object):
                 }
               }
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/mindspore_obs_20200813/_count'
+            url = self.paly_video
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["mindspore"]["paly_video"] = int(res["count"])
 
@@ -1323,7 +1352,7 @@ class ReportEmail(object):
                             }
                             }
                     }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/mindspore20201030/_count'
+            url = self.downlaod
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["mindspore"]["downlaod"] = int(res["count"])
             result["mindspore"]["downlaod_gb"] = "N/A"
@@ -1345,7 +1374,7 @@ class ReportEmail(object):
                                   "cardinality": {
                                     "field": "ip.keyword"}}}
                             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/mindspore20201030/_search'
+            url = self.downlaod_ip
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["mindspore"]["downlaod_ip"] = int(res["aggregations"]["ip"]["value"])
 
@@ -1398,7 +1427,7 @@ class ReportEmail(object):
                           "cardinality": {
                             "field": "user_login.keyword"}}}
                     }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_test_mindspore_all_20200511/_search'
+            url = self.contributor
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["mindspore"]["contributor"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -1447,7 +1476,7 @@ class ReportEmail(object):
                                   "cardinality": {
                                     "field": "user_login.keyword"}}}
                             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_test_mindspore_all_20200511/_search'
+            url = self.deep_contributor
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["mindspore"]["deep_contributor"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -1500,7 +1529,7 @@ class ReportEmail(object):
                   "cardinality": {
                     "field": "user_login.keyword"}}}
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_test_mindspore_all_20200511/_search'
+            url = self.contributorHuawei
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["mindspore"]["contributorHuawei"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -1553,7 +1582,7 @@ class ReportEmail(object):
                       "cardinality": {
                         "field": "user_login.keyword"}}}
                 }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_test_mindspore_all_20200511/_search'
+            url = self.contributorNotHuawei
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["mindspore"]["contributorNotHuawei"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -1574,9 +1603,10 @@ class ReportEmail(object):
                   "cardinality": {
                     "field": "user_login.keyword"}}}
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_test_mindspore_all_20200511/_search'
+            url = self.committers
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["mindspore"]["committers"] = int(res["aggregations"]["user_login"]["value"])
+
         elif org == 'opengauss':
             # opengauss
             data = '''{"size":10000,
@@ -1613,7 +1643,7 @@ class ReportEmail(object):
                   "sum": {
                     "field": "ip_count"}}}
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/baidutongji_opengauss_20200702/_search'
+            url = self.webvisitor
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["opengauss"]["webvisitor"] = int(res["aggregations"]["ip_count"]["value"])
 
@@ -1651,7 +1681,7 @@ class ReportEmail(object):
                       "sum": {
                         "field": "pv_count"}}}
                 }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/baidutongji_opengauss_20200702/_search'
+            url = self.website
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["opengauss"]["website"] = int(res["aggregations"]["pv_count"]["value"])
 
@@ -1672,7 +1702,7 @@ class ReportEmail(object):
                   "cardinality": {
                     "field": "user_id.keyword"}}}
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/opengauss_maillist_user_20200609/_search'
+            url = self.maillist
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["opengauss"]["maillist"] = int(res["aggregations"]["user_id"]["value"])
 
@@ -1693,7 +1723,7 @@ class ReportEmail(object):
                               "sum": {
                                 "field": "is_hyperkitty_message"}}}
                         }''' % (starttime, endtime)
-            url = 'https://10.0.1.130:9200/opengauss_hyperkitty_enriched/_search'
+            url = self.maillistnum
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["opengauss"]["maillistnum"] = int(res["aggregations"]["user_id"]["value"])
 
@@ -1715,7 +1745,7 @@ class ReportEmail(object):
                   "cardinality": {
                     "field": "author_name.keyword"}}}
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_log_event_opengauss_all_20200703/_search'
+            url = self.repo
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["opengauss"]["repo"] = int(res["aggregations"]["author_name"]["value"])
 
@@ -1737,7 +1767,7 @@ class ReportEmail(object):
                   "sum": {
                     "field": "new_followers"}}}
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/bilibili_opengauss_20200710/_search'
+            url = self.video
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["opengauss"]["video"] = int(res["aggregations"]["new_followers"]["value"])
 
@@ -1793,7 +1823,7 @@ class ReportEmail(object):
                 }
               }
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/opengauss_obs_20200708/_search'
+            url = self.paly_video
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["opengauss"]["paly_video"] = res["aggregations"]["3"]["buckets"][0]['doc_count']
             result["opengauss"]["downlaod"] = res["aggregations"]["3"]["buckets"][1]['doc_count']
@@ -1818,7 +1848,7 @@ class ReportEmail(object):
                   "cardinality": {
                     "field": "ip.keyword"}}}
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/opengauss_obs_20200708/_search'
+            url = self.users
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["opengauss"]["users"] = int(res["aggregations"]["ip"]["value"])
 
@@ -1864,7 +1894,7 @@ class ReportEmail(object):
                     }
                   }
                 }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/github_swf_opengauss_20200629/_search'
+            url = self.github_fork
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["opengauss"]["github_fork"] = sum([int(r['3']['value']) for r in res["aggregations"]["2"]["buckets"]])
 
@@ -1910,7 +1940,7 @@ class ReportEmail(object):
                         }
                       }
                     }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/github_swf_opengauss_20200629/_search'
+            url = self.github_watch
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["opengauss"]["github_watch"] = sum([int(r['3']['value']) for r in res["aggregations"]["2"]["buckets"]])
 
@@ -1956,7 +1986,7 @@ class ReportEmail(object):
                             }
                           }
                         }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/github_swf_opengauss_20200629/_search'
+            url = self.github_star
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["opengauss"]["github_star"] = sum([int(r['3']['value']) for r in res["aggregations"]["2"]["buckets"]])
 
@@ -1977,7 +2007,7 @@ class ReportEmail(object):
                       "sum": {
                         "field": "is_gitee_star"}}}
                 }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_opengauss_all_20200513/_search'
+            url = self.gitee_star_user
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["opengauss"]["gitee_star_user"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -1998,7 +2028,7 @@ class ReportEmail(object):
                           "sum": {
                             "field": "is_gitee_fork"}}}
                     }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_opengauss_all_20200513/_search'
+            url = self.gitee_fork_user
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["opengauss"]["gitee_fork_user"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -2019,7 +2049,7 @@ class ReportEmail(object):
                           "sum": {
                             "field": "is_gitee_watch"}}}
                     }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_opengauss_all_20200513/_search'
+            url = self.gitee_watch_user
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["opengauss"]["gitee_watch_user"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -2040,7 +2070,7 @@ class ReportEmail(object):
                               "sum": {
                                 "field": "is_gitee_pull_request"}}}
                         }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_opengauss_all_20200513/_search'
+            url = self.gitee_pr_user
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["opengauss"]["gitee_pr_user"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -2061,7 +2091,7 @@ class ReportEmail(object):
                                   "sum": {
                                     "field": "is_gitee_issue"}}}
                             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_opengauss_all_20200513/_search'
+            url = self.gitee_issue
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["opengauss"]["gitee_issue"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -2109,7 +2139,7 @@ class ReportEmail(object):
                 }
               }
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/opengauss_obs_20200708/_search'
+            url = self.D0_user
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["opengauss"]["D0_user"] = int(res["aggregations"]["2"]["buckets"][0]['1']['value'])
 
@@ -2162,7 +2192,7 @@ class ReportEmail(object):
                   "cardinality": {
                     "field": "user_login.keyword"}}}
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_opengauss_all_20200513/_search'
+            url = self.contributor
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["opengauss"]["contributor"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -2211,7 +2241,7 @@ class ReportEmail(object):
                       "cardinality": {
                         "field": "user_login.keyword"}}}
                 }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_opengauss_all_20200513/_search'
+            url = self.deep_contributor
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["opengauss"]["deep_contributor"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -2264,7 +2294,7 @@ class ReportEmail(object):
                   "cardinality": {
                     "field": "user_login.keyword"}}}
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_opengauss_all_20200513/_search'
+            url = self.contributorHuawei
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["opengauss"]["contributorHuawei"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -2317,7 +2347,7 @@ class ReportEmail(object):
                       "cardinality": {
                         "field": "user_login.keyword"}}}
                 }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_opengauss_all_20200513/_search'
+            url = self.contributorNotHuawei
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["opengauss"]["contributorNotHuawei"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -2338,7 +2368,7 @@ class ReportEmail(object):
                   "cardinality": {
                     "field": "user_gitee_name.keyword"}}}
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/opengauss_sig_20200716/_search'
+            url = self.committers
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["opengauss"]["committers"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -2359,7 +2389,7 @@ class ReportEmail(object):
                       "cardinality": {
                         "field": "user_gitee_name.keyword"}}}
                 }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/opengauss_sig_20200716/_search'
+            url = self.committersHuawei
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["opengauss"]["committersHuawei"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -2380,9 +2410,10 @@ class ReportEmail(object):
                       "cardinality": {
                         "field": "user_gitee_name.keyword"}}}
                 }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/opengauss_sig_20200716/_search'
+            url = self.committersNotHuawei
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["opengauss"]["committersNotHuawei"] = int(res["aggregations"]["user_gitee_name"]["value"])
+
         elif org == 'openlookeng':
             # openlookeng
             data = '''{"size":10000,
@@ -2419,7 +2450,7 @@ class ReportEmail(object):
                   "sum": {
                     "field": "ip_count"}}}
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/baidutongji_openlookeng_20200806/_search'
+            url = self.webvisitor
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openlookeng"]["webvisitor"] = result["openlookeng"]["D0_user"] = int(res["aggregations"]["ip_count"]["value"])
 
@@ -2457,7 +2488,7 @@ class ReportEmail(object):
                       "sum": {
                         "field": "pv_count"}}}
                 }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/baidutongji_openlookeng_20200806/_search'
+            url = self.website
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openlookeng"]["website"] = int(res["aggregations"]["pv_count"]["value"])
 
@@ -2478,7 +2509,7 @@ class ReportEmail(object):
                   "cardinality": {
                     "field": "user_id.keyword"}}}
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/maillist_user_openlookeng_20200702/_search'
+            url = self.maillist
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openlookeng"]["maillist"] = int(res["aggregations"]["user_id"]["value"])
 
@@ -2499,7 +2530,7 @@ class ReportEmail(object):
                       "sum": {
                         "field": "is_hyperkitty_message"}}}
                 }''' % (starttime, endtime)
-            url = 'https://10.0.1.130:9200/openlookeng_hyperkitty_enriched/_search'
+            url = self.maillistnum
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openlookeng"]["maillistnum"] = int(res["aggregations"]["user_id"]["value"])
 
@@ -2521,7 +2552,7 @@ class ReportEmail(object):
                   "cardinality": {
                     "field": "author_name.keyword"}}}
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_log_event_openlookeng_all_20200703/_search'
+            url = self.repo
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openlookeng"]["repo"] = int(res["aggregations"]["author_name"]["value"])
 
@@ -2543,7 +2574,7 @@ class ReportEmail(object):
                   "sum": {
                     "field": "new_followers"}}}
             }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/bilibili_openlookeng_20200710/_search'
+            url = self.video
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openlookeng"]["video"] = int(res["aggregations"]["new_followers"]["value"])
 
@@ -2587,7 +2618,7 @@ class ReportEmail(object):
                       "sum": {
                         "field": "is_gitee_star"}}}
                 }'''% (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_openlookeng_all_20200806/_search'
+            url = self.gitee_star_user
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openlookeng"]["gitee_star_user"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -2609,7 +2640,7 @@ class ReportEmail(object):
                           "sum": {
                             "field": "is_gitee_fork"}}}
                     }'''% (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_openlookeng_all_20200806/_search'
+            url = self.gitee_fork_user
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openlookeng"]["gitee_fork_user"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -2631,7 +2662,7 @@ class ReportEmail(object):
                           "sum": {
                             "field": "is_gitee_watch"}}}
                     }'''% (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_openlookeng_all_20200806/_search'
+            url = self.gitee_watch_user
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openlookeng"]["gitee_watch_user"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -2652,7 +2683,7 @@ class ReportEmail(object):
                               "sum": {
                                 "field": "is_gitee_pull_request"}}}
                         }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_openlookeng_all_20200806/_search'
+            url = self.gitee_pr_user
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openlookeng"]["gitee_pr_user"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -2698,7 +2729,7 @@ class ReportEmail(object):
                     }
                   }
                 }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/github_swf_openlookeng_20200629/_search'
+            url = self.github_fork
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openlookeng"]["github_fork"] = sum([int(r['3']['value']) for r in res["aggregations"]["2"]["buckets"]])
 
@@ -2744,7 +2775,7 @@ class ReportEmail(object):
                         }
                       }
                     }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/github_swf_openlookeng_20200629/_search'
+            url = self.github_watch
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openlookeng"]["github_watch"] = sum([int(r['3']['value']) for r in res["aggregations"]["2"]["buckets"]])
 
@@ -2790,7 +2821,7 @@ class ReportEmail(object):
                             }
                           }
                         }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/github_swf_openlookeng_20200629/_search'
+            url = self.github_star
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openlookeng"]["github_star"] = sum([int(r['3']['value']) for r in res["aggregations"]["2"]["buckets"]])
 
@@ -2811,7 +2842,7 @@ class ReportEmail(object):
                           "sum": {
                             "field": "is_gitee_issue"}}}
                     }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_openlookeng_all_20200806/_search'
+            url = self.gitee_issue
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openlookeng"]["gitee_issue"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -2864,7 +2895,7 @@ class ReportEmail(object):
                       "cardinality": {
                         "field": "user_login.keyword"}}}
                 }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_openlookeng_all_20200806/_search'
+            url = self.contributor
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openlookeng"]["contributor"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -2913,7 +2944,7 @@ class ReportEmail(object):
                           "cardinality": {
                             "field": "user_login.keyword"}}}
                     }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_openlookeng_all_20200806/_search'
+            url = self.deep_contributor
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openlookeng"]["deep_contributor"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -2966,7 +2997,7 @@ class ReportEmail(object):
                       "cardinality": {
                         "field": "user_login.keyword"}}}
                 }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_openlookeng_all_20200806/_search'
+            url = self.contributorHuawei
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openlookeng"]["contributorHuawei"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -3019,7 +3050,7 @@ class ReportEmail(object):
                           "cardinality": {
                             "field": "user_login.keyword"}}}
                     }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/gitee_openlookeng_all_20200806/_search'
+            url = self.contributorNotHuawei
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openlookeng"]["contributorNotHuawei"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -3040,7 +3071,7 @@ class ReportEmail(object):
                       "cardinality": {
                         "field": "user_gitee_name.keyword"}}}
                 }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/openlookeng_sig_20200813/_search'
+            url = self.committers
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openlookeng"]["committers"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -3061,7 +3092,7 @@ class ReportEmail(object):
                           "cardinality": {
                             "field": "user_gitee_name.keyword"}}}
                     }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/openlookeng_sig_20200813/_search'
+            url = self.contributorHuawei
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openlookeng"]["committersHuawei"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -3082,7 +3113,7 @@ class ReportEmail(object):
                           "cardinality": {
                             "field": "user_gitee_name.keyword"}}}
                     }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/openlookeng_sig_20200813/_search'
+            url = self.contributorNotHuawei
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openlookeng"]["committersNotHuawei"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -3093,7 +3124,7 @@ class ReportEmail(object):
                 }
                 }
         }'''
-            url = 'https://119.8.112.14:9200/openlookeng_obs_202000806/_count'
+            url = self.paly_video
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openlookeng"]["paly_video"] = int(res["count"])
 
@@ -3112,7 +3143,7 @@ class ReportEmail(object):
                             }
                             }
                     }'''% (starttime, endtime)
-            url = 'https://119.8.112.14:9200/download.openlookeng.io_20201104/_count'
+            url = self.downlaod
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openlookeng"]["downlaod"] = int(res["count"])
             result["openlookeng"]["downlaod_gb"] = "N/A"
@@ -3135,12 +3166,11 @@ class ReportEmail(object):
                                           "cardinality": {
                                             "field": "ip.keyword"}}}
                                     }''' % (starttime, endtime)
-            url = 'https://119.8.112.14:9200/download.openlookeng.io_20201104/_search'
+            url = self.downlaod_ip
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openlookeng"]["downlaod_ip"] = int(res["aggregations"]["ip"]["value"])
 
         return result
-
 
     def writePPT(self, data, itime, org=None, fileppt='', data2={}):
         def _addText(prs, content, slides, inches, size, color=''):
