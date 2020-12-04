@@ -576,7 +576,7 @@ class CollectData(object):
                                              "committer_time": times_onwer,
                                              "is_sig_repo_committer": 1,
                                              "owner_type": key}
-                                    userExtra = self.gitee.getUserInfo(onwer)
+                                    userExtra = self.esClient.getUserInfo(onwer)
                                     dataw.update(userExtra)
                                     datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
                                     datas += datar
@@ -593,7 +593,7 @@ class CollectData(object):
                                      "committer_time": times_onwer,
                                      "is_sig_repo_committer": 1,
                                      "owner_type": key}
-                            userExtra = self.gitee.getUserInfo(onwer)
+                            userExtra = self.esClient.getUserInfo(onwer)
                             dataw.update(userExtra)
                             datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
                             datas += datar
@@ -624,7 +624,7 @@ class CollectData(object):
                     "created_at": '2020-08-09',
                     "is_enterprise_committer": 1,
                     "is_admin": admin}
-                userExtra = self.gitee.getUserInfo(data['login'])
+                userExtra = self.esClient.getUserInfo(data['login'])
                 dataw.update(userExtra)
                 datac = self.getSingleAction(self.index_name_sigs, ID, dataw)
                 datar += datac
@@ -686,7 +686,7 @@ class CollectData(object):
                                  "created_at": times_onwer,
                                  "is_sig_repo_committer": 1,
                                  "owner_type": key}
-                        userExtra = self.gitee.getUserInfo(onwer)
+                        userExtra = self.esClient.getUserInfo(onwer)
                         dataw.update(userExtra)
                         datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
                         datas += datar
