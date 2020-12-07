@@ -66,9 +66,13 @@ class ReportEmail(object):
         self.paly_video = config.get('paly_video')
         self.website = config.get('website')
         self.committers = config.get('committers')
+        self.run_hour = config.get('run_hour')
 
     def run(self, from_date):
-        self.do(org=self.org)
+
+        scheduler = BlockingScheduler()
+        scheduler.add_job(self.do, 'cron', hour=self.run_hour, kargs={"org": self.org})
+        scheduler.start()
         print('end...')
 
     def getPng(self, url, filename, api, start='2020-01-01 00:00:00', end=None):
@@ -82,7 +86,6 @@ class ReportEmail(object):
         print(url)
         cmd = 'curl -H "Accept: application/json" -H "Authorization: Bearer %s" "%s" > %s' % (api, url, filename)
         os.system(cmd)
-
 
     def getData(self, headers, start='2020-01-01 00:00:00', end=None, org=None, header01=''):
         result = {"openeuler":{}, 'mindspore':{}, 'opengauss':{}, 'openlookeng':{}}
@@ -3581,13 +3584,7 @@ class ReportEmail(object):
                                        data[org]['gitee_issue'], data2[org]['gitee_issue']
                                        )
 
-        if check:
-            for email in self.email_list:
-                send_email('smtp.163.com', 465, self.send, self.smtp, email, subject, content, fileppt)
-                time.sleep(6)
-        else:
-            for email in ['haoxiangyu3@huawei.com']:
-                send_email('smtp.163.com', 465, self.send, self.smtp, email, subject, content, fileppt)
-                time.sleep(6)
-
+        for email in self.email_list:
+            send_email('smtp.163.com', 465, self.send, self.smtp, email, subject, content, fileppt)
+            time.sleep(6)
 
