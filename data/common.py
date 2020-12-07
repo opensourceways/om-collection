@@ -30,6 +30,8 @@ from collect.gitee import GiteeClient
 urllib3.disable_warnings()
 
 import requests
+import os
+import yaml
 from requests.auth import HTTPBasicAuth
 
 
@@ -52,6 +54,8 @@ class ESClient(object):
         self.enterpriseUsers = []
         self.orgs = self.getOrgs(config.get('orgs'))
         self.gitee_token = config.get('gitee_token')
+        self.yaml_url = config.get('yaml_url')
+        self.yaml_path = config.get('yaml_path')
         if self.authorization:
             self.default_headers['Authorization'] = self.authorization
 
@@ -72,6 +76,21 @@ class ESClient(object):
                 userExtra["tag_user_company"] = "n/a"
                 userExtra["is_project_internal_user"] = 0
 
+        if self.yaml_url:
+            cmd = 'wget %s' % self.yaml_url
+            os.popen(cmd)
+            datas = yaml.load_all(open(self.yaml_path)).__next__()
+
+            for data in datas:
+                if data['gitee_id'] == userExtra['user_login']:
+                    if not data["companies"]['company_name'] and data['emails']:
+                        for email in data['emails']:
+                            if email.endswith('@huawei.com'):
+                                userExtra["companies"]['company_name'] = 'Huawei'
+                                break
+                    else:
+                        if re.search(r'huawei', data["companies"]['company_name'], re.I):
+                            userExtra["companies"]['company_name'] = 'Huawei'
         return userExtra
 
     def getItselfUsers(self, filename="users"):
@@ -162,6 +181,16 @@ class ESClient(object):
             res = requests.put(url, data=bulk_json, headers=headers)
             res.raise_for_status()
 
+    def searchEsList(self, index_name, search=None):
+        url = self.url + '/' + index_name + '/search'
+        data = '''{"size":10000,"query": {"bool": {%s}}}''' % search
+        try:
+            res = json.loads(
+                requests.get(url=url, headers=self.default_headers, verify=False, data=data.encode('utf-8')).content)
+        except:
+            print(traceback.format_exc())
+        return res['hits']['hits']
+
     def post_delete_index_name(self, index_name=None, header=None, url=None):
         if not index_name:
             return
@@ -222,6 +251,15 @@ class ESClient(object):
         starTime = f.strftime("%Y%m%d")
         return starTime
 
+    def searchEsList(self, index_name, search=None):
+        url = self.url + '/' + index_name + '/search'
+        data = '''{"size":10000,"query": {"bool": {%s}}}''' % search
+        try:
+            res = json.loads(
+                requests.get(url=url, headers=self.default_headers, verify=False, data=data.encode('utf-8')).content)
+            return res['hits']['hits']
+        except:
+            print(traceback.format_exc())
 
     def getLastFormatTime(self):
         # 2020-04-29T15:59:59.000Z

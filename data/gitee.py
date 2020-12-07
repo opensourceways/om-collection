@@ -69,6 +69,8 @@ class Gitee(object):
         self.internal_users = config.get('internal_users', 'users')
         self.collect_from_time = config.get('collect_from_time')
         self.is_set_collect = config.get('is_set_collect')
+        self.yaml_url = config.get('yaml_url')
+        self.yaml_path = config.get('yaml_path')
         self.internal_company_name = config.get('internal_company_name', 'internal_company')
         self.internalUsers = []
         self.all_user = []
@@ -81,7 +83,7 @@ class Gitee(object):
 
 
     def run(self, from_time):
-        # self.getUserInfoFromDataFile()
+        # self.esClient.getUserInfoFromDataFile()
         print("Collect gitee data: staring")
         self.getEnterpriseUser()
         # return
@@ -249,7 +251,7 @@ class Gitee(object):
                 "fork_gitee_repo": re.sub('.git$', '', fork['html_url']),
                 "is_gitee_fork": 1,
             }
-            userExtra = self.getUserInfo(action['user_login'])
+            userExtra = self.esClient.getUserInfo(action['user_login'])
             action.update(userExtra)
 
             indexData = {
@@ -288,7 +290,7 @@ class Gitee(object):
                 "org_name": owner,
                 "is_gitee_star": 1,
             }
-            userExtra = self.getUserInfo(action['user_login'])
+            userExtra = self.esClient.getUserInfo(action['user_login'])
             action.update(userExtra)
             indexData = {
                 "index": {"_index": self.index_name, "_id": star_id}}
@@ -320,7 +322,7 @@ class Gitee(object):
                 "org_name": owner,
                 "is_gitee_watch": 1,
             }
-            userExtra = self.getUserInfo(action['user_login'])
+            userExtra = self.esClient.getUserInfo(action['user_login'])
             action.update(userExtra)
 
             indexData = {
@@ -352,7 +354,7 @@ class Gitee(object):
             "gitee_repo": re.sub('.git$', '', repo_data['html_url']),
             "is_gitee_repo": 1,
         }
-        userExtra = self.getUserInfo(repo_data['owner']['login'])
+        userExtra = self.esClient.getUserInfo(repo_data['owner']['login'])
         repo_detail.update(userExtra)
         indexData = {
             "index": {"_index": self.index_name,
@@ -559,7 +561,7 @@ class Gitee(object):
             ecomment['is_gitee_{}'.format(REVIEW_COMMENT_TYPE)] = 1
             ecomment['is_gitee_comment'] = 1
 
-            userExtra = self.getUserInfo(ecomment['user_login'])
+            userExtra = self.esClient.getUserInfo(ecomment['user_login'])
             ecomment.update(userExtra)
             ecomments.append(ecomment)
 
@@ -654,7 +656,7 @@ class Gitee(object):
 
         #if self.prjs_map:
         #    rich_pr.update(self.get_item_project(rich_pr))
-        userExtra = self.getUserInfo(rich_pr['user_login'])
+        userExtra = self.esClient.getUserInfo(rich_pr['user_login'])
         rich_pr.update(userExtra)
         if 'project' in item:
             rich_pr['project'] = item['project']
@@ -761,7 +763,7 @@ class Gitee(object):
         #rich_issue.pop('is_gitee2_{}'.format(ISSUE_TYPE))
         rich_issue['is_gitee_{}'.format(ISSUE_TYPE)] = 1
 
-        userExtra = self.getUserInfo(rich_issue['user_login'])
+        userExtra = self.esClient.getUserInfo(rich_issue['user_login'])
         rich_issue.update(userExtra)
         return rich_issue
 
@@ -820,7 +822,7 @@ class Gitee(object):
 
             if 'project' in eitem:
                 ecomment['project'] = eitem['project']
-            userExtra = self.getUserInfo(ecomment['user_login'])
+            userExtra = self.esClient.getUserInfo(ecomment['user_login'])
             ecomment.update(userExtra)
             #self.add_repository_labels(ecomment)
             #self.add_metadata_filter_raw(ecomment)
@@ -955,6 +957,21 @@ class Gitee(object):
                         "is_project_internal_user": 0,
                     }
                 }
+            if self.yaml_url:
+                cmd = 'wget %s' % self.yaml_url
+                os.popen(cmd)
+                datas = yaml.load_all(open(self.yaml_path)).__next__()
+
+                for data in datas:
+                    if data['gitee_id'] == u:
+                        if not data["companies"]['company_name'] and data['emails']:
+                            for email in data['emails']:
+                                if email.endswith('@huawei.com'):
+                                    update_data["companies"]['company_name'] = 'Huawei'
+                                    break
+                        else:
+                            if re.search(r'huawei', data["companies"]['company_name'], re.I):
+                                update_data["companies"]['company_name'] = 'Huawei'
         # for u in users:
             actions = ""
             ids = self.getAllIndex(u)
@@ -1042,7 +1059,7 @@ class Gitee(object):
                         user['user_login'] = user['login']
                         user['user_name'] = user['name']
                         user['author_name'] = user['name']
-                        userExtra = self.getUserInfo(user['login'])
+                        userExtra = self.esClient.getUserInfo(user['login'])
                         user.update(userExtra)
                         action = common.getSingleAction(self.index_name_all[index], id, user)
                         self.esClient.safe_put_bulk(action)

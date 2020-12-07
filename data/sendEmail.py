@@ -1,11 +1,13 @@
 #!/usr/bin/python
 # -*- coding: UTF-8 -*-
+
 import smtplib
 import email.mime.multipart
 import email.mime.text
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
+import json
 
 
 def send_email(smtp_host, smtp_port, sendAddr, password, recipientAddrs, subject='', content='', fileppt=''):
@@ -27,9 +29,10 @@ def send_email(smtp_host, smtp_port, sendAddr, password, recipientAddrs, subject
     msg.attach(txt)
 
     # 附件
-    part = MIMEApplication(open(fileppt, 'rb').read())
-    part.add_header('Content-Disposition', 'attachment', filename=fileppt)  # 发送文件名
-    msg.attach(part)
+    if fileppt:
+        part = MIMEApplication(open(fileppt, 'rb').read())
+        part.add_header('Content-Disposition', 'attachment', filename=fileppt)  # 发送文件名
+        msg.attach(part)
 
     try:
         smtpSSLClient = smtplib.SMTP_SSL(smtp_host, smtp_port)
@@ -48,11 +51,19 @@ def send_email(smtp_host, smtp_port, sendAddr, password, recipientAddrs, subject
 
 if __name__ == "__main__":
     try:
+        with open("D:\\pngurl.json", 'r') as fj:
+            f = json.load(fj)
         subject = 'Python 测试邮件'
-        content = '这是一封来自 Python 编写的测试邮件。'
-        sendemail = 'xxx@163.com'
-        toemail = 'xxx@huawei.com'
-        smtpkey = "xxx"
-        send_email('smtp.163.com', 465, sendemail, smtpkey, toemail, subject, content)
+        content = '''这是一封来自 Python 编写的测试邮件。
+        这是一封来自 Python 编写的测试邮件。这是一封来自 Python 编写的测试邮件。
+        这是一封来自 Python 编写的测试邮件。 %s
+        这是一封来自 Python 编写的测试邮件。%s
+        ''' % ('ABCD', 'EFG')
+        send = f['email']['senddefault']
+        smtp = f['email']['smtpkey']
+        fileppt = ''
+        for emaildrs in f['email']['users']:
+            send_email('smtp.163.com', 465, send, smtp, emaildrs, subject, content, fileppt)
+            break
     except Exception as err:
-        print(err)
+        print(traceback.format_exc())

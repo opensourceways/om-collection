@@ -65,6 +65,7 @@ class CollectData(object):
         self.start_time_bilibili_popularity_total = config.get("start_time_bilibili_popularity_total")
         self.index_name_gitee_download = config.get('index_name_gitee_download')
         self.start_time_gitee_download = config.get('start_time_gitee_download')
+        self.is_gitee_api_get = config.get("is_gitee_api_get")
         if 'pypi_orgs' in config:
             self.pypi_orgs = config.get('pypi_orgs').split(',')
 
@@ -83,7 +84,7 @@ class CollectData(object):
             self.get_sig_pr_issue()
             self.get_sigs_total()
             self.get_sigs_committer_total()
-        elif self.index_name_sigs and self.is_gitee_enterprise:
+        elif self.index_name_sigs and self.is_gitee_api_get:
             self.gte_enterprise_committers()
         elif self.index_name_sigs:
             self.get_repo_committer()
@@ -551,6 +552,8 @@ class CollectData(object):
             try:
                 for key, val in onwers.items():
                     for onwer in val:
+                        search = '"must": [{ "match": { "sig_name":"%s"}},{ "match": { "committer":"%s"}}]' %(dir, onwer)
+                        ID_list = [r['_id'] for r in self.esClient.searchEsList(self.index_name_sigs, search)]
                         times_onwer = None
                         for r in rs2:
                             if re.search(r'\+\s*-\s*%s' % onwer, r):
@@ -564,6 +567,8 @@ class CollectData(object):
                                 repos = d['repositories']
                                 for repo in repos:
                                     ID = self.org + '_' + dir + '_' + repo + '_' + onwer
+                                    if ID in ID_list:
+                                        ID_list.remove(ID)
                                     dataw = {"sig_name": dir,
                                              "repo_name": repo,
                                              "committer": onwer,
@@ -571,7 +576,7 @@ class CollectData(object):
                                              "committer_time": times_onwer,
                                              "is_sig_repo_committer": 1,
                                              "owner_type": key}
-                                    userExtra = self.gitee.getUserInfo(onwer)
+                                    userExtra = self.esClient.getUserInfo(onwer)
                                     dataw.update(userExtra)
                                     datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
                                     datas += datar
@@ -579,6 +584,8 @@ class CollectData(object):
 
                         if repo_mark:
                             ID = self.org + '_' + dir + '_null_' + onwer
+                            if ID in ID_list:
+                                ID_list.remove(ID)
                             dataw = {"sig_name": dir,
                                      "repo_name": None,
                                      "committer": onwer,
@@ -586,11 +593,14 @@ class CollectData(object):
                                      "committer_time": times_onwer,
                                      "is_sig_repo_committer": 1,
                                      "owner_type": key}
-                            userExtra = self.gitee.getUserInfo(onwer)
+                            userExtra = self.esClient.getUserInfo(onwer)
                             dataw.update(userExtra)
                             datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
                             datas += datar
-
+                        for id in ID_list:
+                            data = '''{"size":10000,"query": {"bool": {"must": [{ "match": { "_id":%s }}]}}}''' % id
+                            self.esClient.post_delete_delete_by_query(data, self.index_name_sigs)
+                            print('delete ID: %s' % id)
                 self.safe_put_bulk(datas)
                 print("this sig done: %s" % dir)
                 time.sleep(1)
@@ -614,7 +624,7 @@ class CollectData(object):
                     "created_at": '2020-08-09',
                     "is_enterprise_committer": 1,
                     "is_admin": admin}
-                userExtra = self.gitee.getUserInfo(data['login'])
+                userExtra = self.esClient.getUserInfo(data['login'])
                 dataw.update(userExtra)
                 datac = self.getSingleAction(self.index_name_sigs, ID, dataw)
                 datar += datac
@@ -676,7 +686,7 @@ class CollectData(object):
                                  "created_at": times_onwer,
                                  "is_sig_repo_committer": 1,
                                  "owner_type": key}
-                        userExtra = self.gitee.getUserInfo(onwer)
+                        userExtra = self.esClient.getUserInfo(onwer)
                         dataw.update(userExtra)
                         datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
                         datas += datar
