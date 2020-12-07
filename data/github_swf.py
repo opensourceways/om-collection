@@ -76,7 +76,8 @@ class GitHubSWF(object):
         spent_time = time.strftime("%H:%M:%S", time.gmtime(endTime - startTime))
         print("Collect github star watch fork data: finished after ", spent_time)
 
-    def getTotal(self, type, index_name, total_index, url=None, date=None, field=None, size='10', search='', mark=None):
+    def getTotal(self, type, index_name, total_index, url=None, date='2019-06-01', field=None, size='10', search='', mark=None):
+        print('getTotal: %s' % mark)
         if not url:
             url = self.url + '/' + index_name + '/_search'
         if not date:
@@ -84,6 +85,7 @@ class GitHubSWF(object):
         datei = datetime.datetime.strptime(date, "%Y-%m-%d")
         dateii = datei
         totalmark = 'is_' + mark + '_' + type + '_total'
+        x = []
         while True:
             datenow = datetime.datetime.strptime(datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d"),
                                                  "%Y-%m-%d")
@@ -142,6 +144,8 @@ class GitHubSWF(object):
             if num > 0:
                 print('%s:%s' % (stime, num))
                 self.esClient.safe_put_bulk(data)
+                x.append(num)
+        print(sum(x))
 
     def getRepoNames(self):
         gitclient = GithubClient(self.org, "", self.github_authorization)
