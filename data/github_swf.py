@@ -84,7 +84,6 @@ class GitHubSWF(object):
         datei = datetime.datetime.strptime(date, "%Y-%m-%d")
         dateii = datei
         totalmark = 'is_' + mark + '_' + type + '_total'
-        x = []
         while True:
             datenow = datetime.datetime.strptime(datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d"),
                                                  "%Y-%m-%d")
@@ -143,7 +142,6 @@ class GitHubSWF(object):
             if num > 0:
                 print('%s:%s' % (stime, num))
                 self.esClient.safe_put_bulk(data)
-                x.append(num)
 
     def getRepoNames(self):
         gitclient = GithubClient(self.org, "", self.github_authorization)
