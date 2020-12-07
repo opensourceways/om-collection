@@ -54,8 +54,10 @@ class ESClient(object):
         self.enterpriseUsers = []
         self.orgs = self.getOrgs(config.get('orgs'))
         self.gitee_token = config.get('gitee_token')
-        self.yaml_url = config.get('yaml_url')
-        self.yaml_path = config.get('yaml_path')
+        self.data_yaml_url = config.get('data_yaml_url')
+        self.data_yaml_path = config.get('data_yaml_path')
+        self.company_yaml_url = config.get('company_yaml_url')
+        self.company_yaml_path = config.get('company_yaml_path')
         if self.authorization:
             self.default_headers['Authorization'] = self.authorization
 
@@ -76,21 +78,26 @@ class ESClient(object):
                 userExtra["tag_user_company"] = "n/a"
                 userExtra["is_project_internal_user"] = 0
 
-        if self.yaml_url:
-            cmd = 'wget %s' % self.yaml_url
+        if self.data_yaml_url:
+            cmd = 'wget %s' % self.data_yaml_url
             os.popen(cmd)
-            datas = yaml.load_all(open(self.yaml_path)).__next__()
+            datas = yaml.load_all(open(self.data_yaml_path)).__next__()['users']
+
+            cmd = 'wget %s' % self.company_yaml_url
+            os.popen(cmd)
+            companys = yaml.load_all(open(self.company_yaml_path)).__next__()['companies']
 
             for data in datas:
                 if data['gitee_id'] == userExtra['user_login']:
                     if not data["companies"]['company_name'] and data['emails']:
-                        for email in data['emails']:
-                            if email.endswith('@huawei.com'):
-                                userExtra["companies"]['company_name'] = 'Huawei'
+                        for company in companys:
+                            if data['emails'][0].endswith(company['domains']):
+                                userExtra["companies"]['company_name'] = company['company_name']
                                 break
                     else:
-                        if re.search(r'huawei', data["companies"]['company_name'], re.I):
-                            userExtra["companies"]['company_name'] = 'Huawei'
+                        for company in companys:
+                            if data["companies"]['company_name'] in company['aliases']:
+                                userExtra["companies"]['company_name'] = company['company_name']
         return userExtra
 
     def getItselfUsers(self, filename="users"):
