@@ -76,7 +76,7 @@ class GitHubSWF(object):
         spent_time = time.strftime("%H:%M:%S", time.gmtime(endTime - startTime))
         print("Collect github star watch fork data: finished after ", spent_time)
 
-    def getTotal(self, type, index_name, total_index, url=None, date=None, field=None, size='10', search='', mark=None):
+    def getTotal(self, type, index_name, total_index, url=None, date='2019-06-01', field=None, size='10', search='', mark=None):
         if not url:
             url = self.url + '/' + index_name + '/_search'
         if not date:
