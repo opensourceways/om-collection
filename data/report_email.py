@@ -71,7 +71,7 @@ class ReportEmail(object):
     def run(self, from_date):
 
         scheduler = BlockingScheduler()
-        scheduler.add_job(self.do, 'cron', hour=self.run_hour, kargs={"org": self.org})
+        scheduler.add_job(self.do, 'cron', hour=self.run_hour, kwargs={"org": self.org})
         scheduler.start()
         print('end...')
 
