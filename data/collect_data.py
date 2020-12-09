@@ -405,8 +405,12 @@ class CollectData(object):
                                                  "%Y-%m-%d")
             if datei == datenow + datetime.timedelta(days=1):
                 break
-            overall = pypistats.overall(package, start_date=datei.strftime("%Y-%m-%d"),
-                                        end_date=datei.strftime("%Y-%m-%d"), format="rst")
+            try:
+                overall = pypistats.overall(package, start_date=datei.strftime("%Y-%m-%d"),
+                                            end_date=datei.strftime("%Y-%m-%d"), format="rst")
+            except:
+                print(traceback.format_exc())
+                continue
             With_Mirrors = self.get_data_num_pypi(overall, "with_mirrors")
             Without_Mirrors = self.get_data_num_pypi(overall, "without_mirrors")
             Total = self.get_data_num_pypi(overall, "Total", True)
