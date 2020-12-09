@@ -429,8 +429,12 @@ class CollectData(object):
                                                  "%Y-%m-%d")
             if datei == datenow + datetime.timedelta(days=1):
                 break
-            major = pypistats.python_major(package, start_date=datei.strftime("%Y-%m-%d"),
-                                           end_date=datei.strftime("%Y-%m-%d"), format="rst")
+            try:
+                major = pypistats.python_major(package, start_date=datei.strftime("%Y-%m-%d"),
+                                               end_date=datei.strftime("%Y-%m-%d"), format="rst")
+            except:
+                print(traceback.format_exc())
+                continue
             Python3 = self.get_data_num_pypi(major, "3")
             null = self.get_data_num_pypi(major, "null")
             Total = self.get_data_num_pypi(major, "Total", True)
@@ -449,8 +453,12 @@ class CollectData(object):
                                                  "%Y-%m-%d")
             if datei == datenow + datetime.timedelta(days=1):
                 break
-            minor = pypistats.python_minor(package, start_date=datei.strftime("%Y-%m-%d"),
-                                           end_date=datei.strftime("%Y-%m-%d"), format="rst")
+            try:
+                minor = pypistats.python_minor(package, start_date=datei.strftime("%Y-%m-%d"),
+                                               end_date=datei.strftime("%Y-%m-%d"), format="rst")
+            except:
+                print(traceback.format_exc())
+                continue
             Python37 = self.get_data_num_pypi(minor, "3\.7")
             null = self.get_data_num_pypi(minor, "null")
             Total = self.get_data_num_pypi(minor, "Total", True)
@@ -469,8 +477,12 @@ class CollectData(object):
                                                  "%Y-%m-%d")
             if datei == datenow + datetime.timedelta(days=1):
                 break
-            system = pypistats.system(package, start_date=datei.strftime("%Y-%m-%d"),
-                                      end_date=datei.strftime("%Y-%m-%d"), format="rst")
+            try:
+                system = pypistats.system(package, start_date=datei.strftime("%Y-%m-%d"),
+                                          end_date=datei.strftime("%Y-%m-%d"), format="rst")
+            except:
+                print(traceback.format_exc())
+                continue
             Windows = self.get_data_num_pypi(system, "Windows")
             Linux = self.get_data_num_pypi(system, "Linux")
             null = self.get_data_num_pypi(system, "null")
