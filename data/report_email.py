@@ -41,14 +41,14 @@ class ReportEmail(object):
         self.repo = config.get('repo')
         self.github_star = config.get('github_star')
         self.gitee_issue = config.get('gitee_issue')
-        self.committersNotHuawei = config.get('committersNotHuawei')
+        self.committersnothuawei = config.get('committersnothuawei')
         self.github_watch = config.get('github_watch')
         self.gitee_fork_user = config.get('gitee_fork_user')
-        self.contributorNotHuawei = config.get('contributorNotHuawei')
+        self.contributornothuawei = config.get('contributornothuawei')
         self.downloadall = config.get('downloadall')
         self.contributor = config.get('contributor')
         self.downlaod_ip = config.get('downlaod_ip')
-        self.contributorHuawei = config.get('contributorHuawei')
+        self.contributorhuawei = config.get('contributorhuawei')
         self.maillist = config.get('maillist')
         self.gitee_star_user = config.get('gitee_star_user')
         self.D0_user = config.get('D0_user')
@@ -56,7 +56,7 @@ class ReportEmail(object):
         self.deep_contributor = config.get('deep_contributor')
         self.webvisitor = config.get('webvisitor')
         self.users = config.get('users')
-        self.committersHuawei = config.get('committersHuawei')
+        self.committershuawei = config.get('committershuawei')
         self.video = config.get('video')
         self.github_fork = config.get('github_fork')
         self.maillistnum = config.get('maillistnum')
@@ -769,7 +769,7 @@ class ReportEmail(object):
               "cardinality": {
                 "field": "user_login.keyword"}}}
         }''' % (starttime, endtime)
-            url = self.contributorHuawei
+            url = self.contributorhuawei
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["contributorHuawei"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -822,7 +822,7 @@ class ReportEmail(object):
                   "cardinality": {
                     "field": "user_login.keyword"}}}
             }''' % (starttime, endtime)
-            url = self.contributorNotHuawei
+            url = self.contributornothuawei
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["contributorNotHuawei"] = int(res["aggregations"]["user_login"]["value"])
 
@@ -864,7 +864,7 @@ class ReportEmail(object):
                   "cardinality": {
                     "field": "committer.keyword"}}}
             }''' % (starttime, endtime)
-            url = self.committersHuawei
+            url = self.committershuawei
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["committersHuawei"] = int(res["aggregations"]["user_gitee_name"]["value"])
 
@@ -885,7 +885,7 @@ class ReportEmail(object):
                   "cardinality": {
                     "field": "committer.keyword"}}}
             }''' % (starttime, endtime)
-            url = self.committersNotHuawei
+            url = self.committersnothuawei
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openeuler"]["committersNotHuawei"] = int(res["aggregations"]["user_gitee_name"]["value"])
 
