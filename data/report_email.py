@@ -69,7 +69,7 @@ class ReportEmail(object):
         self.run_hour = config.get('run_hour')
 
     def run(self, from_date):
-        self.do(org=self.org)
+        
         scheduler = BlockingScheduler()
         scheduler.add_job(self.do, 'cron', hour=self.run_hour, kwargs={"org": self.org})
         scheduler.start()
