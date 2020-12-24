@@ -48,7 +48,7 @@ DEFAULT_SLEEP_TIME = 1
 MAX_RETRIES = 5
 globa_threadinfo = threading.local()
 config = ConfigParser()
-config.read('../config.ini')
+config.read('config.ini',encoding='UTF-8')
 retry_time = config.getint('general', 'retry_time')
 retry_sleep_time = config.getint('general', 'retry_sleep_time')
 

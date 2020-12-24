@@ -406,7 +406,6 @@ class Gitee(object):
             for item in pull_code_diff:
                 codediffadd += int(item['additions'])
                 codediffdelete += int(item['deletions'])
-
             merged_item = None
             if x['state'] == "closed":
                 if isinstance(pull_action_logs, list) :
@@ -623,6 +622,12 @@ class Gitee(object):
         rich_pr['issue_title'] = pull_request['title']
         rich_pr['issue_title_analyzed'] = pull_request['title']
         rich_pr['pull_state'] = pull_request['state']
+        if(rich_pr['pull_state']=='open'):
+            rich_pr["is_pull_state_open"]=1
+        elif(rich_pr['pull_state']=='closed'):
+            rich_pr["is_pull_state_closed"]=1
+        elif(rich_pr['pull_state']=='merged'):
+            rich_pr["is_pull_state_merged"]=1
         rich_pr['pull_created_at'] = pull_request['created_at']
         rich_pr['pull_updated_at'] = pull_request['updated_at']
         rich_pr['created_at'] = pull_request['created_at']
@@ -733,6 +738,14 @@ class Gitee(object):
         rich_issue['issue_title'] = issue['title']
         rich_issue['issue_title_analyzed'] = issue['title']
         rich_issue['issue_state'] = issue['state']
+        if(rich_issue['issue_state']=='progressing'):
+            rich_issue['is_issue_state_progressing']=1
+        elif(rich_issue['issue_state']=='open'):
+            rich_issue['is_issue_state_open']=1
+        elif(rich_issue['issue_state']=='closed'):
+            rich_issue['is_issue_state_closed']=1
+        elif(rich_issue['issue_state']=='rejected'):
+            rich_issue['is_issue_state_rejected']=1
         rich_issue['issue_created_at'] = issue['created_at']
         rich_issue['issue_updated_at'] = issue['updated_at']
         rich_issue['issue_closed_at'] = issue['finished_at']
