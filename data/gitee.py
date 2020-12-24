@@ -397,8 +397,15 @@ class Gitee(object):
 
             pr_number = x['number']
 
+            pull_code_diff = self.getGenerator(client.pull_code_diff(pr_number))
             pull_action_logs = self.getGenerator(client.pull_action_logs(pr_number))
             pull_review_comments = self.getGenerator(client.pull_review_comments(pr_number))
+
+            codediffadd=0
+            codediffdelete=0
+            for item in pull_code_diff:
+                codediffadd += int(item['additions'])
+                codediffdelete += int(item['deletions'])
 
             merged_item = None
             if x['state'] == "closed":
@@ -406,6 +413,8 @@ class Gitee(object):
                     merged_item = pull_action_logs[0]
                 else:
                     merged_item = pull_action_logs
+            x['codediffadd']=codediffadd
+            x['codediffdelete']=codediffdelete
             eitem = self.__get_rich_pull(x, merged_item)
 
             indexData = {
@@ -658,6 +667,8 @@ class Gitee(object):
         #    rich_pr.update(self.get_item_project(rich_pr))
         userExtra = self.esClient.getUserInfo(rich_pr['user_login'])
         rich_pr.update(userExtra)
+        rich_pr['addcodenum']=pull_request['codediffadd']
+        rich_pr['deletecodenum']=pull_request['codediffdelete']
         if 'project' in item:
             rich_pr['project'] = item['project']
 

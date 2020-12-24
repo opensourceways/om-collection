@@ -54,7 +54,7 @@ retry_sleep_time = config.getint('general', 'retry_sleep_time')
 
 
 def globalExceptionHandler(func):
-    def warp(*args):
+    def warp(*args,**kwargs):
         try:
             # 第一次进来初始化重试次数变量
             if args[len(args) - 1] != "retry":
@@ -79,9 +79,9 @@ def globalExceptionHandler(func):
                     time.sleep(retry_sleep_time)
                     # 防止重复添加标识
                     if 'retry' not in args:
-                        warp(*args, "retry")
+                        warp(*args,"retry",**kwargs)
                     else:
-                        warp(*args)
+                        warp(*args,**kwargs)
                 finally:
                     pass
         else:
@@ -269,6 +269,11 @@ class GiteeClient():
 
         pull_action_logs_path = self.urijoin("pulls", str(pr_number), "operate_logs")
         return self.fetch_items(pull_action_logs_path, {})
+    def pull_code_diff(self,pr_number):
+        """get pull code diff number"""
+        pull_code_diff_path = self.urijoin("pulls", str(pr_number), "files")
+        return self.fetch_items(pull_code_diff_path, {})
+
 
     def pull_commits(self, pr_number):
         """Get pull request commits"""
