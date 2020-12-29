@@ -66,7 +66,7 @@ def globalExceptionHandler(func):
             for i in args:
                 if i != 'retry':
                     newarg.append(i)
-            response = func(*newarg)
+            response = func(*newarg,**kwargs)
         except requests.exceptions.RequestException as ex:
             while globa_threadinfo.num < retry_time and globa_threadinfo.retrystate == 0:
                 try:

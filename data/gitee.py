@@ -408,7 +408,11 @@ class Gitee(object):
             actions += json.dumps(eitem) + '\n'
 
             ecomments = self.get_rich_pull_reviews(pull_review_comments, eitem, owner)
+            firstcommenttime=None
             for ec in ecomments:
+                # if(firstcommenttime is None):
+                #     firstcommenttime=ec['created_at']
+                # elif
                 print(ec['pull_comment_id'])
                 if ec['user_login'] in self.skip_user:
                     continue
@@ -445,7 +449,7 @@ class Gitee(object):
         actions = ""
         issue_data = self.getGenerator(client.issues(from_date))
         for i in issue_data:
-            print(i['number'])
+            print(str(i['number']))
             issue_comments = self.getGenerator(client.issue_comments(i['number']))
             i['comments_data'] = issue_comments
             issue_item = self.get_rich_issue(i)
