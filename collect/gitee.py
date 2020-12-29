@@ -48,10 +48,13 @@ DEFAULT_SLEEP_TIME = 1
 MAX_RETRIES = 5
 globa_threadinfo = threading.local()
 config = ConfigParser()
-config.read('config.ini',encoding='UTF-8')
-retry_time = config.getint('general', 'retry_time')
-retry_sleep_time = config.getint('general', 'retry_sleep_time')
-
+try:
+    config.read('config.ini',encoding='UTF-8')
+    retry_time = config.getint('general', 'retry_time',)
+    retry_sleep_time = config.getint('general', 'retry_sleep_time')
+except BaseException as  ex:
+    retry_sleep_time=10
+    retry_time=10
 
 def globalExceptionHandler(func):
     def warp(*args,**kwargs):
