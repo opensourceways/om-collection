@@ -29,9 +29,10 @@ import _thread
 import dateutil.parser
 import dateutil.rrule
 import dateutil.tz
-
+import threading
+import time
 import datetime
-
+from configparser import ConfigParser
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,54 @@ PER_PAGE = 100
 # Default sleep time and retries to deal with connection/server problems
 DEFAULT_SLEEP_TIME = 1
 MAX_RETRIES = 5
+globa_threadinfo = threading.local()
+config = ConfigParser()
+config.read('config.ini',encoding='UTF-8')
+retry_time = config.getint('general', 'retry_time')
+retry_sleep_time = config.getint('general', 'retry_sleep_time')
+
+
+def globalExceptionHandler(func):
+    def warp(*args,**kwargs):
+        try:
+            # 第一次进来初始化重试次数变量
+            if args[len(args) - 1] != "retry":
+                globa_threadinfo.num = 0
+                # 重试是否成功0 未成功，1 成功
+                globa_threadinfo.retrystate = 0
+            newarg = []
+            # 执行func 参数去除retry标识
+            for i in args:
+                if i != 'retry':
+                    newarg.append(i)
+            response = func(*newarg)
+        except requests.exceptions.RequestException as ex:
+            while globa_threadinfo.num < retry_time and globa_threadinfo.retrystate == 0:
+                try:
+                    globa_threadinfo.num += 1
+                    print(
+                        "retry:" + threading.currentThread().getName() + str(func.__name__) + ":" + str(
+                            globa_threadinfo.num) + "次")
+                    print("error:" + str(ex))
+                    print(args)
+                    time.sleep(retry_sleep_time)
+                    # 防止重复添加标识
+                    if 'retry' not in args:
+                        warp(*args,"retry",**kwargs)
+                    else:
+                        warp(*args,**kwargs)
+                finally:
+                    pass
+        else:
+            if isinstance(response, requests.models.Response):
+                if response.status_code == 401 or response.status_code == 403:
+                    print({"状态码": response.status_code})
+            # 重试成功，修改状态
+            globa_threadinfo.retrystate = 1
+            globa_threadinfo.num = 0
+            return response
+
+    return warp
 
 
 class GiteeClient():
@@ -52,7 +101,7 @@ class GiteeClient():
     _users_orgs = {}  # users orgs cache
 
     def __init__(self, owner, repository, token,
-                 base_url=None, max_items=MAX_CATEGORY_ITEMS_PER_PAGE,):
+                 base_url=None, max_items=MAX_CATEGORY_ITEMS_PER_PAGE, ):
         self.owner = owner
         self.repository = repository
         # Just take the first token
@@ -99,7 +148,7 @@ class GiteeClient():
         }
 
         if from_date:
-           payload['since'] = from_date.isoformat()
+            payload['since'] = from_date.isoformat()
 
         path = self.urijoin("issues")
         return self.fetch_items(path, payload)
@@ -134,7 +183,6 @@ class GiteeClient():
         path = self.urijoin("events")
         return self.fetch_items(path, payload)
 
-
     def repo(self):
         """Get repository data"""
 
@@ -145,14 +193,12 @@ class GiteeClient():
 
         return repo
 
-
     def collaborators(self):
         """Get collaborators data"""
 
         commit_url = self.urijoin('collaborators')
 
         return self.fetch_items(commit_url, {})
-
 
     def enterprise_members(self):
         """Get enterprise members data"""
@@ -176,7 +222,6 @@ class GiteeClient():
 
         return self.fetch_items(commit_url, payload)
 
-
     def enterprises(self):
         """Get repository data"""
         commit_url = self.urijoin('enterprises', self.owner, 'repos')
@@ -189,7 +234,6 @@ class GiteeClient():
 
         return self.fetch_items(commit_url, payload)
 
-
     def forks(self):
         """Get forks data"""
         commit_url = self.urijoin('forks')
@@ -199,7 +243,6 @@ class GiteeClient():
         }
 
         return self.fetch_items(commit_url, payload)
-
 
     def stars(self):
         """Get stars data"""
@@ -211,7 +254,6 @@ class GiteeClient():
 
         return self.fetch_items(commit_url, payload)
 
-
     def watchs(self):
         """Get watchs data"""
         commit_url = self.urijoin('subscribers')
@@ -222,12 +264,16 @@ class GiteeClient():
 
         return self.fetch_items(commit_url, payload)
 
-
     def pull_action_logs(self, pr_number):
         """Get pull request action logs"""
 
         pull_action_logs_path = self.urijoin("pulls", str(pr_number), "operate_logs")
         return self.fetch_items(pull_action_logs_path, {})
+    def pull_code_diff(self,pr_number):
+        """get pull code diff number"""
+        pull_code_diff_path = self.urijoin("pulls", str(pr_number), "files")
+        return self.fetch_items(pull_code_diff_path, {})
+
 
     def pull_commits(self, pr_number):
         """Get pull request commits"""
@@ -298,6 +344,7 @@ class GiteeClient():
         url = self.urijoin("orgs", org, "followers")
         return self.fetch_items(url, payload)
 
+    @globalExceptionHandler
     def fetch(self, url, payload=None, headers=None, method="GET", stream=False, auth=None):
         """Fetch the data from a given URL.
         :param url: link to thecommits resource
@@ -314,16 +361,15 @@ class GiteeClient():
                 payload = {}
             payload["access_token"] = self.access_token
 
-        #response = super().fetch(url, payload, headers, method, stream, auth)
-        if method == 'GET':
-            response = self.session.get(url, params=payload, headers=headers, stream=stream,
-                                        verify=self.ssl_verify, auth=auth)
-        else:
-            response = self.session.post(url, data=payload, headers=headers, stream=stream,
-                                         verify=self.ssl_verify, auth=auth)
+            # response = super().fetch(url, payload, headers, method, stream, auth)
+            if method == 'GET':
+                response = self.session.get(url, params=payload, headers=headers, stream=stream,
+                                            verify=self.ssl_verify, auth=auth)
+            else:
+                response = self.session.post(url, data=payload, headers=headers, stream=stream,
+                                             verify=self.ssl_verify, auth=auth)
 
-        return response
-
+            return response
 
     def fetch_items(self, path, payload):
         """Return the items from gitee API using links pagination"""

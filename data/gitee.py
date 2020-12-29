@@ -33,7 +33,6 @@ import dateutil.tz
 import time
 import datetime
 
-
 from json import JSONDecodeError
 from data import common
 from data.common import ESClient
@@ -41,13 +40,13 @@ from collect.gitee import GiteeClient
 
 logger = logging.getLogger(__name__)
 
-
 ISSUE_TYPE = 'issue'
 PULL_TYPE = 'pull_request'
 COMMENT_TYPE = 'comment'
 ISSUE_COMMENT_TYPE = 'issue_comment'
 REVIEW_COMMENT_TYPE = 'review_comment'
 REPOSITORY_TYPE = 'repository'
+
 
 class Gitee(object):
 
@@ -81,7 +80,6 @@ class Gitee(object):
         if 'index_name_all' in config:
             self.index_name_all = config.get('index_name_all').split(',')
 
-
     def run(self, from_time):
         # self.esClient.getUserInfoFromDataFile()
         print("Collect gitee data: staring")
@@ -113,7 +111,6 @@ class Gitee(object):
                                    time.gmtime(endTime - startTime))
         print("Collect all gitee data finished after %s" % spent_time)
 
-
     def writeData(self, func, from_time):
         threads = []
         for org in self.orgs:
@@ -134,11 +131,9 @@ class Gitee(object):
                 t.join()
             threads = []
 
-
     def externalUpdateRepo(self):
         if self.is_update_repo_author == 'true':
             self.updateCreatedRepoAuthor()
-
 
     def getOrgs(self, orgsStr):
         orgs = []
@@ -162,7 +157,6 @@ class Gitee(object):
         self.writeStars(org, repo_name)
         self.writeWatchs(org, repo_name)
 
-
     def checkIsCollectRepo(self, path, is_public):
         filters = self.filters.split(',')
         for f in filters:
@@ -172,7 +166,6 @@ class Gitee(object):
             if is_public == False:
                 return False
         return True
-
 
     def get_repos(self, org):
         client = GiteeClient(org, None, self.gitee_token)
@@ -200,15 +193,14 @@ class Gitee(object):
 
         return repos
 
-
     def updateRemovedForks(self, gitee_repo, forks):
         matchs = [{
             "name": "is_gitee_fork",
             "value": 1,
-            },
+        },
             {
-            "name": "gitee_repo.keyword",
-            "value": gitee_repo,
+                "name": "gitee_repo.keyword",
+                "value": gitee_repo,
             }
         ]
         data = self.esClient.getItemsByMatchs(matchs)
@@ -222,7 +214,6 @@ class Gitee(object):
             if fork['_source']['fork_id'] not in forks:
                 print("[update] set fork(%s) is_removed to 1" % fork['_source']['fork_id'])
                 self.esClient.updateForkToRemoved(fork['_id'])
-
 
     def writeForks(self, owner, repo, from_date):
         startTime = datetime.datetime.now()
@@ -267,7 +258,6 @@ class Gitee(object):
         print("Collect repo(%s) fork request data finished, spend %s seconds"
               % (owner + "/" + repo, (endTime - startTime).seconds))
 
-
     def writeStars(self, owner, repo):
         client = GiteeClient(owner, repo, self.gitee_token)
         star_data = self.getGenerator(client.stars())
@@ -297,7 +287,6 @@ class Gitee(object):
             actions += json.dumps(indexData) + '\n'
             actions += json.dumps(action) + '\n'
         self.esClient.safe_put_bulk(actions)
-
 
     def writeWatchs(self, owner, repo):
         client = GiteeClient(owner, repo, self.gitee_token)
@@ -332,7 +321,6 @@ class Gitee(object):
 
         self.esClient.safe_put_bulk(actions)
 
-
     def writeRepoData(self, owner, repo, from_date=None):
         client = GiteeClient(owner, repo, self.gitee_token)
         repo_data = self.getGenerator(client.repo())
@@ -364,14 +352,12 @@ class Gitee(object):
 
         self.esClient.safe_put_bulk(actions)
 
-
     def getFromDate(self, from_date, filters):
         if from_date is None:
             from_date = self.esClient.get_from_date(filters)
         else:
             from_date = common.str_to_datetime(from_date)
         return from_date
-
 
     def writePullData(self, owner, repo, public, from_date=None):
         startTime = datetime.datetime.now()
@@ -397,15 +383,23 @@ class Gitee(object):
 
             pr_number = x['number']
 
+            pull_code_diff = self.getGenerator(client.pull_code_diff(pr_number))
             pull_action_logs = self.getGenerator(client.pull_action_logs(pr_number))
             pull_review_comments = self.getGenerator(client.pull_review_comments(pr_number))
 
+            codediffadd = 0
+            codediffdelete = 0
+            for item in pull_code_diff:
+                codediffadd += int(item['additions'])
+                codediffdelete += int(item['deletions'])
             merged_item = None
             if x['state'] == "closed":
-                if isinstance(pull_action_logs, list) :
+                if isinstance(pull_action_logs, list):
                     merged_item = pull_action_logs[0]
                 else:
                     merged_item = pull_action_logs
+            x['codediffadd'] = codediffadd
+            x['codediffdelete'] = codediffdelete
             eitem = self.__get_rich_pull(x, merged_item)
 
             indexData = {
@@ -426,8 +420,7 @@ class Gitee(object):
 
         endTime = datetime.datetime.now()
         print("Collect pull request data finished, spend %s seconds" % (
-                    endTime - startTime).seconds)
-
+                endTime - startTime).seconds)
 
     def writeIssueData(self, owner, repo, public, from_date=None):
         startTime = datetime.datetime.now()
@@ -441,8 +434,7 @@ class Gitee(object):
         else:
             from_date = common.str_to_datetime(from_date)
         print("Start collect repo(%s/%s) issue data from %s" % (
-                owner, repo, from_date))
-
+            owner, repo, from_date))
 
         # common.
         if public == True:
@@ -478,7 +470,6 @@ class Gitee(object):
         print("Collect repo(%s/%s) issue data finished, spend %s seconds" % (
             owner, repo, (endTime - startTime).seconds))
 
-
     def getGenerator(self, response):
         data = []
         try:
@@ -498,7 +489,6 @@ class Gitee(object):
             print("Gitee get JSONDecodeError, error: ", response)
 
         return data
-
 
     def get_rich_pull_reviews(self, comments, eitem, owner=None):
         ecomments = []
@@ -526,7 +516,7 @@ class Gitee(object):
                 ecomment['pull_merged_at'] = eitem['pull_merged_at']
             if 'pull_closed_at' in eitem:
                 ecomment['pull_closed_at'] = eitem['pull_closed_at']
-            #ecomment['pull_merged'] = eitem['pull_merged']
+            # ecomment['pull_merged'] = eitem['pull_merged']
             ecomment['pull_state'] = eitem['pull_state']
             ecomment['gitee_repo'] = eitem['gitee_repo']
             ecomment['repository'] = eitem['repository']
@@ -545,8 +535,7 @@ class Gitee(object):
                 ecomment['user_login'] = user['login']
                 ecomment["user_domain"] = None
             # extract reactions and add it to enriched item
-            #ecomment.update(self.__get_reactions(comment))
-
+            # ecomment.update(self.__get_reactions(comment))
 
             ecomment['created_at'] = comment['created_at']
             ecomment['updated_at'] = comment['updated_at']
@@ -555,7 +544,7 @@ class Gitee(object):
             # Add id info to allow to coexistence of items of different types in the same index
             ecomment['pull_comment_id'] = '{}_review_comment_{}'.format(eitem['id'], comment['id'])
             ecomment['id'] = comment['id']
-            #ecomment.update(self.get_grimoire_fields(comment['updated_at'], REVIEW_COMMENT_TYPE))
+            # ecomment.update(self.get_grimoire_fields(comment['updated_at'], REVIEW_COMMENT_TYPE))
             # due to backtrack compatibility, `is_gitee2_*` is replaced with `is_gitee_*`
 
             ecomment['is_gitee_{}'.format(REVIEW_COMMENT_TYPE)] = 1
@@ -566,7 +555,6 @@ class Gitee(object):
             ecomments.append(ecomment)
 
         return ecomments
-
 
     def __get_rich_pull(self, item, merged_item):
         rich_pr = {}
@@ -589,7 +577,7 @@ class Gitee(object):
         if user is not None and user:
             rich_pr['user_name'] = user['name']
             rich_pr['author_name'] = user['name']
-            #rich_pr["user_domain"] = self.get_email_domain(user['email']) if user['email'] else None
+            # rich_pr["user_domain"] = self.get_email_domain(user['email']) if user['email'] else None
             rich_pr["user_domain"] = None
         else:
             rich_pr['user_name'] = None
@@ -599,7 +587,7 @@ class Gitee(object):
         if merged_item is not None and 'user' in merged_item:
             rich_pr['merge_author_login'] = merged_item['user']['login']
             rich_pr['merge_author_name'] = merged_item['user']['name']
-            #rich_pr["merge_author_domain"] = self.get_email_domain(merged_by['email']) if merged_by['email'] else None
+            # rich_pr["merge_author_domain"] = self.get_email_domain(merged_by['email']) if merged_by['email'] else None
             rich_pr["merge_author_domain"] = None
         else:
             rich_pr['merge_author_name'] = None
@@ -614,6 +602,12 @@ class Gitee(object):
         rich_pr['issue_title'] = pull_request['title']
         rich_pr['issue_title_analyzed'] = pull_request['title']
         rich_pr['pull_state'] = pull_request['state']
+        if (rich_pr['pull_state'] == 'open'):
+            rich_pr["is_pull_state_open"] = 1
+        elif (rich_pr['pull_state'] == 'closed'):
+            rich_pr["is_pull_state_closed"] = 1
+        elif (rich_pr['pull_state'] == 'merged'):
+            rich_pr["is_pull_state_merged"] = 1
         rich_pr['pull_created_at'] = pull_request['created_at']
         rich_pr['pull_updated_at'] = pull_request['updated_at']
         rich_pr['created_at'] = pull_request['created_at']
@@ -634,7 +628,7 @@ class Gitee(object):
 
         rich_pr['item_type'] = PULL_TYPE
 
-        #rich_pr['gitee_repo'] = rich_pr['repository'].replace(gitee, '')
+        # rich_pr['gitee_repo'] = rich_pr['repository'].replace(gitee, '')
         rich_pr['gitee_repo'] = re.sub('.git$', '', pull_request['base']['repo']['html_url'])
         rich_pr['org_name'] = pull_request['base']['repo']['namespace']['path']
 
@@ -643,28 +637,29 @@ class Gitee(object):
         rich_pr['head_label'] = pull_request['head']['label']
         rich_pr['head_label_ref'] = pull_request['head']['ref']
         # GMD code development metrics
-        #rich_pr['forks'] = pull_request['base']['repo']['forks_count']
+        # rich_pr['forks'] = pull_request['base']['repo']['forks_count']
         rich_pr['code_merge_duration'] = common.get_time_diff_days(pull_request['created_at'],
-                                                            pull_request['merged_at'])
-        #rich_pr['num_review_comments'] = pull_request['review_comments']
+                                                                   pull_request['merged_at'])
+        # rich_pr['num_review_comments'] = pull_request['review_comments']
 
-        #rich_pr['time_to_merge_request_response'] = None
-        #if pull_request['review_comments'] != 0:
+        # rich_pr['time_to_merge_request_response'] = None
+        # if pull_request['review_comments'] != 0:
         #    min_review_date = self.get_time_to_merge_request_response(pull_request)
         #    rich_pr['time_to_merge_request_response'] = \
         #        get_time_diff_days(str_to_datetime(pull_request['created_at']), min_review_date)
 
-        #if self.prjs_map:
+        # if self.prjs_map:
         #    rich_pr.update(self.get_item_project(rich_pr))
         userExtra = self.esClient.getUserInfo(rich_pr['user_login'])
         rich_pr.update(userExtra)
+        rich_pr['addcodenum'] = pull_request['codediffadd']
+        rich_pr['deletecodenum'] = pull_request['codediffdelete']
         if 'project' in item:
             rich_pr['project'] = item['project']
 
         rich_pr['is_gitee_{}'.format(PULL_TYPE)] = 1
 
         return rich_pr
-
 
     def get_rich_issue(self, item):
         rich_issue = {}
@@ -688,33 +683,50 @@ class Gitee(object):
             rich_issue['user_name'] = user['name']
             rich_issue['author_name'] = user['name']
             rich_issue['user_login'] = user['login']
-            #rich_issue["user_domain"] = self.get_email_domain(user['email']) if user['email'] else None
-            #rich_issue['user_org'] = user['company']
-            #rich_issue['user_location'] = user['location']
-            #rich_issue['user_geolocation'] = None
+            # rich_issue["user_domain"] = self.get_email_domain(user['email']) if user['email'] else None
+            # rich_issue['user_org'] = user['company']
+            # rich_issue['user_location'] = user['location']
+            # rich_issue['user_geolocation'] = None
+        milestone = issue.get('milestone', None)
+        if milestone is not None and milestone:
+            rich_issue['milestone_url'] = milestone['url']
+            rich_issue['milestone_html_url'] = milestone['html_url']
+            rich_issue['milestone_id'] = milestone['id']
+            rich_issue['milestone_number'] = milestone['number']
+            rich_issue['milestone_repository_id'] = milestone['repository_id']
+            rich_issue['milestone_state'] = milestone['state']
+            rich_issue['milestone_title'] = milestone['title']
+            rich_issue['milestone_description'] = milestone['description']
+            rich_issue['milestone_updated_at'] = milestone['updated_at']
+            rich_issue['milestone_created_at'] = milestone['created_at']
+            rich_issue['milestone_open_issues'] = milestone['open_issues']
+            rich_issue['milestone_closed_issues'] = milestone['closed_issues']
+            rich_issue['milestone_due_on'] = milestone['due_on']
 
         assignee = issue.get('assignee', None)
         if assignee and assignee is not None:
             assignee = issue['assignee']
             rich_issue['assignee_login'] = assignee['login']
             rich_issue['assignee_name'] = assignee['name']
-            #rich_issue["assignee_domain"] = self.get_email_domain(assignee['email']) if assignee['email'] else None
-            #rich_issue['assignee_org'] = assignee['company']
-            #rich_issue['assignee_location'] = assignee['location']
-            #rich_issue['assignee_geolocation'] = None
+            # rich_issue["assignee_domain"] = self.get_email_domain(assignee['email']) if assignee['email'] else None
+            # rich_issue['assignee_org'] = assignee['company']
+            # rich_issue['assignee_location'] = assignee['location']
+            # rich_issue['assignee_geolocation'] = None
         else:
             rich_issue['assignee_name'] = None
             rich_issue['assignee_login'] = None
-            #rich_issue["assignee_domain"] = None
-            #rich_issue['assignee_org'] = None
-            #rich_issue['assignee_location'] = None
-            #rich_issue['assignee_geolocation'] = None
+            # rich_issue["assignee_domain"] = None
+            # rich_issue['assignee_org'] = None
+            # rich_issue['assignee_location'] = None
+            # rich_issue['assignee_geolocation'] = None
 
         rich_issue['id'] = issue['id']
+        # 获取issue严重级别
+        rich_issue['priority'] = issue['priority']
         rich_issue['issue_id'] = issue['id']
         rich_issue['issue_number'] = issue['number']
         rich_issue['issue_id_in_repo'] = issue['html_url'].split("/")[-1]
-        #rich_issue['repository'] = self.get_project_repository(rich_issue)
+        # rich_issue['repository'] = self.get_project_repository(rich_issue)
         rich_issue['repository'] = issue['repository']['full_name']
         rich_issue['repository_forks_count'] = int(issue['repository']['forks_count'])
         rich_issue['repository_stargazers_count'] = int(issue['repository']['stargazers_count'])
@@ -722,17 +734,25 @@ class Gitee(object):
         rich_issue['issue_title'] = issue['title']
         rich_issue['issue_title_analyzed'] = issue['title']
         rich_issue['issue_state'] = issue['state']
+        if (rich_issue['issue_state'] == 'progressing'):
+            rich_issue['is_issue_state_progressing'] = 1
+        elif (rich_issue['issue_state'] == 'open'):
+            rich_issue['is_issue_state_open'] = 1
+        elif (rich_issue['issue_state'] == 'closed'):
+            rich_issue['is_issue_state_closed'] = 1
+        elif (rich_issue['issue_state'] == 'rejected'):
+            rich_issue['is_issue_state_rejected'] = 1
         rich_issue['issue_created_at'] = issue['created_at']
         rich_issue['issue_updated_at'] = issue['updated_at']
         rich_issue['issue_closed_at'] = issue['finished_at']
         rich_issue['created_at'] = issue['created_at']
         rich_issue['updated_at'] = issue['updated_at']
-        rich_issue['closed_at'] =issue['finished_at']
+        rich_issue['closed_at'] = issue['finished_at']
         rich_issue['url'] = issue['html_url']
         rich_issue['issue_url'] = issue['html_url']
 
         # extract reactions and add it to enriched item
-        #rich_issue.update(self.__get_reactions(issue))
+        # rich_issue.update(self.__get_reactions(issue))
 
         labels = []
         [labels.append(label['name']) for label in issue['labels'] if 'labels' in issue]
@@ -743,10 +763,10 @@ class Gitee(object):
         if 'head' not in issue.keys() and 'pull_request' not in issue.keys():
             rich_issue['issue_pull_request'] = False
 
-        #rich_issue['gitee_repo'] = rich_issue['repository'].replace(gitee, '')
+        # rich_issue['gitee_repo'] = rich_issue['repository'].replace(gitee, '')
         rich_issue['gitee_repo'] = re.sub('.git$', '', issue['repository']['html_url'])
         rich_issue['org_name'] = issue['repository']['namespace']['path']
-        #if self.prjs_map:
+        # if self.prjs_map:
         #    rich_issue.update(self.get_item_project(rich_issue))
 
         if 'project' in issue:
@@ -756,11 +776,11 @@ class Gitee(object):
         if issue['comments'] != 0:
             rich_issue['time_to_first_attention'] = \
                 common.get_time_diff_days(common.str_to_datetime(issue['created_at']),
-                                   common.get_time_to_first_attention(issue))
+                                          common.get_time_to_first_attention(issue))
 
-        #rich_issue.update(self.get_grimoire_fields(issue['created_at'], ISSUE_TYPE))
+        # rich_issue.update(self.get_grimoire_fields(issue['created_at'], ISSUE_TYPE))
         # due to backtrack compatibility, `is_gitee2_*` is replaced with `is_gitee_*`
-        #rich_issue.pop('is_gitee2_{}'.format(ISSUE_TYPE))
+        # rich_issue.pop('is_gitee2_{}'.format(ISSUE_TYPE))
         rich_issue['is_gitee_{}'.format(ISSUE_TYPE)] = 1
 
         userExtra = self.esClient.getUserInfo(rich_issue['user_login'])
@@ -785,8 +805,8 @@ class Gitee(object):
             ecomment['issue_created_at'] = eitem['issue_created_at']
             ecomment['issue_updated_at'] = eitem['issue_updated_at']
             ecomment['issue_closed_at'] = eitem['issue_closed_at']
-            #ecomment['created_at'] = eitem['issue_created_at']
-            #ecomment['updated_at'] = eitem['issue_updated_at']
+            # ecomment['created_at'] = eitem['issue_created_at']
+            # ecomment['updated_at'] = eitem['issue_updated_at']
             ecomment['closed_at'] = eitem['issue_closed_at']
             ecomment['issue_pull_request'] = eitem['issue_pull_request']
             ecomment['gitee_repo'] = eitem['gitee_repo']
@@ -798,10 +818,10 @@ class Gitee(object):
             ecomment['sub_type'] = ISSUE_COMMENT_TYPE
 
             # Copy data from the raw comment
-            #ecomment['url'] = comment['html_url']
+            # ecomment['url'] = comment['html_url']
 
             # extract reactions and add it to enriched item
-            #ecomment.update(self.__get_reactions(comment))
+            # ecomment.update(self.__get_reactions(comment))
             user = comment.get('user', None)
             if user is not None and user:
                 ecomment['user_name'] = user['name']
@@ -824,14 +844,13 @@ class Gitee(object):
                 ecomment['project'] = eitem['project']
             userExtra = self.esClient.getUserInfo(ecomment['user_login'])
             ecomment.update(userExtra)
-            #self.add_repository_labels(ecomment)
-            #self.add_metadata_filter_raw(ecomment)
-            #self.add_gelk_metadata(ecomment)
+            # self.add_repository_labels(ecomment)
+            # self.add_metadata_filter_raw(ecomment)
+            # self.add_gelk_metadata(ecomment)
 
             ecomments.append(ecomment)
 
         return ecomments
-
 
     def getUserInfo(self, login):
         userExtra = {}
@@ -852,7 +871,6 @@ class Gitee(object):
 
         return userExtra
 
-
     def updateIsFirstCountributeItem(self):
         all_user = self.esClient.getTotalAuthorName(
             field="user_login.keyword")
@@ -864,7 +882,6 @@ class Gitee(object):
             print("start to update user:", user)
             self.esClient.setIsFirstCountributeItem(user_name)
 
-
     def updateCreatedRepoAuthor(self):
         client = GiteeClient("openeuler", "community", self.gitee_token)
         data = self.getGenerator(client.pulls(state='merged'))
@@ -873,7 +890,7 @@ class Gitee(object):
             print("updateCreatedRepoAuthor pull request number=%d" % d["number"])
             pull_files = self.getGenerator(client.pull_files(d["number"]))
             for p in pull_files:
-                if p["filename"] != "repository/src-openeuler.yaml"\
+                if p["filename"] != "repository/src-openeuler.yaml" \
                         and p["filename"] != "repository/openeuler.yaml":
                     continue
 
@@ -894,7 +911,6 @@ class Gitee(object):
                         p["filename"].split('/')[1].split('.')[0], repo_name,
                         author_name, user_login, is_internal)
 
-
     def getAllIndex(self, user):
         matchs = [{
             "name": "user_login.keyword",
@@ -902,7 +918,7 @@ class Gitee(object):
         }]
         data = self.esClient.getItemsByMatchs(matchs, size=0)
         all_count = data["hits"]["total"]["value"]
-        print("get %d items from user %s"% (all_count, user))
+        print("get %d items from user %s" % (all_count, user))
         if all_count < 1:
             return []
 
@@ -929,7 +945,6 @@ class Gitee(object):
         print(users)
         print(len(users))
         return users
-
 
     def tagUsers(self, from_date=None, tag_user_company="openeuler"):
         # users = self.getItselfUsers()
@@ -972,22 +987,19 @@ class Gitee(object):
                         else:
                             if re.search(r'huawei', data["companies"]['company_name'], re.I):
                                 update_data["companies"]['company_name'] = 'Huawei'
-        # for u in users:
+            # for u in users:
             actions = ""
             ids = self.getAllIndex(u)
             for id in ids:
-
                 action = common.getSingleAction(
                     self.index_name, id["key"], update_data, act="update")
                 actions += action
 
             self.esClient.safe_put_bulk(actions)
 
-
     def collectTotal(self, from_time):
         self.collectTotalByType(from_time, "is_gitee_pull_request")
         self.collectTotalByType(from_time, "is_gitee_issue")
-
 
     def collectTotalByType(self, from_time, type):
         matchs = [{"name": type, "value": 1}]
@@ -1012,7 +1024,6 @@ class Gitee(object):
             actions += action
         self.esClient.safe_put_bulk(actions)
 
-
     def getEnterpriseUser(self):
         if self.is_gitee_enterprise != "true":
             return
@@ -1024,7 +1035,6 @@ class Gitee(object):
             user = d.get("user").get("login")
             print(user)
             self.enterpriseUsers.append(user)
-
 
     def getUserInfoFromDataFile(self):
         f = open('data.json')
@@ -1063,4 +1073,3 @@ class Gitee(object):
                         user.update(userExtra)
                         action = common.getSingleAction(self.index_name_all[index], id, user)
                         self.esClient.safe_put_bulk(action)
-
