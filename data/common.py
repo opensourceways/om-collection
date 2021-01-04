@@ -197,6 +197,89 @@ class ESClient(object):
         except:
             print(traceback.format_exc())
         return res['hits']['hits']
+    def getRepoMaintainer(self,index_name,repo=None):
+        url = self.url + '/' + index_name + '/_search'
+        data = '''{
+    "size": 0,
+    "query": {
+        "bool": {
+            "filter": [
+                
+                {
+                    "query_string": {
+                        "analyze_wildcard": true,
+                        "query": "repo_name.keyword:%s"
+                    }
+                }
+            ]
+        }
+    },
+    "aggs": {
+        "2": {
+            "terms": {
+                "field": "committer.keyword",
+                "size": 10000,
+                "order": {
+                    "_key": "desc"
+                },
+                "min_doc_count": 1
+            },
+            "aggs": {}
+        }
+    }
+}''' % repo
+        try:
+            res = json.loads(
+                requests.get(url=url, headers=self.default_headers, verify=False, data=data.encode('utf-8')).content)
+        except:
+            print(traceback.format_exc())
+        return res['aggregations']['2']['buckets']
+
+    def getRepoSigCount(self,index_name,repo=None):
+        querystr='''{
+    "size": 0,
+    "query": {
+        "bool": {
+            "filter": [
+                {
+                    "query_string": {
+                        "analyze_wildcard": true,
+                        "query": "repo_name.keyword:%s"
+                    }
+                }
+            ]
+        }
+    },
+    "aggs": {
+        "2": {
+            "terms": {
+                "field": "repo_name.keyword",
+                "size": 10000,
+                "order": {
+                    "_key": "desc"
+                },
+                "min_doc_count": 1
+            },
+            "aggs": {
+                "1": {
+                    "cardinality": {
+                        "field": "sig_name.keyword"
+                    }
+                }
+            }
+        }
+    }
+}''' % (repo)
+        url = self.url + '/' + index_name + '/_search'
+        try:
+            res = json.loads(
+            requests.get(url=url, headers=self.default_headers, verify=False, data=querystr.encode('utf-8')).content)
+            result = res['aggregations']['2']['buckets'][0]['1']['value']
+        except:
+            print(traceback.format_exc())
+            return 0
+        return result
+
 
     def post_delete_index_name(self, index_name=None, header=None, url=None):
         if not index_name:

@@ -70,6 +70,8 @@ class Gitee(object):
         self.is_set_collect = config.get('is_set_collect')
         self.yaml_url = config.get('yaml_url')
         self.yaml_path = config.get('yaml_path')
+        self.maintainer_index = config.get('maintain_index')
+        self.sig_index=config.get('sig_index')
         self.internal_company_name = config.get('internal_company_name', 'internal_company')
         self.internalUsers = []
         self.all_user = []
@@ -344,6 +346,15 @@ class Gitee(object):
         }
         userExtra = self.esClient.getUserInfo(repo_data['owner']['login'])
         repo_detail.update(userExtra)
+        maintainerdata=self.esClient.getRepoMaintainer(self.maintainer_index , repo_detail['repository'])
+        mtstr=""
+        for m in maintainerdata:
+            mtstr=mtstr+str(m['key'])+","
+        repo_detail['Maintainer'] = mtstr
+        repo_detail['sigcount']=self.esClient.getRepoSigCount(self.sig_index ,repo_detail['repository'])
+
+        #获取 repo中的sig总数
+
         indexData = {
             "index": {"_index": self.index_name,
                       "_id": "gitee_repo_" + re.sub('.git$', '', repo_data['html_url'])}}
@@ -351,6 +362,7 @@ class Gitee(object):
         actions += json.dumps(repo_detail) + '\n'
 
         self.esClient.safe_put_bulk(actions)
+
 
     def getFromDate(self, from_date, filters):
         if from_date is None:
@@ -390,8 +402,8 @@ class Gitee(object):
             codediffadd = 0
             codediffdelete = 0
             for item in pull_code_diff:
-                codediffadd += int(item['additions'])
-                codediffdelete += int(item['deletions'])
+                codediffadd =int(codediffadd)+int(item['additions'])
+                codediffdelete =int(codediffadd)+ int(item['deletions'])
             merged_item = None
             if x['state'] == "closed":
                 if isinstance(pull_action_logs, list):
@@ -402,17 +414,21 @@ class Gitee(object):
             x['codediffdelete'] = codediffdelete
             eitem = self.__get_rich_pull(x, merged_item)
 
-            indexData = {
-                "index": {"_index": self.index_name, "_id": eitem['id']}}
-            actions += json.dumps(indexData) + '\n'
-            actions += json.dumps(eitem) + '\n'
+
 
             ecomments = self.get_rich_pull_reviews(pull_review_comments, eitem, owner)
-            firstcommenttime=None
+            firstreplyprtime=""
+            lastreplyprtime=""
             for ec in ecomments:
-                # if(firstcommenttime is None):
-                #     firstcommenttime=ec['created_at']
-                # elif
+                if not firstreplyprtime:
+                    firstreplyprtime=str(ec['created_at'])
+                    lastreplyprtime=str(ec['created_at'])
+                else:
+                    ectime=str(ec['created_at'])
+                    if ectime < firstreplyprtime:
+                        firstreplyprtime=ectime
+                    if ectime > lastreplyprtime:
+                        lastreplyprtime=ectime
                 print(ec['pull_comment_id'])
                 if ec['user_login'] in self.skip_user:
                     continue
@@ -420,7 +436,13 @@ class Gitee(object):
                     "index": {"_index": self.index_name, "_id": ec['pull_comment_id']}}
                 actions += json.dumps(indexData) + '\n'
                 actions += json.dumps(ec) + '\n'
-        self.esClient.safe_put_bulk(actions)
+            eitem['firstreplyprtime'] = firstreplyprtime
+            eitem['prcommentscount'] = len(ecomments)
+            eitem['lastreplyprtime'] = lastreplyprtime
+            indexData = {"index": {"_index": self.index_name, "_id": eitem['id']}}
+            actions += json.dumps(indexData) + '\n'
+            actions += json.dumps(eitem) + '\n'
+            self.esClient.safe_put_bulk(actions)
 
         endTime = datetime.datetime.now()
         print("Collect pull request data finished, spend %s seconds" % (
@@ -453,13 +475,19 @@ class Gitee(object):
             issue_comments = self.getGenerator(client.issue_comments(i['number']))
             i['comments_data'] = issue_comments
             issue_item = self.get_rich_issue(i)
-            indexData = {
-                "index": {"_index": self.index_name, "_id": issue_item['id']}}
-            actions += json.dumps(indexData) + '\n'
-            actions += json.dumps(issue_item) + '\n'
-
+            firstreplyissuetime=""
+            lastreplyissuetime=""
             issue_comments = self.get_rich_issue_comments(issue_comments, issue_item)
             for ic in issue_comments:
+                if not firstreplyissuetime:
+                    firstreplyissuetime = str(ic['created_at'])
+                    lastreplyissuetime=str(ic['created_at'])
+                else:
+                    ictime=str(ic['created_at'])
+                    if ictime < firstreplyissuetime:
+                        firstreplyissuetime=ictime
+                    if ictime > lastreplyissuetime:
+                        lastreplyissuetime = ictime
                 if ic['user_login'] in self.skip_user:
                     continue
                 print(ic['issue_comment_id'])
@@ -468,6 +496,11 @@ class Gitee(object):
                               "_id": ic['issue_comment_id']}}
                 actions += json.dumps(indexData) + '\n'
                 actions += json.dumps(ic) + '\n'
+            issue_item['firstreplyissuetime'] = firstreplyissuetime
+            issue_item['lastreplyissuetime'] = lastreplyissuetime
+            indexData = {"index": {"_index": self.index_name, "_id": issue_item['id']}}
+            actions += json.dumps(indexData) + '\n'
+            actions += json.dumps(issue_item) + '\n'
 
         self.esClient.safe_put_bulk(actions)
         endTime = datetime.datetime.now()
@@ -738,6 +771,7 @@ class Gitee(object):
         rich_issue['issue_title'] = issue['title']
         rich_issue['issue_title_analyzed'] = issue['title']
         rich_issue['issue_state'] = issue['state']
+        rich_issue['issue_type']=issue['issue_type']
         if (rich_issue['issue_state'] == 'progressing'):
             rich_issue['is_issue_state_progressing'] = 1
         elif (rich_issue['issue_state'] == 'open'):
