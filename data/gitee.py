@@ -346,12 +346,13 @@ class Gitee(object):
         }
         userExtra = self.esClient.getUserInfo(repo_data['owner']['login'])
         repo_detail.update(userExtra)
-        maintainerdata=self.esClient.getRepoMaintainer(self.maintainer_index , repo_detail['repository'])
+        maintainerdata=self.esClient.getRepoMaintainer(self.maintainer_index , repo_data['path'])
         mtstr=""
         for m in maintainerdata:
             mtstr=mtstr+str(m['key'])+","
+        mtstr=mtstr[:len(mtstr)-1]
         repo_detail['Maintainer'] = mtstr
-        repo_detail['sigcount']=self.esClient.getRepoSigCount(self.sig_index ,repo_detail['repository'])
+        repo_detail['sigcount']=self.esClient.getRepoSigCount(self.sig_index ,repo_data['path'])
 
         #获取 repo中的sig总数
 
