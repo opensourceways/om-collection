@@ -72,6 +72,7 @@ class Gitee(object):
         self.yaml_path = config.get('yaml_path')
         self.maintainer_index = config.get('maintain_index')
         self.sig_index=config.get('sig_index')
+        self.versiontimemapping=config.get('versiontimemapping')
         self.internal_company_name = config.get('internal_company_name', 'internal_company')
         self.internalUsers = []
         self.all_user = []
@@ -346,22 +347,52 @@ class Gitee(object):
         }
         userExtra = self.esClient.getUserInfo(repo_data['owner']['login'])
         repo_detail.update(userExtra)
-        maintainerdata=self.esClient.getRepoMaintainer(self.maintainer_index , repo_data['path'])
-        mtstr=""
-        for m in maintainerdata:
-            mtstr=mtstr+str(m['key'])+","
-        mtstr=mtstr[:len(mtstr)-1]
-        repo_detail['Maintainer'] = mtstr
-        repo_detail['sigcount']=self.esClient.getRepoSigCount(self.sig_index ,repo_data['path'])
 
-        #获取 repo中的sig总数
+        branches=self.getGenerator(client.getSingleReopBranch())
 
-        indexData = {
-            "index": {"_index": self.index_name,
-                      "_id": "gitee_repo_" + re.sub('.git$', '', repo_data['html_url'])}}
-        actions += json.dumps(indexData) + '\n'
-        actions += json.dumps(repo_detail) + '\n'
-
+        for br in branches:
+            maintainerdata=self.esClient.getRepoMaintainer(self.maintainer_index , repo_data["full_name"])
+            mtstr=""
+            for m in maintainerdata:
+                mtstr=mtstr+str(m['key'])+","
+            mtstr=mtstr[:len(mtstr)-1]
+            repo_detail['Maintainer'] = mtstr
+            repo_detail['sigcount']=self.esClient.getRepoSigCount(self.sig_index ,repo_data["full_name"])
+            repo_detail['branch']=br['name']
+            spec = client.getspecFile(owner,repo,br['name'])
+            version=None
+            try:
+                version = spec.version
+            except:
+                print('reop:%s branch:%s has No version' % (repo_data['path'],br['name']))
+            #signames名称
+            repo_detail['signames']=self.esClient.getRepoSigNames(self.sig_index,repo_data['full_name'])
+            if version:
+                if str(version).startswith('%{'):
+                    index=str(version).find("}")
+                    if index==-1:
+                        index=len(version)-1
+                    version=version[2:index]
+                    version=spec.macros.get(version)
+                times=self.esClient.geTimeofVersion(version,repo_data['path'],self.versiontimemapping)
+                interval=0
+                if times is not None:
+                    interval=datetime.datetime.now()-datetime.datetime.strptime(times,'%Y-%m-%d %H:%M:%S')
+                    print("releasetime:"+str(times))
+                else:
+                    times=""
+                #版本发布到目前时间
+                repo_detail['releasetime2now'] =0 if interval==0 else interval.days
+                #版本号
+                repo_detail['version'] = version
+                #版本发布时间
+                repo_detail['releasetime']=times
+                print('reop:%s branch:%s has No version' % (repo_data['path'],br['name']))
+            indexData = {
+                "index": {"_index": self.index_name,
+                          "_id": "gitee_repo_" + re.sub('.git$', '', repo_data['html_url'])}}
+            actions += json.dumps(indexData) + '\n'
+            actions += json.dumps(repo_detail) + '\n'
         self.esClient.safe_put_bulk(actions)
 
 
@@ -437,13 +468,22 @@ class Gitee(object):
                     "index": {"_index": self.index_name, "_id": ec['pull_comment_id']}}
                 actions += json.dumps(indexData) + '\n'
                 actions += json.dumps(ec) + '\n'
-            eitem['firstreplyprtime'] = firstreplyprtime
+            try:
+                eitem['firstreplyprtime'] = (datetime.datetime.strptime(firstreplyprtime,'%Y-%m-%dT%H:%M:%S+08:00')-datetime.datetime.strptime(eitem['created_at'],'%Y-%m-%dT%H:%M:%S+08:00')).days
+                eitem['lastreplyprtime'] =  (datetime.datetime.now()-(datetime.datetime.strptime(lastreplyprtime,'%Y-%m-%dT%H:%M:%S+08:00'))).days
+            except Exception as e:
+                print(e)
+                print(firstreplyprtime)
+                print(eitem['created_at'])
             eitem['prcommentscount'] = len(ecomments)
-            eitem['lastreplyprtime'] = lastreplyprtime
+            eitem['pulls_signames']=self.esClient.getRepoSigNames(self.sig_index,owner+"/"+repo)
             indexData = {"index": {"_index": self.index_name, "_id": eitem['id']}}
             actions += json.dumps(indexData) + '\n'
             actions += json.dumps(eitem) + '\n'
-            self.esClient.safe_put_bulk(actions)
+            if len(actions)>10000:
+                self.esClient.safe_put_bulk(actions)
+                actions=""
+        self.esClient.safe_put_bulk(actions)
 
         endTime = datetime.datetime.now()
         print("Collect pull request data finished, spend %s seconds" % (
@@ -497,11 +537,14 @@ class Gitee(object):
                               "_id": ic['issue_comment_id']}}
                 actions += json.dumps(indexData) + '\n'
                 actions += json.dumps(ic) + '\n'
-            issue_item['firstreplyissuetime'] = firstreplyissuetime
-            issue_item['lastreplyissuetime'] = lastreplyissuetime
-            indexData = {"index": {"_index": self.index_name, "_id": issue_item['id']}}
-            actions += json.dumps(indexData) + '\n'
-            actions += json.dumps(issue_item) + '\n'
+            try:
+                issue_item['firstreplyissuetime'] = (datetime.datetime.strptime(firstreplyissuetime,'%Y-%m-%dT%H:%M:%S+08:00')-datetime.datetime.strptime(issue_item['created_at'],'%Y-%m-%dT%H:%M:%S+08:00')).days
+                issue_item['lastreplyissuetime'] = (datetime.datetime.now()-(datetime.datetime.strptime(lastreplyissuetime,'%Y-%m-%dT%H:%M:%S+08:00'))).days
+                indexData = {"index": {"_index": self.index_name, "_id": issue_item['id']}}
+                actions += json.dumps(indexData) + '\n'
+                actions += json.dumps(issue_item) + '\n'
+            except Exception as e:
+                print(e)
 
         self.esClient.safe_put_bulk(actions)
         endTime = datetime.datetime.now()

@@ -33,6 +33,8 @@ import threading
 import time
 import datetime
 from configparser import ConfigParser
+from pyrpm.spec import Spec
+
 
 logger = logging.getLogger(__name__)
 
@@ -276,8 +278,17 @@ class GiteeClient():
         """get pull code diff number"""
         pull_code_diff_path = self.urijoin("pulls", str(pr_number), "files")
         return self.fetch_items(pull_code_diff_path, {})
-
-
+    def getSingleReopBranch(self):
+        branchs = self.urijoin("branches")
+        return self.fetch_items(branchs, {})
+    def getspecFile(self,org,repo,branch):
+        url='https://gitee.com/%s/%s/raw/%s/%s.spec' %(org,repo,branch,repo)
+        res=requests.get(url)
+        if res.status_code==200:
+            spec=Spec.from_string(res.text)
+            return spec
+        else:
+            return None
     def pull_commits(self, pr_number):
         """Get pull request commits"""
 
