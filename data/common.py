@@ -197,6 +197,133 @@ class ESClient(object):
         except:
             print(traceback.format_exc())
         return res['hits']['hits']
+    def getRepoMaintainer(self,index_name,repo=None):
+        repo=str(repo).replace('/','\\\/')
+        url = self.url + '/' + index_name + '/_search'
+        data = '''{
+    "size": 0,
+    "query": {
+        "bool": {
+            "filter": [
+                
+                {
+                    "query_string": {
+                        "analyze_wildcard": true,
+                        "query": "repo_name.keyword:%s"
+                    }
+                }
+            ]
+        }
+    },
+    "aggs": {
+        "2": {
+            "terms": {
+                "field": "committer.keyword",
+                "size": 10000,
+                "order": {
+                    "_key": "desc"
+                },
+                "min_doc_count": 1
+            },
+            "aggs": {}
+        }
+    }
+}''' % repo
+        try:
+            res = json.loads(
+                requests.get(url=url, headers=self.default_headers, verify=False, data=data.encode('utf-8')).content)
+        except:
+            print(traceback.format_exc())
+        return res['aggregations']['2']['buckets']
+
+    def getRepoSigCount(self,index_name,repo=None):
+        repo=str(repo).replace('/','\\\/')
+        querystr='''{
+    "size": 0,
+    "query": {
+        "bool": {
+            "filter": [
+                {
+                    "query_string": {
+                        "analyze_wildcard": true,
+                        "query": "repo_name.keyword:%s"
+                    }
+                }
+            ]
+        }
+    },
+    "aggs": {
+        "2": {
+            "terms": {
+                "field": "repo_name.keyword",
+                "size": 10000,
+                "order": {
+                    "_key": "desc"
+                },
+                "min_doc_count": 1
+            },
+            "aggs": {
+                "1": {
+                    "cardinality": {
+                        "field": "sig_name.keyword"
+                    }
+                }
+            }
+        }
+    }
+}''' % (repo)
+        url = self.url + '/' + index_name + '/_search'
+        try:
+            res = json.loads(
+            requests.get(url=url, headers=self.default_headers, verify=False, data=querystr.encode('utf-8')).content)
+            resultdata = res['aggregations']['2']['buckets']
+            count=0
+            for re in resultdata:
+                count+=int(re['1']['value'])
+            return count
+        except:
+            print(traceback.format_exc())
+            return 0
+    def getRepoSigNames(self,index_name,repo=None):
+        querystr='''{
+    "query": {
+        "term":{
+        "repo_name.keyword": "%s"
+        }
+    }
+}''' % (repo)
+        url = self.url + '/' + index_name + '/_search'
+        try:
+            res = json.loads(
+                requests.get(url=url, headers=self.default_headers, verify=False, data=querystr.encode('utf-8')).content)
+            resultdata = res['hits']['hits']
+            restr=''
+            for re in resultdata:
+                restr=restr+","+re['_source']['sig_name']
+            tuplelist=restr[1:].split(",")
+            tuplelist=list(set(tuplelist))
+            result=""
+            for s in tuplelist:
+                result=result+','+s
+            return "" if result=="" else result[1:]
+        except:
+            print(traceback.format_exc())
+            return ''
+
+    def geTimeofVersion(self,version,repo,index):
+        url = self.url + '/' + index+'/_doc/'+repo+version
+        try:
+           res=requests.get(url=url, headers=self.default_headers, verify=False)
+           if res.status_code==404:
+               return None
+           else:
+               content = json.loads(res.content)
+               return content['_source']['version_time']
+        except:
+            print(traceback.format_exc())
+            return None
+
+
 
     def post_delete_index_name(self, index_name=None, header=None, url=None):
         if not index_name:
