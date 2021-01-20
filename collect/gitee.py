@@ -378,7 +378,7 @@ class GiteeClient():
             # response = super().fetch(url, payload, headers, method, stream, auth)
             if method == 'GET':
                 response = self.session.get(url, params=payload, headers=headers, stream=stream,
-                                            verify=self.ssl_verify, auth=auth)
+                                            verify=self.ssl_verify, auth=auth, timeout=60)
             else:
                 response = self.session.post(url, data=payload, headers=headers, stream=stream,
                                              verify=self.ssl_verify, auth=auth)
