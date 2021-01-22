@@ -97,7 +97,7 @@ class Gitee(object):
 
         if self.is_set_itself_author == 'true':
             self.tagUsers(tag_user_company=self.internal_company_name)
-            # self.tagUsersFromEmail(tag_user_company=self.internal_company_name)
+            # self.tagUsersFromEmail()
             # self.tagUsers()
         else:
             if self.is_set_pr_issue_repo_fork == 'true':
@@ -1033,12 +1033,7 @@ class Gitee(object):
         print(len(users))
         return users
 
-    def tagUsersFromEmail(self, from_date=None, tag_user_company="openeuler"):
-        # users = self.getItselfUsers()
-        if self.is_gitee_enterprise == "true":
-            users = self.enterpriseUsers
-        else:
-            users = self.internalUsers
+    def tagUsersFromEmail(self):
         all_user = self.esClient.getTotalAuthorName(
             field="user_login.keyword")
 
@@ -1062,28 +1057,17 @@ class Gitee(object):
             u = user["key"]
             if u == "mindspore_ci":
                 continue
-            if u in users:
-                update_data = {
-                    "doc": {
-                        "tag_user_company": tag_user_company,
-                        # "is_project_internal_user": 1,
-                    }
-                }
-            else:
-                update_data = {
-                    "doc": {
-                        "tag_user_company": "n/a",
-                        # "is_project_internal_user": 0,
-                    }
-                }
 
             if self.yaml_user_url and giteeid_email_dict.get(u) is not None:
                 for email in giteeid_email_dict[u]:
                     domain = str(email).split('@')[1]
                     company_name = domain_company_dict[domain]
-                    update_data["doc"]['tag_user_company'] = company_name
+                    update_data = {
+                        "doc": {
+                            "tag_user_company": company_name,
+                        }
+                    }
 
-            # for u in users:
             actions = ""
             ids = self.getAllIndex(u)
             for id in ids:
