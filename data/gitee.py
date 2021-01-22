@@ -70,6 +70,10 @@ class Gitee(object):
         self.is_set_collect = config.get('is_set_collect')
         self.yaml_url = config.get('yaml_url')
         self.yaml_path = config.get('yaml_path')
+        self.yaml_user_url = config.get('yaml_user_url')
+        self.yaml_company_url = config.get('yaml_company_url')
+        self.yaml_user_path = config.get('yaml_user_path')
+        self.yaml_company_path = config.get('yaml_company_path')
         self.maintainer_index = config.get('maintain_index')
         self.sig_index=config.get('sig_index')
         self.versiontimemapping=config.get('versiontimemapping')
@@ -93,6 +97,7 @@ class Gitee(object):
 
         if self.is_set_itself_author == 'true':
             self.tagUsers(tag_user_company=self.internal_company_name)
+            # self.tagUsersFromEmail(tag_user_company=self.internal_company_name)
             # self.tagUsers()
         else:
             if self.is_set_pr_issue_repo_fork == 'true':
@@ -1027,6 +1032,66 @@ class Gitee(object):
         print(users)
         print(len(users))
         return users
+
+    def tagUsersFromEmail(self, from_date=None, tag_user_company="openeuler"):
+        # users = self.getItselfUsers()
+        if self.is_gitee_enterprise == "true":
+            users = self.enterpriseUsers
+        else:
+            users = self.internalUsers
+        all_user = self.esClient.getTotalAuthorName(
+            field="user_login.keyword")
+
+        giteeid_email_dict = {}
+        domain_company_dict = {}
+        if self.yaml_user_url:
+            # cmd = 'wget %s' % self.yaml_url
+            # os.popen(cmd)
+            datas = yaml.load_all(open(self.yaml_user_path, encoding='UTF-8')).__next__()
+            companies = yaml.load_all(open(self.yaml_company_path, encoding='UTF-8')).__next__()
+
+            for data in datas['users']:
+                if data['emails']:
+                    giteeid_email_dict.update({data['gitee_id']: data['emails']})
+
+            for company in companies['companies']:
+                for domain in company['domains']:
+                    domain_company_dict.update({domain: company['company_name']})
+
+        for user in all_user:
+            u = user["key"]
+            if u == "mindspore_ci":
+                continue
+            if u in users:
+                update_data = {
+                    "doc": {
+                        "tag_user_company": tag_user_company,
+                        # "is_project_internal_user": 1,
+                    }
+                }
+            else:
+                update_data = {
+                    "doc": {
+                        "tag_user_company": "n/a",
+                        # "is_project_internal_user": 0,
+                    }
+                }
+
+            if self.yaml_user_url and giteeid_email_dict.get(u) is not None:
+                for email in giteeid_email_dict[u]:
+                    domain = str(email).split('@')[1]
+                    company_name = domain_company_dict[domain]
+                    update_data["doc"]['tag_user_company'] = company_name
+
+            # for u in users:
+            actions = ""
+            ids = self.getAllIndex(u)
+            for id in ids:
+                action = common.getSingleAction(
+                    self.index_name, id["key"], update_data, act="update")
+                actions += action
+
+            self.esClient.safe_put_bulk(actions)
 
     def tagUsers(self, from_date=None, tag_user_company="openeuler"):
         # users = self.getItselfUsers()
