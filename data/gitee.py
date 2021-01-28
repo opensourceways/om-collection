@@ -351,23 +351,25 @@ class Gitee(object):
         branches=self.getGenerator(client.getSingleReopBranch())
 
         for br in branches:
-            maintainerdata=self.esClient.getRepoMaintainer(self.maintainer_index , repo_data["full_name"])
-            mtstr=""
-            for m in maintainerdata:
-                mtstr=mtstr+str(m['key'])+","
-            mtstr=mtstr[:len(mtstr)-1]
-            repo_detail['Maintainer'] = mtstr
-            repo_detail['sigcount']=self.esClient.getRepoSigCount(self.sig_index ,repo_data["full_name"])
+            if  self.maintainer_index:
+                maintainerdata=self.esClient.getRepoMaintainer(self.maintainer_index , repo_data["full_name"])
+                mtstr=""
+                for m in maintainerdata:
+                    mtstr=mtstr+str(m['key'])+","
+                mtstr=mtstr[:len(mtstr)-1]
+                repo_detail['Maintainer'] = mtstr
+            if  self.sig_index:
+                repo_detail['sigcount']=self.esClient.getRepoSigCount(self.sig_index ,repo_data["full_name"])
+                repo_detail['signames']=self.esClient.getRepoSigNames(self.sig_index,repo_data['full_name'])
             repo_detail['branch']=br['name']
-            spec = client.getspecFile(owner,repo,br['name'])
             version=None
             try:
+                spec = client.getspecFile(owner,repo,br['name'])
                 version = spec.version
             except:
                 print('reop:%s branch:%s has No version' % (repo_data['path'],br['name']))
             #signames名称
-            repo_detail['signames']=self.esClient.getRepoSigNames(self.sig_index,repo_data['full_name'])
-            if version:
+            if version and self.versiontimemapping:
                 if str(version).startswith('%{'):
                     index=str(version).find("}")
                     if index==-1:
