@@ -27,6 +27,7 @@ from urllib.parse import quote
 from datetime import timedelta, datetime
 import urllib3
 from collect.gitee import GiteeClient
+
 urllib3.disable_warnings()
 
 import requests
@@ -197,11 +198,12 @@ class ESClient(object):
         except:
             print(traceback.format_exc())
         return res['hits']['hits']
-    def getRepoMaintainer(self,index_name,repo=None):
-        result={}
+
+    def getRepoMaintainer(self, index_name, repo=None):
+        result = {}
         if not index_name:
             return result
-        repo=str(repo).replace('/','\\\/')
+        repo = str(repo).replace('/', '\\\/')
         url = self.url + '/' + index_name + '/_search'
         data = '''{
     "size": 0,
@@ -237,21 +239,21 @@ class ESClient(object):
                 requests.get(url=url, headers=self.default_headers, verify=False, data=data.encode('utf-8')).content)
         except:
             print(traceback.format_exc())
-        maintainerdata= res['aggregations']['2']['buckets']
+        maintainerdata = res['aggregations']['2']['buckets']
         if maintainerdata:
-            mtstr=""
+            mtstr = ""
             for m in maintainerdata:
-                mtstr=mtstr+str(m['key'])+","
-                mtstr=mtstr[:len(mtstr)-1]
+                mtstr = mtstr + str(m['key']) + ","
+                mtstr = mtstr[:len(mtstr) - 1]
             result['Maintainer'] = mtstr
         return result
 
-    def getRepoSigCount(self,index_name,repo=None):
-        result={}
+    def getRepoSigCount(self, index_name, repo=None):
+        result = {}
         if not index_name:
             return result
-        repo=str(repo).replace('/','\\\/')
-        querystr='''{
+        repo = str(repo).replace('/', '\\\/')
+        querystr = '''{
     "size": 0,
     "query": {
         "bool": {
@@ -288,22 +290,24 @@ class ESClient(object):
         url = self.url + '/' + index_name + '/_search'
         try:
             res = json.loads(
-            requests.get(url=url, headers=self.default_headers, verify=False, data=querystr.encode('utf-8')).content)
+                requests.get(url=url, headers=self.default_headers, verify=False,
+                             data=querystr.encode('utf-8')).content)
             resultdata = res['aggregations']['2']['buckets']
-            count=0
+            count = 0
             for re in resultdata:
-                count+=int(re['1']['value'])
-            result['sigcount']=count
+                count += int(re['1']['value'])
+            result['sigcount'] = count
             return result
         except:
             print(traceback.format_exc())
-            result['sigcount']=0
+            result['sigcount'] = 0
             return result
-    def getRepoSigNames(self,index_name,repo=None):
-        result={}
+
+    def getRepoSigNames(self, index_name, repo=None):
+        result = {}
         if not index_name:
             return result
-        querystr='''{
+        querystr = '''{
     "query": {
         "term":{
         "repo_name.keyword": "%s"
@@ -313,16 +317,17 @@ class ESClient(object):
         url = self.url + '/' + index_name + '/_search'
         try:
             res = json.loads(
-                requests.get(url=url, headers=self.default_headers, verify=False, data=querystr.encode('utf-8')).content)
+                requests.get(url=url, headers=self.default_headers, verify=False,
+                             data=querystr.encode('utf-8')).content)
             resultdata = res['hits']['hits']
-            restr=''
+            restr = ''
             for re in resultdata:
-                restr=restr+","+re['_source']['sig_name']
-            tuplelist=restr[1:].split(",")
-            tuplelist=list(set(tuplelist))
+                restr = restr + "," + re['_source']['sig_name']
+            tuplelist = restr[1:].split(",")
+            tuplelist = list(set(tuplelist))
             resultstr = ""
             for s in tuplelist:
-                resultstr=resultstr+','+s
+                resultstr = resultstr + ',' + s
             if resultstr != "":
                 result['signames'] = resultstr[1:]
             return result
@@ -330,20 +335,18 @@ class ESClient(object):
             print(traceback.format_exc())
             return result
 
-    def geTimeofVersion(self,version,repo,index):
-        url = self.url + '/' + index+'/_doc/'+repo+version
+    def geTimeofVersion(self, version, repo, index):
+        url = self.url + '/' + index + '/_doc/' + repo + version
         try:
-           res=requests.get(url=url, headers=self.default_headers, verify=False)
-           if res.status_code==404:
-               return None
-           else:
-               content = json.loads(res.content)
-               return content['_source']['version_time']
+            res = requests.get(url=url, headers=self.default_headers, verify=False)
+            if res.status_code == 404:
+                return None
+            else:
+                content = json.loads(res.content)
+                return content['_source']['version_time']
         except:
             print(traceback.format_exc())
             return None
-
-
 
     def post_delete_index_name(self, index_name=None, header=None, url=None):
         if not index_name:
@@ -386,7 +389,8 @@ class ESClient(object):
             _url = url
 
         try:
-            res = requests.post(_url + "/" + index_name + '/_delete_by_query', headers=_header, verify=False, data=bulk_json)
+            res = requests.post(_url + "/" + index_name + '/_delete_by_query', headers=_header, verify=False,
+                                data=bulk_json)
             res.raise_for_status()
             print(res)
         except:
@@ -427,7 +431,6 @@ class ESClient(object):
         lastTime = f.strftime("%Y%m%d")
         return lastTime
 
-
     def getLastTime(self, field="created_at"):
         data_agg = '''
                 "aggs": {
@@ -455,7 +458,6 @@ class ESClient(object):
         # get min create at value
         created_at_value = data['aggregations']['1']['value_as_string']
         return created_at_value
-
 
     def checkFieldExist(self, field="_id", filter=None):
         query_data = '''
@@ -488,7 +490,6 @@ class ESClient(object):
         # created_at_value = data['aggregations']['1']['value_as_string']
         return True
 
-
     def get_last_item_field(self, field, filters_=[], offset=False):
         """Find the offset/date of the last item stored in the index.
         """
@@ -502,7 +503,7 @@ class ESClient(object):
             if not filter_:
                 continue
             term = '''{"term" : { "%s" : "%s"}}''' % (
-            filter_['name'], filter_['value'])
+                filter_['name'], filter_['value'])
             terms.append(term)
 
         data_query = '''"query": {"bool": {"filter": [%s]}},''' % (
@@ -529,8 +530,8 @@ class ESClient(object):
             'Content-Type': 'application/json'
         }
         data = requests.get(self.getSearchUrl(),
-                           data=data_json,
-                           headers=self.default_headers, verify=False)
+                            data=data_json,
+                            headers=self.default_headers, verify=False)
         res = data.json()
         print(res)
 
@@ -547,7 +548,6 @@ class ESClient(object):
 
         return last_value
 
-
     def getSearchUrl(self, url=None, index_name=None):
         if index_name is None:
             index_name = self.index_name
@@ -556,7 +556,6 @@ class ESClient(object):
             url = self.url
         return url + "/" + index_name + "/_search"
 
-
     def get_last_date(self, field, filters_=[]):
         """Find the date of the last item stored in the index
         """
@@ -564,18 +563,15 @@ class ESClient(object):
 
         return last_date
 
-
     def get_incremental_date(self):
         """Field with the date used for incremental analysis."""
 
         return "updated_at"
 
-
     def get_last_update_from_es(self, _filters=[]):
         last_update = self.get_last_date(self.get_incremental_date(), _filters)
 
         return last_update
-
 
     def get_from_date(self, filters=[]):
         last_update = self.get_last_update_from_es(filters)
@@ -607,7 +603,6 @@ class ESClient(object):
             return []
         data = res.json()
         return data['aggregations']['uniq_gender']['buckets']
-
 
     def setIsFirstCountributeItem(self, user_login):
         # get min created at value by author name
@@ -692,7 +687,6 @@ class ESClient(object):
             return
         print("update user(%s) id(%s) is_first_contribute  success" % (user_login, id))
 
-
     def updateRepoCreatedName(self, org_name, repo_name, author_name, user_login, is_internal=False):
         data_query = '''"query": {"bool": {"must": [{"match": {"is_gitee_repo": 1}},{"match": {"repository.keyword": "%s"}}]}}''' % (
                 org_name + "/" + repo_name)
@@ -709,7 +703,7 @@ class ESClient(object):
         result_num = res['hits']['total']['value']
         if result_num != 1:
             print("repo(%s) not exist or has more than one resources." % (
-                        org_name + "/" + repo_name))
+                    org_name + "/" + repo_name))
             return
 
         id = res['hits']['hits'][0]['_id']
@@ -749,9 +743,8 @@ class ESClient(object):
             print("update repo author name failed:", res.text)
             return
 
-
     def getUniqueCountByDate(self, field, from_date, to_date,
-                       url=None, index_name=None):
+                             url=None, index_name=None):
         data_json = '''{"size": 0,
          "query": {
              "range": {
@@ -781,9 +774,8 @@ class ESClient(object):
         # print(data["aggregations"]["sum"]["value"])
         return data["aggregations"]["sum"]["value"]
 
-
     def getCountByTermDate(self, term=None, field=None, from_date=None, to_date=None,
-                            url=None, index_name=None):
+                           url=None, index_name=None):
         if not term:
             data_json = '''{
                 "size": 0,
@@ -830,7 +822,6 @@ class ESClient(object):
                         }
                     }''' % (from_date, to_date, term, field)
 
-
         print(data_json)
         # default_headers = {
         #     'Content-Type': 'application/json'
@@ -853,7 +844,6 @@ class ESClient(object):
         # count = data["aggregations"]["sum"]["value"]
         # print(count)
         return count
-
 
     def getCountByDateRange(self, matchs, from_date, to_date, interval=1):
         terms = []
@@ -893,7 +883,6 @@ class ESClient(object):
             ranges.append(term)
             tmp_date = tmp_date + timedelta(days=interval)
 
-
         data_agg = '''
                 "aggs": {
                     "range": {
@@ -904,7 +893,6 @@ class ESClient(object):
                     }
                 }
             ''' % ','.join(ranges)
-
 
         data_json = '''
             { "size": 0, %s  %s
@@ -920,7 +908,6 @@ class ESClient(object):
         data = res.json()
         data = data.get("aggregations").get("range").get("buckets")
         return data
-
 
     def initLocationGeoIPIndex(self):
         body = {
@@ -939,13 +926,12 @@ class ESClient(object):
         if response.status_code != 200:
             return None
 
-
     def getLocationByIP(self, ip):
         # initLocationGeoIPIndex()
         payload = "{\n\t\"ip\": \"%s\"\n}" % ip
         r = requests.put(self.url + '/my_index/_doc/my_id?pipeline=geoip',
-                           data=payload, headers=self.default_headers,
-                           verify=False)
+                         data=payload, headers=self.default_headers,
+                         verify=False)
         if r.status_code != 200:
             print("get location failed, err=", r.text)
             return {}
@@ -975,7 +961,6 @@ class ESClient(object):
         if data is None:
             return {}
         return data
-
 
     def getItemsByMatchs(self, matchs, size=500, aggs=None):
         '''
@@ -1007,13 +992,11 @@ class ESClient(object):
             if not match:
                 continue
             term = '''{"match" : { "%s" : "%s"}}''' % (
-                        match['name'], match['value'])
+                match['name'], match['value'])
             terms.append(term)
 
         data_query = '''"query": {"bool": {"must": [%s]}}''' % (
             ','.join(terms))
-
-
 
         if aggs:
             data_json = '''
@@ -1032,7 +1015,6 @@ class ESClient(object):
         res = data.json()
         return res
 
-
     def updateForkToRemoved(self, id):
         update_data = '''{
                     "doc": {
@@ -1046,7 +1028,6 @@ class ESClient(object):
             print("set fork is_removed value to 1 fail:", res.text)
             return
         print("set fork is_removed value to 1 success")
-
 
     def setToltalCount(self, from_date, count_key,
                        field=None):
@@ -1148,6 +1129,7 @@ def str_to_datetime(ts):
     :raises IvalidDateError: when the given string cannot be converted
         on a valid date
     """
+
     def parse_datetime(ts):
         dt = dateutil.parser.parse(ts)
         if not dt.tzinfo:
@@ -1176,7 +1158,7 @@ def str_to_datetime(ts):
             if m:
                 dt = parse_datetime(m.group(1))
                 print("Date %s does not have a valid timezone. "
-                               "Date converted removing timezone info"% ts)
+                      "Date converted removing timezone info" % ts)
                 return dt
 
             raise e
@@ -1188,7 +1170,7 @@ def str_to_datetime(ts):
             _ = dt.astimezone(dateutil.tz.tzutc())
         except ValueError:
             print("Date %s does not have a valid timezone; timedelta not in range. "
-                           "Date converted to UTC removing timezone info" % ts)
+                  "Date converted to UTC removing timezone info" % ts)
             dt = dt.replace(tzinfo=dateutil.tz.tzutc()).astimezone(dateutil.tz.tzutc())
 
         return dt
@@ -1208,14 +1190,13 @@ def getSingleAction(index_name, id, body, act="index"):
     return action
 
 
-
 def writeDataThread(thread_func_args, max_thread_num=20):
     threads = []
 
     for key, values in thread_func_args.items():
         for v in values:
             if not isinstance(v, tuple):
-                args = (v, )
+                args = (v,)
             else:
                 args = v
             t = threading.Thread(
@@ -1250,6 +1231,3 @@ def getGenerator(response):
         print("Gitee get JSONDecodeError, error: ", response)
 
     return data
-
-
-
