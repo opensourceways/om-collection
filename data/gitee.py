@@ -478,7 +478,8 @@ class Gitee(object):
                 print(firstreplyprtime)
                 print(eitem['created_at'])
             eitem['prcommentscount'] = len(ecomments)
-            eitem['pulls_signames']=self.esClient.getRepoSigNames(self.sig_index,owner+"/"+repo)
+            if self.sig_index:
+                eitem['pulls_signames']=self.esClient.getRepoSigNames(self.sig_index,owner+"/"+repo)
             indexData = {"index": {"_index": self.index_name, "_id": eitem['id']}}
             actions += json.dumps(indexData) + '\n'
             actions += json.dumps(eitem) + '\n'
