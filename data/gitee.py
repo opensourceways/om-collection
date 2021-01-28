@@ -348,27 +348,34 @@ class Gitee(object):
         userExtra = self.esClient.getUserInfo(repo_data['owner']['login'])
         repo_detail.update(userExtra)
 
+        maintainerdata=self.esClient.getRepoMaintainer(self.maintainer_index , repo_data["full_name"])
+        repo_detail.update(maintainerdata)
+        sigcount=self.esClient.getRepoSigCount(self.sig_index ,repo_data["full_name"])
+        repo_detail.update(sigcount)
+        signames=self.esClient.getRepoSigNames(self.sig_index,repo_data['full_name'])
+        repo_detail.update(signames)
         branches=self.getGenerator(client.getSingleReopBranch())
+        brinfo=self.getbranchinfo(branches,client,owner,repo,repo_data['path'],self.versiontimemapping)
+        repo_detail["branches"]=brinfo
 
+        indexData = {
+            "index": {"_index": self.index_name,
+                      "_id": "gitee_repo_" + re.sub('.git$', '', repo_data['html_url'])}}
+        actions += json.dumps(indexData) + '\n'
+        actions += json.dumps(repo_detail) + '\n'
+        self.esClient.safe_put_bulk(actions)
+
+    def getbranchinfo(self,branches,client,owner,repo,repopath,versiontimemapping_index):
+        result=[]
+        version=None
         for br in branches:
-            if  self.maintainer_index:
-                maintainerdata=self.esClient.getRepoMaintainer(self.maintainer_index , repo_data["full_name"])
-                mtstr=""
-                for m in maintainerdata:
-                    mtstr=mtstr+str(m['key'])+","
-                mtstr=mtstr[:len(mtstr)-1]
-                repo_detail['Maintainer'] = mtstr
-            if  self.sig_index:
-                repo_detail['sigcount']=self.esClient.getRepoSigCount(self.sig_index ,repo_data["full_name"])
-                repo_detail['signames']=self.esClient.getRepoSigNames(self.sig_index,repo_data['full_name'])
-            repo_detail['branch']=br['name']
-            version=None
+            brresult={}
             try:
+                brresult["brname"]=br['name']
                 spec = client.getspecFile(owner,repo,br['name'])
                 version = spec.version
             except:
-                print('reop:%s branch:%s has No version' % (repo_data['path'],br['name']))
-            #signames名称
+                print('reop:%s branch:%s has No version' % (repopath,br['name']))
             if version and self.versiontimemapping:
                 if str(version).startswith('%{'):
                     index=str(version).find("}")
@@ -376,26 +383,23 @@ class Gitee(object):
                         index=len(version)-1
                     version=version[2:index]
                     version=spec.macros.get(version)
-                times=self.esClient.geTimeofVersion(version,repo_data['path'],self.versiontimemapping)
+                    brresult["version"]=version
+                times=self.esClient.geTimeofVersion(version,repopath,versiontimemapping_index)
                 interval=0
                 if times is not None:
                     interval=datetime.datetime.now()-datetime.datetime.strptime(times,'%Y-%m-%d %H:%M:%S')
                     print("releasetime:"+str(times))
                 else:
                     times=""
-                #版本发布到目前时间
-                repo_detail['releasetime2now'] =0 if interval==0 else interval.days
+                    #版本发布到目前时间
+                brresult['releasetime2now'] =0 if interval==0 else interval.days
                 #版本号
-                repo_detail['version'] = version
+                brresult['version'] = version
                 #版本发布时间
-                repo_detail['releasetime']=times
-                print('reop:%s branch:%s has No version' % (repo_data['path'],br['name']))
-            indexData = {
-                "index": {"_index": self.index_name,
-                          "_id": "gitee_repo_" + re.sub('.git$', '', repo_data['html_url'])}}
-            actions += json.dumps(indexData) + '\n'
-            actions += json.dumps(repo_detail) + '\n'
-        self.esClient.safe_put_bulk(actions)
+                brresult['releasetime']=times
+                print('reop:%s branch:%s has No version' % (repopath,br['name']))
+                result.append(brresult)
+        return result
 
 
     def getFromDate(self, from_date, filters):
@@ -436,8 +440,9 @@ class Gitee(object):
             codediffadd = 0
             codediffdelete = 0
             for item in pull_code_diff:
-                codediffadd =int(codediffadd)+int(item['additions'])
-                codediffdelete =int(codediffadd)+ int(item['deletions'])
+                if isinstance(item,dict):
+                    codediffadd =int(codediffadd)+int(item['additions'])
+                    codediffdelete =int(codediffadd) + int(item['deletions'])
             merged_item = None
             if x['state'] == "closed":
                 if isinstance(pull_action_logs, list):

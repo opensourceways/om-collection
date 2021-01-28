@@ -198,6 +198,9 @@ class ESClient(object):
             print(traceback.format_exc())
         return res['hits']['hits']
     def getRepoMaintainer(self,index_name,repo=None):
+        result={}
+        if not index_name:
+            return result
         repo=str(repo).replace('/','\\\/')
         url = self.url + '/' + index_name + '/_search'
         data = '''{
@@ -234,9 +237,19 @@ class ESClient(object):
                 requests.get(url=url, headers=self.default_headers, verify=False, data=data.encode('utf-8')).content)
         except:
             print(traceback.format_exc())
-        return res['aggregations']['2']['buckets']
+        maintainerdata= res['aggregations']['2']['buckets']
+        if maintainerdata:
+            mtstr=""
+            for m in maintainerdata:
+                mtstr=mtstr+str(m['key'])+","
+                mtstr=mtstr[:len(mtstr)-1]
+            result['Maintainer'] = mtstr
+        return result
 
     def getRepoSigCount(self,index_name,repo=None):
+        result={}
+        if not index_name:
+            return result
         repo=str(repo).replace('/','\\\/')
         querystr='''{
     "size": 0,
@@ -280,11 +293,16 @@ class ESClient(object):
             count=0
             for re in resultdata:
                 count+=int(re['1']['value'])
-            return count
+            result['sigcount']=count
+            return result
         except:
             print(traceback.format_exc())
-            return 0
+            result['sigcount']=0
+            return result
     def getRepoSigNames(self,index_name,repo=None):
+        result={}
+        if not index_name:
+            return result
         querystr='''{
     "query": {
         "term":{
@@ -302,13 +320,15 @@ class ESClient(object):
                 restr=restr+","+re['_source']['sig_name']
             tuplelist=restr[1:].split(",")
             tuplelist=list(set(tuplelist))
-            result=""
+            resultstr = ""
             for s in tuplelist:
-                result=result+','+s
-            return "" if result=="" else result[1:]
+                resultstr=resultstr+','+s
+            if resultstr != "":
+                result['signames'] = resultstr[1:]
+            return result
         except:
             print(traceback.format_exc())
-            return ''
+            return result
 
     def geTimeofVersion(self,version,repo,index):
         url = self.url + '/' + index+'/_doc/'+repo+version
