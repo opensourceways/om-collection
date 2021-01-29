@@ -473,11 +473,12 @@ class Gitee(object):
                 actions += json.dumps(indexData) + '\n'
                 actions += json.dumps(ec) + '\n'
             try:
-                eitem['firstreplyprtime'] = (datetime.datetime.strptime(firstreplyprtime,
-                                                                        '%Y-%m-%dT%H:%M:%S+08:00') - datetime.datetime.strptime(
-                    eitem['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).days
-                eitem['lastreplyprtime'] = (datetime.datetime.now() - (
-                    datetime.datetime.strptime(lastreplyprtime, '%Y-%m-%dT%H:%M:%S+08:00'))).days
+                if not ecomments:
+                    eitem['firstreplyprtime'] = (datetime.datetime.strptime(firstreplyprtime,
+                                                                            '%Y-%m-%dT%H:%M:%S+08:00') - datetime.datetime.strptime(
+                        eitem['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).days
+                    eitem['lastreplyprtime'] = (datetime.datetime.now() - (
+                        datetime.datetime.strptime(lastreplyprtime, '%Y-%m-%dT%H:%M:%S+08:00'))).days
             except Exception as e:
                 print(e)
                 print(firstreplyprtime)
