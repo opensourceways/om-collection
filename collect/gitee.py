@@ -35,7 +35,6 @@ import datetime
 from configparser import ConfigParser
 from pyrpm.spec import Spec
 
-
 logger = logging.getLogger(__name__)
 
 GITEE_URL = "https://gitee.com/"
@@ -51,15 +50,16 @@ MAX_RETRIES = 5
 globa_threadinfo = threading.local()
 config = ConfigParser()
 try:
-    config.read('config.ini',encoding='UTF-8')
-    retry_time = config.getint('general', 'retry_time',)
+    config.read('config.ini', encoding='UTF-8')
+    retry_time = config.getint('general', 'retry_time', )
     retry_sleep_time = config.getint('general', 'retry_sleep_time')
 except BaseException as  ex:
-    retry_sleep_time=10
-    retry_time=10
+    retry_sleep_time = 10
+    retry_time = 10
+
 
 def globalExceptionHandler(func):
-    def warp(*args,**kwargs):
+    def warp(*args, **kwargs):
         try:
             # 第一次进来初始化重试次数变量
             if args[len(args) - 1] != "retry":
@@ -71,7 +71,7 @@ def globalExceptionHandler(func):
             for i in args:
                 if i != 'retry':
                     newarg.append(i)
-            response = func(*newarg,**kwargs)
+            response = func(*newarg, **kwargs)
         except requests.exceptions.RequestException as ex:
             while globa_threadinfo.num < retry_time and globa_threadinfo.retrystate == 0:
                 try:
@@ -84,9 +84,9 @@ def globalExceptionHandler(func):
                     time.sleep(retry_sleep_time)
                     # 防止重复添加标识
                     if 'retry' not in args:
-                        warp(*args,"retry",**kwargs)
+                        warp(*args, "retry", **kwargs)
                     else:
-                        warp(*args,**kwargs)
+                        warp(*args, **kwargs)
                 finally:
                     pass
         else:
@@ -158,16 +158,18 @@ class GiteeClient():
         path = self.urijoin("issues")
         return self.fetch_items(path, payload)
 
-    def pulls(self, state='all'):
+    '''sort:created updated popularity long-runing'''
+
+    def pulls(self, state='all', once_update_num_of_pr=200, direction='asc', sort='created'):
         payload = {
             'state': state,
             'per_page': self.max_items,
-            'direction': 'asc',
-            'sort': 'created'
+            'direction': direction,
+            'sort': sort
         }
 
         path = self.urijoin("pulls")
-        return self.fetch_items(path, payload)
+        return self.fetch_items_for_pulls(path, payload, once_update_num_of_pr)
 
     def pull_files(self, pr_number):
         """Get pull request action logs"""
@@ -274,21 +276,25 @@ class GiteeClient():
 
         pull_action_logs_path = self.urijoin("pulls", str(pr_number), "operate_logs")
         return self.fetch_items(pull_action_logs_path, {})
-    def pull_code_diff(self,pr_number):
+
+    def pull_code_diff(self, pr_number):
         """get pull code diff number"""
         pull_code_diff_path = self.urijoin("pulls", str(pr_number), "files")
         return self.fetch_items(pull_code_diff_path, {})
+
     def getSingleReopBranch(self):
         branchs = self.urijoin("branches")
         return self.fetch_items(branchs, {})
-    def getspecFile(self,org,repo,branch):
-        url='https://gitee.com/%s/%s/raw/%s/%s.spec' %(org,repo,branch,repo)
-        res=requests.get(url)
-        if res.status_code==200:
-            spec=Spec.from_string(res.text)
+
+    def getspecFile(self, org, repo, branch):
+        url = 'https://gitee.com/%s/%s/raw/%s/%s.spec' % (org, repo, branch, repo)
+        res = requests.get(url)
+        if res.status_code == 200:
+            spec = Spec.from_string(res.text)
             return spec
         else:
             return None
+
     def pull_commits(self, pr_number):
         """Get pull request commits"""
 
@@ -413,6 +419,40 @@ class GiteeClient():
             yield items
             items = None
             if 'next' in response.links:
+                url_next = response.links['next']['url']
+                response = self.fetch(url_next, payload=payload)
+                page += 1
+                items = response.text
+                print("Page: %i/%i" % (page, total_page))
+
+    def fetch_items_for_pulls(self, path, payload, once_update_num_of_pr=200):
+        """Return the items from gitee API using links pagination"""
+        page = 0  # current page
+        total_page = None  # total page number
+
+        if self.repository:
+            url_next = self.urijoin(self.base_url, 'repos', self.owner, self.repository, path)
+        else:
+            url_next = self.urijoin(self.base_url, path)
+
+        response = self.fetch(url_next, payload=payload)
+
+        if response.status_code != 200:
+            print("Gitee api get error: ", response.text)
+
+        items = response.text
+
+        page += 1
+        total_page = response.headers.get('total_page')
+
+        if total_page:
+            total_page = int(total_page[0])
+            print("Page: %i/%i" % (page, total_page))
+
+        while items:
+            yield items
+            items = None
+            if 'next' in response.links and (page) * self.max_items < once_update_num_of_pr:
                 url_next = response.links['next']['url']
                 response = self.fetch(url_next, payload=payload)
                 page += 1

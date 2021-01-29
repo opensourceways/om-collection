@@ -80,6 +80,9 @@ class Gitee(object):
         self.companyinfos = []
         self.enterpriseUsers = []
         self.index_name_all = None
+        once_update_num_of_pr = config.get('once_update_num_of_pr')
+        if (once_update_num_of_pr == None):
+            self.once_update_num_of_pr = 200
         if 'index_name_all' in config:
             self.index_name_all = config.get('index_name_all').split(',')
 
@@ -151,7 +154,7 @@ class Gitee(object):
         repo_name = repo['path']
         is_public = repo['public']
         self.writeRepoData(org, repo_name, from_time)
-        self.writePullData(org, repo_name, is_public, from_time)
+        self.writePullData(org, repo_name, is_public, from_time, self.once_update_num_of_pr)
         self.writeIssueData(org, repo_name, is_public, from_time)
         self.writeForks(org, repo_name, from_time)
 
@@ -408,7 +411,7 @@ class Gitee(object):
             from_date = common.str_to_datetime(from_date)
         return from_date
 
-    def writePullData(self, owner, repo, public, from_date=None):
+    def writePullData(self, owner, repo, public, from_date=None, once_update_num_of_pr=200):
         startTime = datetime.datetime.now()
         from_date = self.getFromDate(from_date, [
             {"name": "is_gitee_pull_request", "value": 1}])
@@ -422,7 +425,10 @@ class Gitee(object):
 
         # collect pull request
         actions = ""
-        pull_data = self.getGenerator(client.pulls())
+        pull_data = self.getGenerator(
+            client.pulls(state='all', once_update_num_of_pr=once_update_num_of_pr, direction='desc',
+                         sort='updated'))
+        print(('collection %d pulls' % (len(pull_data))))
         for x in pull_data:
             print(x['number'])
             if common.str_to_datetime(x['updated_at']) < from_date:
