@@ -65,8 +65,8 @@ class ESClient(object):
             self.default_headers['Authorization'] = self.authorization
 
     def getUserInfoFromFile(self):
-        if self.is_update_tag_company == 'false':
-            return
+        if self.is_update_tag_company != 'true':
+            return {}
 
         domain_company_dict = {}
         giteeid_company_dict = {}
