@@ -61,7 +61,7 @@ class ESClient(object):
         self.data_yaml_path = config.get('data_yaml_path')
         self.company_yaml_url = config.get('company_yaml_url')
         self.company_yaml_path = config.get('company_yaml_path')
-        self.giteeid_company_dict = self.getUserInfoFromFile()
+        self.giteeid_company_dict = {}
         if self.authorization:
             self.default_headers['Authorization'] = self.authorization
 
