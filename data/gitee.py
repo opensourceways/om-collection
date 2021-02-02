@@ -73,7 +73,7 @@ class Gitee(object):
         self.maintainer_index = config.get('maintain_index')
         self.sig_index=config.get('sig_index')
         self.versiontimemapping=config.get('versiontimemapping')
-        self.internal_company_name = config.get('internal_company_name', 'huawei')
+        self.internal_company_name = config.get('internal_company_name', 'internal_company')
         self.internalUsers = []
         self.all_user = []
         self.all_user_info = []
@@ -1084,7 +1084,7 @@ class Gitee(object):
 
             self.esClient.safe_put_bulk(actions)
 
-    def tagUsersFromEmail(self, tag_user_company="huawei"):
+    def tagUsersFromEmail(self, tag_user_company="internal_company"):
         if self.is_gitee_enterprise == "true":
             users = self.enterpriseUsers
         else:
@@ -1094,26 +1094,21 @@ class Gitee(object):
 
         for user in all_user:
             u = user["key"]
-            if u == "mindspore_ci":
+            if u in self.skip_user:
                 continue
             if u in users:
-                update_data = {
-                    "doc": {
-                        "tag_user_company": tag_user_company,
-                        "is_project_internal_user": 1,
-                    }
-                }
+                tag_company = tag_user_company
+                is_internal = 1
             else:
+                tag_company = "individual"
+                is_internal = 0
+
+            if self.esClient.is_update_tag_company == 'true' and u in self.esClient.giteeid_company_dict:
+                tag_company = self.esClient.giteeid_company_dict.get(u)
                 update_data = {
                     "doc": {
-                        "tag_user_company": "individual",
-                        "is_project_internal_user": 0,
-                    }
-                }
-            if self.yaml_user_url and u in self.esClient.giteeid_company_dict:
-                update_data = {
-                    "doc": {
-                        "tag_user_company": self.esClient.giteeid_company_dict.get(u),
+                        "tag_user_company": tag_company,
+                        "is_project_internal_user": is_internal,
                     }
                 }
 

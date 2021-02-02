@@ -15,6 +15,7 @@
 
 
 import json
+import subprocess
 import types
 import re
 import dateutil.parser
@@ -50,7 +51,7 @@ class ESClient(object):
         self.internalUsers = self.getItselfUsers()
         self.internal_users = config.get('internal_users', 'users')
         self.enterpriseUsers = []
-        self.internal_company_name = config.get('internal_company_name', 'huawei')
+        self.internal_company_name = config.get('internal_company_name', 'internal_company')
         self.is_gitee_enterprise = config.get('is_gitee_enterprise')
         self.enterpriseUsers = []
         self.orgs = self.getOrgs(config.get('orgs'))
@@ -72,12 +73,15 @@ class ESClient(object):
         giteeid_company_dict = {}
         if self.data_yaml_url and self.company_yaml_url:
             cmd = 'wget -N %s' % self.data_yaml_url
-            os.popen(cmd)
+            p = os.popen(cmd.replace('=', ''))
+            p.read()
             datas = yaml.load_all(open(self.data_yaml_path, encoding='UTF-8')).__next__()
 
             cmd = 'wget -N %s' % self.company_yaml_url
-            os.popen(cmd)
+            p = os.popen(cmd.replace('=', ''))
+            p.read()
             companies = yaml.load_all(open(self.company_yaml_path, encoding='UTF-8')).__next__()
+            p.close()
 
             for company in companies['companies']:
                 for domain in company['domains']:
