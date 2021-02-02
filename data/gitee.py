@@ -79,6 +79,9 @@ class Gitee(object):
         self.sig_index=config.get('sig_index')
         self.versiontimemapping=config.get('versiontimemapping')
         self.internal_company_name = config.get('internal_company_name', 'huawei')
+        self.sig_index = config.get('sig_index')
+        self.versiontimemapping = config.get('versiontimemapping')
+        self.internal_company_name = config.get('internal_company_name', 'internal_company')
         self.internalUsers = []
         self.all_user = []
         self.all_user_info = []
@@ -362,53 +365,58 @@ class Gitee(object):
         userExtra = self.esClient.getUserInfo(repo_data['owner']['login'])
         repo_detail.update(userExtra)
 
-        branches=self.getGenerator(client.getSingleReopBranch())
+        maintainerdata = self.esClient.getRepoMaintainer(self.maintainer_index, repo_data["full_name"])
+        repo_detail.update(maintainerdata)
+        sigcount = self.esClient.getRepoSigCount(self.sig_index, repo_data["full_name"])
+        repo_detail.update(sigcount)
+        signames = self.esClient.getRepoSigNames(self.sig_index, repo_data['full_name'])
+        repo_detail.update(signames)
+        branches = self.getGenerator(client.getSingleReopBranch())
+        brinfo = self.getbranchinfo(branches, client, owner, repo, repo_data['path'], self.versiontimemapping)
+        repo_detail["branches"] = brinfo
 
-        for br in branches:
-            maintainerdata=self.esClient.getRepoMaintainer(self.maintainer_index , repo_data["full_name"])
-            mtstr=""
-            for m in maintainerdata:
-                mtstr=mtstr+str(m['key'])+","
-            mtstr=mtstr[:len(mtstr)-1]
-            repo_detail['Maintainer'] = mtstr
-            repo_detail['sigcount']=self.esClient.getRepoSigCount(self.sig_index ,repo_data["full_name"])
-            repo_detail['branch']=br['name']
-            spec = client.getspecFile(owner,repo,br['name'])
-            version=None
-            try:
-                version = spec.version
-            except:
-                print('reop:%s branch:%s has No version' % (repo_data['path'],br['name']))
-            #signames名称
-            repo_detail['signames']=self.esClient.getRepoSigNames(self.sig_index,repo_data['full_name'])
-            if version:
-                if str(version).startswith('%{'):
-                    index=str(version).find("}")
-                    if index==-1:
-                        index=len(version)-1
-                    version=version[2:index]
-                    version=spec.macros.get(version)
-                times=self.esClient.geTimeofVersion(version,repo_data['path'],self.versiontimemapping)
-                interval=0
-                if times is not None:
-                    interval=datetime.datetime.now()-datetime.datetime.strptime(times,'%Y-%m-%d %H:%M:%S')
-                    print("releasetime:"+str(times))
-                else:
-                    times=""
-                #版本发布到目前时间
-                repo_detail['releasetime2now'] =0 if interval==0 else interval.days
-                #版本号
-                repo_detail['version'] = version
-                #版本发布时间
-                repo_detail['releasetime']=times
-                print('reop:%s branch:%s has No version' % (repo_data['path'],br['name']))
-            indexData = {
-                "index": {"_index": self.index_name,
-                          "_id": "gitee_repo_" + re.sub('.git$', '', repo_data['html_url'])}}
-            actions += json.dumps(indexData) + '\n'
-            actions += json.dumps(repo_detail) + '\n'
+        indexData = {
+            "index": {"_index": self.index_name,
+                      "_id": "gitee_repo_" + re.sub('.git$', '', repo_data['html_url'])}}
+        actions += json.dumps(indexData) + '\n'
+        actions += json.dumps(repo_detail) + '\n'
         self.esClient.safe_put_bulk(actions)
 
+    def getbranchinfo(self, branches, client, owner, repo, repopath, versiontimemapping_index):
+        result = []
+        version = None
+        for br in branches:
+            brresult = {}
+            try:
+                brresult["brname"] = br['name']
+                spec = client.getspecFile(owner, repo, br['name'])
+                version = spec.version
+            except:
+                print('reop:%s branch:%s has No version' % (repopath, br['name']))
+            if version and self.versiontimemapping:
+                if str(version).startswith('%{'):
+                    index = str(version).find("}")
+                    if index == -1:
+                        index = len(version) - 1
+                    version = version[2:index]
+                    version = spec.macros.get(version)
+                    brresult["version"] = version
+                times = self.esClient.geTimeofVersion(version, repopath, versiontimemapping_index)
+                interval = 0
+                if times is not None:
+                    interval = datetime.datetime.now() - datetime.datetime.strptime(times, '%Y-%m-%d %H:%M:%S')
+                    print("releasetime:" + str(times))
+                else:
+                    times = ""
+                    # 版本发布到目前时间
+                brresult['releasetime2now'] = 0 if interval == 0 else interval.days
+                # 版本号
+                brresult['version'] = version
+                # 版本发布时间
+                brresult['releasetime'] = times
+                print('reop:%s branch:%s has No version' % (repopath, br['name']))
+                result.append(brresult)
+        return result
 
     def getFromDate(self, from_date, filters):
         if from_date is None:
@@ -448,8 +456,9 @@ class Gitee(object):
             codediffadd = 0
             codediffdelete = 0
             for item in pull_code_diff:
-                codediffadd =int(codediffadd)+int(item['additions'])
-                codediffdelete =int(codediffadd)+ int(item['deletions'])
+                if isinstance(item, dict):
+                    codediffadd = int(codediffadd) + int(item['additions'])
+                    codediffdelete = int(codediffadd) + int(item['deletions'])
             merged_item = None
             if x['state'] == "closed":
                 if isinstance(pull_action_logs, list):
@@ -460,21 +469,19 @@ class Gitee(object):
             x['codediffdelete'] = codediffdelete
             eitem = self.__get_rich_pull(x, merged_item)
 
-
-
             ecomments = self.get_rich_pull_reviews(pull_review_comments, eitem, owner)
-            firstreplyprtime=""
-            lastreplyprtime=""
+            firstreplyprtime = ""
+            lastreplyprtime = ""
             for ec in ecomments:
                 if not firstreplyprtime:
-                    firstreplyprtime=str(ec['created_at'])
-                    lastreplyprtime=str(ec['created_at'])
+                    firstreplyprtime = str(ec['created_at'])
+                    lastreplyprtime = str(ec['created_at'])
                 else:
-                    ectime=str(ec['created_at'])
+                    ectime = str(ec['created_at'])
                     if ectime < firstreplyprtime:
-                        firstreplyprtime=ectime
+                        firstreplyprtime = ectime
                     if ectime > lastreplyprtime:
-                        lastreplyprtime=ectime
+                        lastreplyprtime = ectime
                 print(ec['pull_comment_id'])
                 if ec['user_login'] in self.skip_user:
                     continue
@@ -483,20 +490,24 @@ class Gitee(object):
                 actions += json.dumps(indexData) + '\n'
                 actions += json.dumps(ec) + '\n'
             try:
-                eitem['firstreplyprtime'] = (datetime.datetime.strptime(firstreplyprtime,'%Y-%m-%dT%H:%M:%S+08:00')-datetime.datetime.strptime(eitem['created_at'],'%Y-%m-%dT%H:%M:%S+08:00')).days
-                eitem['lastreplyprtime'] =  (datetime.datetime.now()-(datetime.datetime.strptime(lastreplyprtime,'%Y-%m-%dT%H:%M:%S+08:00'))).days
+                eitem['firstreplyprtime'] = (datetime.datetime.strptime(firstreplyprtime,
+                                                                        '%Y-%m-%dT%H:%M:%S+08:00') - datetime.datetime.strptime(
+                    eitem['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).days
+                eitem['lastreplyprtime'] = (datetime.datetime.now() - (
+                    datetime.datetime.strptime(lastreplyprtime, '%Y-%m-%dT%H:%M:%S+08:00'))).days
             except Exception as e:
                 print(e)
                 print(firstreplyprtime)
                 print(eitem['created_at'])
             eitem['prcommentscount'] = len(ecomments)
-            eitem['pulls_signames']=self.esClient.getRepoSigNames(self.sig_index,owner+"/"+repo)
+            if self.sig_index:
+                eitem['pulls_signames'] = self.esClient.getRepoSigNames(self.sig_index, owner + "/" + repo)
             indexData = {"index": {"_index": self.index_name, "_id": eitem['id']}}
             actions += json.dumps(indexData) + '\n'
             actions += json.dumps(eitem) + '\n'
-            if len(actions)>10000:
+            if len(actions) > 10000:
                 self.esClient.safe_put_bulk(actions)
-                actions=""
+                actions = ""
         self.esClient.safe_put_bulk(actions)
 
         endTime = datetime.datetime.now()
@@ -530,17 +541,17 @@ class Gitee(object):
             issue_comments = self.getGenerator(client.issue_comments(i['number']))
             i['comments_data'] = issue_comments
             issue_item = self.get_rich_issue(i)
-            firstreplyissuetime=""
-            lastreplyissuetime=""
+            firstreplyissuetime = ""
+            lastreplyissuetime = ""
             issue_comments = self.get_rich_issue_comments(issue_comments, issue_item)
             for ic in issue_comments:
                 if not firstreplyissuetime:
                     firstreplyissuetime = str(ic['created_at'])
-                    lastreplyissuetime=str(ic['created_at'])
+                    lastreplyissuetime = str(ic['created_at'])
                 else:
-                    ictime=str(ic['created_at'])
+                    ictime = str(ic['created_at'])
                     if ictime < firstreplyissuetime:
-                        firstreplyissuetime=ictime
+                        firstreplyissuetime = ictime
                     if ictime > lastreplyissuetime:
                         lastreplyissuetime = ictime
                 if ic['user_login'] in self.skip_user:
@@ -552,8 +563,11 @@ class Gitee(object):
                 actions += json.dumps(indexData) + '\n'
                 actions += json.dumps(ic) + '\n'
             try:
-                issue_item['firstreplyissuetime'] = (datetime.datetime.strptime(firstreplyissuetime,'%Y-%m-%dT%H:%M:%S+08:00')-datetime.datetime.strptime(issue_item['created_at'],'%Y-%m-%dT%H:%M:%S+08:00')).days
-                issue_item['lastreplyissuetime'] = (datetime.datetime.now()-(datetime.datetime.strptime(lastreplyissuetime,'%Y-%m-%dT%H:%M:%S+08:00'))).days
+                issue_item['firstreplyissuetime'] = (datetime.datetime.strptime(firstreplyissuetime,
+                                                                                '%Y-%m-%dT%H:%M:%S+08:00') - datetime.datetime.strptime(
+                    issue_item['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).days
+                issue_item['lastreplyissuetime'] = (datetime.datetime.now() - (
+                    datetime.datetime.strptime(lastreplyissuetime, '%Y-%m-%dT%H:%M:%S+08:00'))).days
                 indexData = {"index": {"_index": self.index_name, "_id": issue_item['id']}}
                 actions += json.dumps(indexData) + '\n'
                 actions += json.dumps(issue_item) + '\n'
@@ -829,7 +843,7 @@ class Gitee(object):
         rich_issue['issue_title'] = issue['title']
         rich_issue['issue_title_analyzed'] = issue['title']
         rich_issue['issue_state'] = issue['state']
-        rich_issue['issue_type']=issue['issue_type']
+        rich_issue['issue_type'] = issue['issue_type']
         if (rich_issue['issue_state'] == 'progressing'):
             rich_issue['is_issue_state_progressing'] = 1
         elif (rich_issue['issue_state'] == 'open'):
