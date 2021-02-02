@@ -70,36 +70,45 @@ class Gitee(object):
         self.is_set_collect = config.get('is_set_collect')
         self.yaml_url = config.get('yaml_url')
         self.yaml_path = config.get('yaml_path')
-        self.yaml_user_url = config.get('yaml_user_url')
-        self.yaml_company_url = config.get('yaml_company_url')
-        self.yaml_user_path = config.get('yaml_user_path')
-        self.yaml_company_path = config.get('yaml_company_path')
+        self.yaml_user_url = config.get('data_yaml_url')
+        self.yaml_company_url = config.get('company_yaml_url')
+        self.yaml_user_path = config.get('data_yaml_path')
+        self.yaml_company_path = config.get('company_yaml_path')
+        self.is_update_tag_company = config.get('is_update_tag_company', 'false')
         self.maintainer_index = config.get('maintain_index')
         self.sig_index=config.get('sig_index')
         self.versiontimemapping=config.get('versiontimemapping')
-        self.internal_company_name = config.get('internal_company_name', 'internal_company')
+        self.internal_company_name = config.get('internal_company_name', 'huawei')
         self.internalUsers = []
         self.all_user = []
         self.all_user_info = []
         self.companyinfos = []
         self.enterpriseUsers = []
+        self.giteeid_company_dict_last = {}
         self.index_name_all = None
         if 'index_name_all' in config:
             self.index_name_all = config.get('index_name_all').split(',')
 
     def run(self, from_time):
-        # self.esClient.getUserInfoFromDataFile()
         print("Collect gitee data: staring")
+        if self.is_update_tag_company == 'true':
+            self.giteeid_company_dict_last = self.esClient.giteeid_company_dict
+            self.esClient.giteeid_company_dict = self.esClient.getUserInfoFromFile()
+
         self.getEnterpriseUser()
         # return
         startTime = time.time()
         self.internalUsers = self.getItselfUsers(self.internal_users)
 
         if self.is_set_itself_author == 'true':
-            self.tagUsers(tag_user_company=self.internal_company_name)
-            # self.tagUsersFromEmail()
+            # self.tagUsers(tag_user_company=self.internal_company_name)
+            self.tagUsersFromEmail(tag_user_company=self.internal_company_name)
             # self.tagUsers()
+            # self.tagHistoryUsers()
         else:
+            if self.is_update_tag_company == 'true':
+                self.tagHistoryUsers()
+
             if self.is_set_pr_issue_repo_fork == 'true':
                 self.writeData(self.writeContributeForSingleRepo, from_time)
 
@@ -1033,40 +1042,75 @@ class Gitee(object):
         print(len(users))
         return users
 
-    def tagUsersFromEmail(self):
-        all_user = self.esClient.getTotalAuthorName(
-            field="user_login.keyword")
+    def tagHistoryUsers(self):
+        if self.giteeid_company_dict_last == self.esClient.giteeid_company_dict:
+            return
 
-        giteeid_email_dict = {}
-        domain_company_dict = {}
-        if self.yaml_user_url:
-            # cmd = 'wget %s' % self.yaml_url
-            # os.popen(cmd)
-            datas = yaml.load_all(open(self.yaml_user_path, encoding='UTF-8')).__next__()
-            companies = yaml.load_all(open(self.yaml_company_path, encoding='UTF-8')).__next__()
+        if self.is_gitee_enterprise == "true":
+            users = self.enterpriseUsers
+        else:
+            users = self.internalUsers
 
-            for data in datas['users']:
-                if data['emails']:
-                    giteeid_email_dict.update({data['gitee_id']: data['emails']})
+        diff = self.esClient.giteeid_company_dict.items() - self.giteeid_company_dict_last.items()
+        for item in diff:
+            u = item[0]
+            company = item[1]
+            if u in users:
+                update_data = {
+                    "doc": {
+                        "tag_user_company": company,
+                        "is_project_internal_user": 1,
+                    }
+                }
+            else:
+                update_data = {
+                    "doc": {
+                        "tag_user_company": company,
+                        "is_project_internal_user": 0,
+                    }
+                }
 
-            for company in companies['companies']:
-                for domain in company['domains']:
-                    domain_company_dict.update({domain: company['company_name']})
+            actions = ""
+            ids = self.getAllIndex(u)
+            for id in ids:
+                action = common.getSingleAction(
+                    self.index_name, id["key"], update_data, act="update")
+                actions += action
+
+            self.esClient.safe_put_bulk(actions)
+
+    def tagUsersFromEmail(self, tag_user_company="huawei"):
+        if self.is_gitee_enterprise == "true":
+            users = self.enterpriseUsers
+        else:
+            users = self.internalUsers
+
+        all_user = self.esClient.getTotalAuthorName(field="user_login.keyword")
 
         for user in all_user:
             u = user["key"]
             if u == "mindspore_ci":
                 continue
-
-            if self.yaml_user_url and giteeid_email_dict.get(u) is not None:
-                for email in giteeid_email_dict[u]:
-                    domain = str(email).split('@')[1]
-                    company_name = domain_company_dict[domain]
-                    update_data = {
-                        "doc": {
-                            "tag_user_company": company_name,
-                        }
+            if u in users:
+                update_data = {
+                    "doc": {
+                        "tag_user_company": tag_user_company,
+                        "is_project_internal_user": 1,
                     }
+                }
+            else:
+                update_data = {
+                    "doc": {
+                        "tag_user_company": "individual",
+                        "is_project_internal_user": 0,
+                    }
+                }
+            if self.yaml_user_url and u in self.esClient.giteeid_company_dict:
+                update_data = {
+                    "doc": {
+                        "tag_user_company": self.esClient.giteeid_company_dict.get(u),
+                    }
+                }
 
             actions = ""
             ids = self.getAllIndex(u)
