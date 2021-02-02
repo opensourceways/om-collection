@@ -15,6 +15,7 @@
 
 
 import json
+import subprocess
 import types
 import re
 import dateutil.parser
@@ -55,12 +56,47 @@ class ESClient(object):
         self.enterpriseUsers = []
         self.orgs = self.getOrgs(config.get('orgs'))
         self.gitee_token = config.get('gitee_token')
+        self.is_update_tag_company = config.get('is_update_tag_company', 'false')
         self.data_yaml_url = config.get('data_yaml_url')
         self.data_yaml_path = config.get('data_yaml_path')
         self.company_yaml_url = config.get('company_yaml_url')
         self.company_yaml_path = config.get('company_yaml_path')
+        self.giteeid_company_dict = self.getUserInfoFromFile()
         if self.authorization:
             self.default_headers['Authorization'] = self.authorization
+
+    def getUserInfoFromFile(self):
+        if self.is_update_tag_company != 'true':
+            return {}
+
+        domain_company_dict = {}
+        giteeid_company_dict = {}
+        if self.data_yaml_url and self.company_yaml_url:
+            cmd = 'wget -N %s' % self.data_yaml_url
+            p = os.popen(cmd.replace('=', ''))
+            p.read()
+            datas = yaml.load_all(open(self.data_yaml_path, encoding='UTF-8')).__next__()
+
+            cmd = 'wget -N %s' % self.company_yaml_url
+            p = os.popen(cmd.replace('=', ''))
+            p.read()
+            companies = yaml.load_all(open(self.company_yaml_path, encoding='UTF-8')).__next__()
+            p.close()
+
+            for company in companies['companies']:
+                for domain in company['domains']:
+                    domain_company_dict.update({domain: company['company_name']})
+
+            for data in datas['users']:
+                if data['companies'][0]['company_name'] != '':
+                    giteeid_company_dict.update({data['gitee_id']: data['companies'][0]['company_name']})
+                elif data['emails']:
+                    for email in data['emails']:
+                        domain = str(email).split('@')[1]
+                        if domain in domain_company_dict:
+                            giteeid_company_dict.update({data['gitee_id']: domain_company_dict.get(domain)})
+
+        return giteeid_company_dict
 
     def getUserInfo(self, login):
         userExtra = {}
@@ -69,36 +105,21 @@ class ESClient(object):
                 userExtra["tag_user_company"] = self.internal_company_name
                 userExtra["is_project_internal_user"] = 1
             else:
-                userExtra["tag_user_company"] = "n/a"
+                userExtra["tag_user_company"] = "independent"
                 userExtra["is_project_internal_user"] = 0
         else:
             if login in self.internalUsers:
                 userExtra["tag_user_company"] = self.internal_company_name
                 userExtra["is_project_internal_user"] = 1
             else:
-                userExtra["tag_user_company"] = "n/a"
+                userExtra["tag_user_company"] = "independent"
                 userExtra["is_project_internal_user"] = 0
 
-        if self.data_yaml_url:
-            cmd = 'wget %s' % self.data_yaml_url
-            os.popen(cmd)
-            datas = yaml.load_all(open(self.data_yaml_path)).__next__()['users']
+        if self.is_update_tag_company == 'true' and self.data_yaml_url and login in self.giteeid_company_dict:
+            userExtra["tag_user_company"] = self.giteeid_company_dict.get(login)
+            if userExtra["tag_user_company"] == self.internal_company_name:
+                userExtra["is_project_internal_user"] = 1
 
-            cmd = 'wget %s' % self.company_yaml_url
-            os.popen(cmd)
-            companys = yaml.load_all(open(self.company_yaml_path)).__next__()['companies']
-
-            for data in datas:
-                if data['gitee_id'] == userExtra['user_login']:
-                    if not data["companies"]['company_name'] and data['emails']:
-                        for company in companys:
-                            if data['emails'][0].endswith(company['domains']):
-                                userExtra["companies"]['company_name'] = company['company_name']
-                                break
-                    else:
-                        for company in companys:
-                            if data["companies"]['company_name'] in company['aliases']:
-                                userExtra["companies"]['company_name'] = company['company_name']
         return userExtra
 
     def getItselfUsers(self, filename="users"):
