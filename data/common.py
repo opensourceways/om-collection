@@ -113,25 +113,7 @@ class ESClient(object):
 
         if self.is_update_tag_company == 'true' and self.data_yaml_url and login in self.giteeid_company_dict:
             userExtra["tag_user_company"] = self.giteeid_company_dict.get(login)
-            # cmd = 'wget %s' % self.data_yaml_url
-            # os.popen(cmd)
-            # datas = yaml.load_all(open(self.data_yaml_path)).__next__()['users']
-            #
-            # cmd = 'wget %s' % self.company_yaml_url
-            # os.popen(cmd)
-            # companys = yaml.load_all(open(self.company_yaml_path)).__next__()['companies']
-            #
-            # for data in datas:
-            #     if data['gitee_id'] == userExtra['user_login']:
-            #         if not data["companies"]['company_name'] and data['emails']:
-            #             for company in companys:
-            #                 if data['emails'][0].endswith(company['domains']):
-            #                     userExtra["companies"]['company_name'] = company['company_name']
-            #                     break
-            #         else:
-            #             for company in companys:
-            #                 if data["companies"]['company_name'] in company['aliases']:
-            #                     userExtra["companies"]['company_name'] = company['company_name']
+
         return userExtra
 
     def getItselfUsers(self, filename="users"):

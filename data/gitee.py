@@ -70,18 +70,10 @@ class Gitee(object):
         self.is_set_collect = config.get('is_set_collect')
         self.yaml_url = config.get('yaml_url')
         self.yaml_path = config.get('yaml_path')
-        self.yaml_user_url = config.get('data_yaml_url')
-        self.yaml_company_url = config.get('company_yaml_url')
-        self.yaml_user_path = config.get('data_yaml_path')
-        self.yaml_company_path = config.get('company_yaml_path')
-        self.is_update_tag_company = config.get('is_update_tag_company', 'false')
         self.maintainer_index = config.get('maintain_index')
         self.sig_index=config.get('sig_index')
         self.versiontimemapping=config.get('versiontimemapping')
         self.internal_company_name = config.get('internal_company_name', 'huawei')
-        self.sig_index = config.get('sig_index')
-        self.versiontimemapping = config.get('versiontimemapping')
-        self.internal_company_name = config.get('internal_company_name', 'internal_company')
         self.internalUsers = []
         self.all_user = []
         self.all_user_info = []
@@ -94,7 +86,7 @@ class Gitee(object):
 
     def run(self, from_time):
         print("Collect gitee data: staring")
-        if self.is_update_tag_company == 'true':
+        if self.esClient.is_update_tag_company == 'true':
             self.giteeid_company_dict_last = self.esClient.giteeid_company_dict
             self.esClient.giteeid_company_dict = self.esClient.getUserInfoFromFile()
 
@@ -104,12 +96,11 @@ class Gitee(object):
         self.internalUsers = self.getItselfUsers(self.internal_users)
 
         if self.is_set_itself_author == 'true':
-            # self.tagUsers(tag_user_company=self.internal_company_name)
-            self.tagUsersFromEmail(tag_user_company=self.internal_company_name)
+            self.tagUsers(tag_user_company=self.internal_company_name)
             # self.tagUsers()
             # self.tagHistoryUsers()
         else:
-            if self.is_update_tag_company == 'true':
+            if self.esClient.is_update_tag_company == 'true':
                 self.tagHistoryUsers()
 
             if self.is_set_pr_issue_repo_fork == 'true':
