@@ -71,8 +71,8 @@ class Gitee(object):
         self.yaml_url = config.get('yaml_url')
         self.yaml_path = config.get('yaml_path')
         self.maintainer_index = config.get('maintain_index')
-        self.sig_index=config.get('sig_index')
-        self.versiontimemapping=config.get('versiontimemapping')
+        self.sig_index = config.get('sig_index')
+        self.versiontimemapping = config.get('versiontimemapping')
         self.internal_company_name = config.get('internal_company_name', 'internal_company')
         self.internalUsers = []
         self.all_user = []
