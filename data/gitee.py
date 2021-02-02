@@ -1105,6 +1105,8 @@ class Gitee(object):
 
             if self.esClient.is_update_tag_company == 'true' and u in self.esClient.giteeid_company_dict:
                 tag_company = self.esClient.giteeid_company_dict.get(u)
+                if tag_company == self.internal_company_name:
+                    is_internal = 1
                 update_data = {
                     "doc": {
                         "tag_user_company": tag_company,
