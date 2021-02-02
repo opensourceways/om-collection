@@ -105,18 +105,20 @@ class ESClient(object):
                 userExtra["tag_user_company"] = self.internal_company_name
                 userExtra["is_project_internal_user"] = 1
             else:
-                userExtra["tag_user_company"] = "individual"
+                userExtra["tag_user_company"] = "independent"
                 userExtra["is_project_internal_user"] = 0
         else:
             if login in self.internalUsers:
                 userExtra["tag_user_company"] = self.internal_company_name
                 userExtra["is_project_internal_user"] = 1
             else:
-                userExtra["tag_user_company"] = "individual"
+                userExtra["tag_user_company"] = "independent"
                 userExtra["is_project_internal_user"] = 0
 
         if self.is_update_tag_company == 'true' and self.data_yaml_url and login in self.giteeid_company_dict:
             userExtra["tag_user_company"] = self.giteeid_company_dict.get(login)
+            if userExtra["tag_user_company"] == self.internal_company_name:
+                userExtra["is_project_internal_user"] = 1
 
         return userExtra
 

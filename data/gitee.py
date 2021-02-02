@@ -1060,7 +1060,7 @@ class Gitee(object):
         for item in diff:
             u = item[0]
             company = item[1]
-            if u in users:
+            if u in users or company == self.internal_company_name:
                 update_data = {
                     "doc": {
                         "tag_user_company": company,
@@ -1100,7 +1100,7 @@ class Gitee(object):
                 tag_company = tag_user_company
                 is_internal = 1
             else:
-                tag_company = "individual"
+                tag_company = "independent"
                 is_internal = 0
 
             if self.esClient.is_update_tag_company == 'true' and u in self.esClient.giteeid_company_dict:
