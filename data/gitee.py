@@ -1057,6 +1057,10 @@ class Gitee(object):
             users = self.internalUsers
 
         diff = self.esClient.giteeid_company_dict.items() - self.giteeid_company_dict_last.items()
+        dele = self.giteeid_company_dict_last.keys() - self.esClient.giteeid_company_dict.keys()
+        for d in dele:
+            diff.add((d, "independent"))
+
         for item in diff:
             u = item[0]
             company = item[1]
