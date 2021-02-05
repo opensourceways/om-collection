@@ -80,9 +80,7 @@ class Gitee(object):
         self.companyinfos = []
         self.enterpriseUsers = []
         self.index_name_all = None
-        once_update_num_of_pr = config.get('once_update_num_of_pr')
-        if (once_update_num_of_pr == None):
-            self.once_update_num_of_pr = 200
+        self.once_update_num_of_pr = config.get('once_update_num_of_pr', 200)
         if 'index_name_all' in config:
             self.index_name_all = config.get('index_name_all').split(',')
 
@@ -330,6 +328,8 @@ class Gitee(object):
     def writeRepoData(self, owner, repo, from_date=None):
         client = GiteeClient(owner, repo, self.gitee_token)
         repo_data = self.getGenerator(client.repo())
+        if repo!='canndev':
+            return
         actions = ""
         repo_detail = {
             "created_at": repo_data["created_at"],
