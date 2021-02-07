@@ -23,6 +23,9 @@ class Meetings(object):
         res = requests.get(url=self.meetings_url, headers=self.headers)
         datap = ''
         for i in json.loads(res.content):
+            i.get("start")
+            meet_date = datetime.datetime.strptime(i.get("end"), "%H:%M") - datetime.datetime.strptime(i.get("start"), "%H:%M")
+            i["duration_time"] = int(meet_date.seconds)
             datar = common.getSingleAction(self.index_name, i['id'], i)
             datap += datar
         self.esClient.safe_put_bulk(datap)
