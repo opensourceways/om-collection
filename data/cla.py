@@ -40,7 +40,6 @@ class Cla(object):
         # third: get corporation
         corporation_url = f'{self.api_url}/{CORPORATION}/{link_id}'
         corporation_infos = self.claClient.fetch_cla(url=corporation_url, method='get', headers=headers)
-        print(corporation_infos)
         for corporation_info in corporation_infos['data']:
             admin_email = corporation_info['admin_email']
             corporation_name = corporation_info['corporation_name']
@@ -48,7 +47,6 @@ class Cla(object):
             # fourth: get users
             employee_url = f'{self.api_url}/{EMPLOYEE}/{link_id}/{admin_email}'
             employee_infos = self.claClient.fetch_cla(url=employee_url, method='get', headers=headers)
-            print(employee_infos)
             employees = employee_infos['data']
             if len(employees) == 0:
                 continue
