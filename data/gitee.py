@@ -363,8 +363,6 @@ class Gitee(object):
     def writeRepoData(self, owner, repo, from_date=None):
         client = GiteeClient(owner, repo, self.gitee_token)
         repo_data = self.getGenerator(client.repo())
-        if repo != 'canndev':
-            return
         actions = ""
         repo_detail = {
             "created_at": repo_data["created_at"],
