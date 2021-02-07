@@ -495,7 +495,7 @@ class Gitee(object):
             indexData = {"index": {"_index": self.index_name, "_id": eitem['id']}}
             actions += json.dumps(indexData) + '\n'
             actions += json.dumps(eitem) + '\n'
-            if len(actions) > 10000:
+            if actions.count('\n') > 10000:
                 self.esClient.safe_put_bulk(actions)
                 actions = ""
         self.esClient.safe_put_bulk(actions)
@@ -564,6 +564,9 @@ class Gitee(object):
                 actions += json.dumps(issue_item) + '\n'
             except Exception as e:
                 print(e)
+            if actions.count('\n') > 10000:
+                self.esClient.safe_put_bulk(actions)
+                actions = ""
 
         self.esClient.safe_put_bulk(actions)
         endTime = datetime.datetime.now()
