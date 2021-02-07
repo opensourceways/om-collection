@@ -42,6 +42,7 @@ BACKEND_MAPPING = {
     'transform_data': 'data.transform_data.TransformData',
     'meetings': 'data.meetings.Meetings',
     'report_email': 'data.report_email.ReportEmail',
+    'cla': 'data.cla.Cla',
 }
 
 
