@@ -81,6 +81,7 @@ class Gitee(object):
         self.enterpriseUsers = []
         self.giteeid_company_dict_last = {}
         self.index_name_all = None
+        self.once_update_num_of_pr = config.get('once_update_num_of_pr', 200)
         if 'index_name_all' in config:
             self.index_name_all = config.get('index_name_all').split(',')
 
@@ -159,7 +160,7 @@ class Gitee(object):
         repo_name = repo['path']
         is_public = repo['public']
         self.writeRepoData(org, repo_name, from_time)
-        self.writePullData(org, repo_name, is_public, from_time)
+        self.writePullData(org, repo_name, is_public, from_time, self.once_update_num_of_pr)
         self.writeIssueData(org, repo_name, is_public, from_time)
         self.writeForks(org, repo_name, from_time)
 
@@ -224,7 +225,34 @@ class Gitee(object):
         for fork in original_forks:
             if fork['_source']['fork_id'] not in forks:
                 print("[update] set fork(%s) is_removed to 1" % fork['_source']['fork_id'])
-                self.esClient.updateForkToRemoved(fork['_id'])
+                self.esClient.updateToRemoved(fork['_id'])
+
+    def updateRemovedIssues(self, gitee_repo, issues):
+        # 获取gitee中指定仓库的所有issue
+
+        matchs = [{
+            "name": "is_gitee_issue",
+            "value": 1,
+        },
+            {
+                "name": "gitee_repo.keyword",
+                "value": gitee_repo,
+            }
+        ]
+        data = self.esClient.getItemsByMatchs(matchs)
+
+        issue_num = data['hits']['total']['value']
+        original_issues = data['hits']['hits']
+        print("%s original issue num is (%d), The current issue num is (%d)" % (gitee_repo, issue_num, len(issues)))
+        if issue_num == len(issues):
+            return
+        issueids = []
+        for issue in issues:
+            issueids.append(issue['id'])
+        for oriissue in original_issues:
+            if oriissue['_source']['issue_id'] not in issueids:
+                print("[update] set issue(%s) is_removed to 1" % oriissue['_source']['issue_id'])
+                self.esClient.updateToRemoved(oriissue['_id'])
 
     def writeForks(self, owner, repo, from_date):
         startTime = datetime.datetime.now()
@@ -335,6 +363,8 @@ class Gitee(object):
     def writeRepoData(self, owner, repo, from_date=None):
         client = GiteeClient(owner, repo, self.gitee_token)
         repo_data = self.getGenerator(client.repo())
+        if repo != 'canndev':
+            return
         actions = ""
         repo_detail = {
             "created_at": repo_data["created_at"],
@@ -416,7 +446,7 @@ class Gitee(object):
             from_date = common.str_to_datetime(from_date)
         return from_date
 
-    def writePullData(self, owner, repo, public, from_date=None):
+    def writePullData(self, owner, repo, public, from_date=None, once_update_num_of_pr=200):
         startTime = datetime.datetime.now()
         from_date = self.getFromDate(from_date, [
             {"name": "is_gitee_pull_request", "value": 1}])
@@ -430,7 +460,10 @@ class Gitee(object):
 
         # collect pull request
         actions = ""
-        pull_data = self.getGenerator(client.pulls())
+        pull_data = self.getGenerator(
+            client.pulls(state='all', once_update_num_of_pr=once_update_num_of_pr, direction='desc',
+                         sort='updated'))
+        print(('collection %d pulls' % (len(pull_data))))
         for x in pull_data:
             print(x['number'])
             if common.str_to_datetime(x['updated_at']) < from_date:
@@ -481,11 +514,12 @@ class Gitee(object):
                 actions += json.dumps(indexData) + '\n'
                 actions += json.dumps(ec) + '\n'
             try:
-                eitem['firstreplyprtime'] = (datetime.datetime.strptime(firstreplyprtime,
-                                                                        '%Y-%m-%dT%H:%M:%S+08:00') - datetime.datetime.strptime(
-                    eitem['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).days
-                eitem['lastreplyprtime'] = (datetime.datetime.now() - (
-                    datetime.datetime.strptime(lastreplyprtime, '%Y-%m-%dT%H:%M:%S+08:00'))).days
+                if ecomments:
+                    eitem['firstreplyprtime'] = (datetime.datetime.strptime(firstreplyprtime,
+                                                                            '%Y-%m-%dT%H:%M:%S+08:00') - datetime.datetime.strptime(
+                        eitem['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).days
+                    eitem['lastreplyprtime'] = (datetime.datetime.now() - (
+                        datetime.datetime.strptime(lastreplyprtime, '%Y-%m-%dT%H:%M:%S+08:00'))).days
             except Exception as e:
                 print(e)
                 print(firstreplyprtime)
@@ -496,7 +530,7 @@ class Gitee(object):
             indexData = {"index": {"_index": self.index_name, "_id": eitem['id']}}
             actions += json.dumps(indexData) + '\n'
             actions += json.dumps(eitem) + '\n'
-            if len(actions) > 10000:
+            if actions.count('\n') > 10000:
                 self.esClient.safe_put_bulk(actions)
                 actions = ""
         self.esClient.safe_put_bulk(actions)
@@ -554,18 +588,23 @@ class Gitee(object):
                 actions += json.dumps(indexData) + '\n'
                 actions += json.dumps(ic) + '\n'
             try:
-                issue_item['firstreplyissuetime'] = (datetime.datetime.strptime(firstreplyissuetime,
-                                                                                '%Y-%m-%dT%H:%M:%S+08:00') - datetime.datetime.strptime(
-                    issue_item['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).days
-                issue_item['lastreplyissuetime'] = (datetime.datetime.now() - (
-                    datetime.datetime.strptime(lastreplyissuetime, '%Y-%m-%dT%H:%M:%S+08:00'))).days
+                if issue_comments:
+                    issue_item['firstreplyissuetime'] = (datetime.datetime.strptime(firstreplyissuetime,
+                                                                                    '%Y-%m-%dT%H:%M:%S+08:00') - datetime.datetime.strptime(
+                        issue_item['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).days
+                    issue_item['lastreplyissuetime'] = (datetime.datetime.now() - (
+                        datetime.datetime.strptime(lastreplyissuetime, '%Y-%m-%dT%H:%M:%S+08:00'))).days
                 indexData = {"index": {"_index": self.index_name, "_id": issue_item['id']}}
                 actions += json.dumps(indexData) + '\n'
                 actions += json.dumps(issue_item) + '\n'
             except Exception as e:
                 print(e)
+            if actions.count('\n') > 10000:
+                self.esClient.safe_put_bulk(actions)
+                actions = ""
 
         self.esClient.safe_put_bulk(actions)
+        self.updateRemovedIssues("https://gitee.com/" + owner + "/" + repo, issue_data)
         endTime = datetime.datetime.now()
         print("Collect repo(%s/%s) issue data finished, spend %s seconds" % (
             owner, repo, (endTime - startTime).seconds))
