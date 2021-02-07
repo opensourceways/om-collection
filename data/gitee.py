@@ -225,7 +225,34 @@ class Gitee(object):
         for fork in original_forks:
             if fork['_source']['fork_id'] not in forks:
                 print("[update] set fork(%s) is_removed to 1" % fork['_source']['fork_id'])
-                self.esClient.updateForkToRemoved(fork['_id'])
+                self.esClient.updateToRemoved(fork['_id'])
+
+    def updateRemovedIssues(self, gitee_repo, issues):
+        # 获取gitee中指定仓库的所有issue
+
+        matchs = [{
+            "name": "is_gitee_issue",
+            "value": 1,
+        },
+            {
+                "name": "gitee_repo.keyword",
+                "value": gitee_repo,
+            }
+        ]
+        data = self.esClient.getItemsByMatchs(matchs)
+
+        issue_num = data['hits']['total']['value']
+        original_issues = data['hits']['hits']
+        print("%s original issue num is (%d), The current issue num is (%d)" % (gitee_repo, issue_num, len(issues)))
+        if issue_num == len(issues):
+            return
+        issueids = []
+        for issue in issues:
+            issueids.append(issue['id'])
+        for oriissue in original_issues:
+            if oriissue['_source']['issue_id'] not in issueids:
+                print("[update] set issue(%s) is_removed to 1" % oriissue['_source']['issue_id'])
+                self.esClient.updateToRemoved(oriissue['_id'])
 
     def writeForks(self, owner, repo, from_date):
         startTime = datetime.datetime.now()
@@ -336,7 +363,7 @@ class Gitee(object):
     def writeRepoData(self, owner, repo, from_date=None):
         client = GiteeClient(owner, repo, self.gitee_token)
         repo_data = self.getGenerator(client.repo())
-        if repo!='canndev':
+        if repo != 'canndev':
             return
         actions = ""
         repo_detail = {
@@ -577,6 +604,7 @@ class Gitee(object):
                 actions = ""
 
         self.esClient.safe_put_bulk(actions)
+        self.updateRemovedIssues("https://gitee.com/" + owner + "/" + repo, issue_data)
         endTime = datetime.datetime.now()
         print("Collect repo(%s/%s) issue data finished, spend %s seconds" % (
             owner, repo, (endTime - startTime).seconds))

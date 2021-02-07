@@ -1036,7 +1036,7 @@ class ESClient(object):
         res = data.json()
         return res
 
-    def updateForkToRemoved(self, id):
+    def updateToRemoved(self, id):
         update_data = '''{
                     "doc": {
                         "is_removed": 1
