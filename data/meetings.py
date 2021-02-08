@@ -21,7 +21,7 @@ class Meetings(object):
         self.get_all_meetings()
 
     def get_all_meetings(self):
-        res = requests.get(url=self.meetings_url, headers=self.headers)
+        res = requests.get(url=self.meetings_url + "allmeetings/", headers=self.headers)
         datap = ''
         for i in json.loads(res.content):
             meet_date = datetime.datetime.strptime(i.get("end"), "%H:%M") - datetime.datetime.strptime(i.get("start"), "%H:%M")
