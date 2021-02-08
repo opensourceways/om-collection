@@ -5,6 +5,7 @@ import requests
 import json
 from data.common import ESClient
 from data import common
+import datetime
 
 
 class Meetings(object):
@@ -23,7 +24,6 @@ class Meetings(object):
         res = requests.get(url=self.meetings_url, headers=self.headers)
         datap = ''
         for i in json.loads(res.content):
-            i.get("start")
             meet_date = datetime.datetime.strptime(i.get("end"), "%H:%M") - datetime.datetime.strptime(i.get("start"), "%H:%M")
             i["duration_time"] = int(meet_date.seconds)
             participants = self.get_participants_by_meet(i.get("mid"))
