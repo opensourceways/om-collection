@@ -190,10 +190,6 @@ class Gitee(object):
         if self.filters is None:
             for repo in org_data:
                 print(repo['path'])
-                # if repo['public'] == False:
-                #     print("https://openeuler-ci-bot:edison12345@gitee.com/" + org + "/" + repo['path'] + ",")
-                # else:
-                #     print("https://gitee.com/" + org + "/" + repo['path'] + ",")
             return org_data
 
         repos = []
