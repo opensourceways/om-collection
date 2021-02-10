@@ -95,6 +95,8 @@ class ESClient(object):
                         domain = str(email).split('@')[1]
                         if domain in domain_company_dict:
                             giteeid_company_dict.update({data['gitee_id']: domain_company_dict.get(domain)})
+                else:
+                    giteeid_company_dict.update({data['gitee_id']: "independent"})
 
         return giteeid_company_dict
 
