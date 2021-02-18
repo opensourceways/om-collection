@@ -410,6 +410,7 @@ class CollectData(object):
                                             end_date=datei.strftime("%Y-%m-%d"), format="rst")
             except:
                 print(traceback.format_exc())
+                datei += datetime.timedelta(days=1)
                 continue
             With_Mirrors = self.get_data_num_pypi(overall, "with_mirrors")
             Without_Mirrors = self.get_data_num_pypi(overall, "without_mirrors")
@@ -434,6 +435,7 @@ class CollectData(object):
                                                end_date=datei.strftime("%Y-%m-%d"), format="rst")
             except:
                 print(traceback.format_exc())
+                datei += datetime.timedelta(days=1)
                 continue
             Python3 = self.get_data_num_pypi(major, "3")
             null = self.get_data_num_pypi(major, "null")
@@ -458,6 +460,7 @@ class CollectData(object):
                                                end_date=datei.strftime("%Y-%m-%d"), format="rst")
             except:
                 print(traceback.format_exc())
+                datei += datetime.timedelta(days=1)
                 continue
             Python37 = self.get_data_num_pypi(minor, "3\.7")
             null = self.get_data_num_pypi(minor, "null")
@@ -482,6 +485,7 @@ class CollectData(object):
                                           end_date=datei.strftime("%Y-%m-%d"), format="rst")
             except:
                 print(traceback.format_exc())
+                datei += datetime.timedelta(days=1)
                 continue
             Windows = self.get_data_num_pypi(system, "Windows")
             Linux = self.get_data_num_pypi(system, "Linux")
