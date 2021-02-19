@@ -197,7 +197,23 @@ class ESClient(object):
         _url = self.url
         if url:
             _url = url
-
+        sub_bulk_json = bulk_json.split("\n")
+        bulk_json = ''
+        for data in sub_bulk_json:
+            bulk_json += data + '\n'
+            if bulk_json.count('\n') > 10000:
+                try:
+                    res = requests.post(_url + "/_bulk", data=bulk_json,
+                                        headers=_header, verify=False)
+                    res.raise_for_status()
+                    print(res)
+                except UnicodeEncodeError:
+                    # Related to body.encode('iso-8859-1'). mbox data
+                    logger.warning("Encondig error ... converting bulk to iso-8859-1")
+                    bulk_json = bulk_json.encode('iso-8859-1', 'ignore')
+                    res = requests.put(url, data=bulk_json, headers=headers)
+                    res.raise_for_status()
+                bulk_json = ""
         try:
             res = requests.post(_url + "/_bulk", data=bulk_json,
                                 headers=_header, verify=False)
