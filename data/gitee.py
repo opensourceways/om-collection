@@ -142,7 +142,11 @@ class Gitee(object):
         threads = []
         for org in self.orgs:
             repos = self.get_repos(org)
+            reposName = []
             for r in repos:
+                reposName.append(r['full_name'])
+                if r['name'] != 'docs':
+                    continue
                 t = threading.Thread(
                     target=func,
                     args=(org, r, from_time))
@@ -153,7 +157,11 @@ class Gitee(object):
                     for t in threads:
                         t.join()
                     threads = []
-
+            if reposName is not None and len(reposName) > 0:
+                self.updateRemovedData(reposName, 'repo', [{
+                    "name": "is_gitee_repo",
+                    "value": 1,
+                }])
             for t in threads:
                 t.join()
             threads = []
@@ -238,10 +246,9 @@ class Gitee(object):
                 print("[update] set fork(%s) is_removed to 1" % fork['_source']['fork_id'])
                 self.esClient.updateToRemoved(fork['_id'])
 
-    def updateRemovedIssues(self, gitee_repo, issues):
+    def updateRemovedData(self, newdata, type, matches):
         # 获取gitee中指定仓库的所有issue
-
-        matchs = [{
+        '''matches = [{
             "name": "is_gitee_issue",
             "value": 1,
         },
@@ -249,21 +256,52 @@ class Gitee(object):
                 "name": "gitee_repo.keyword",
                 "value": gitee_repo,
             }
-        ]
-        data = self.esClient.getItemsByMatchs(matchs)
-
-        issue_num = data['hits']['total']['value']
-        original_issues = data['hits']['hits']
-        print("%s original issue num is (%d), The current issue num is (%d)" % (gitee_repo, issue_num, len(issues)))
-        if issue_num == len(issues):
+        ]'''
+        if newdata is None or len(newdata) == 0:
             return
-        issueids = []
-        for issue in issues:
-            issueids.append(issue['id'])
-        for oriissue in original_issues:
-            if oriissue['_source']['issue_id'] not in issueids:
-                print("[update] set issue(%s) is_removed to 1" % oriissue['_source']['issue_id'])
-                self.esClient.updateToRemoved(oriissue['_id'])
+        data = self.esClient.getItemsByMatchs(matches)
+        newdataids = []
+        data_num = data['hits']['total']['value']
+        original_datas = data['hits']['hits']
+        if type == 'repo' or type=='fork' :
+            print("%s original %s num is (%d), The current %s num is (%d)" % (
+                type, type, data_num,type, len(data)))
+            newdataids = newdata
+        else:
+            print("%s original %s num is (%d), The current issue num is (%d)" % (
+                matches[1]['value'], type, data_num, len(data)))
+            for d in newdata:
+                newdataids.append(d['id'])
+        if data_num == len(newdata):
+            return
+
+        for ordata in original_datas:
+            if type == 'issue':
+                if ordata['_source']['issue_id'] not in newdataids:
+                    print("[update] set issue(%s) is_removed to 1" % ordata['_source']['issue_id'])
+                    self.esClient.updateToRemoved(ordata['_id'])
+            elif type == "pr":
+                if ordata['_source']['pull_id'] not in newdataids:
+                    print("[update] set pull(%s) is_removed to 1" % ordata['_source']['pull_id'])
+                    self.esClient.updateToRemoved(ordata['_id'])
+            elif type == "star":
+                starid = int(ordata['_source']['star_id'].split('star')[1])
+                if starid not in newdataids:
+                    print("[update] set star(%s) is_removed to 1" % ordata['_source']['star_id'])
+                    self.esClient.updateToRemoved(ordata['_id'])
+            elif type == "fork":
+                if ordata['_source']['fork_id'] not in newdataids:
+                    print("[update] set fork(%s) is_removed to 1" % ordata['_source']['fork_id'])
+                    self.esClient.updateToRemoved(ordata['_id'])
+            elif type == "watch":
+                watchid = ordata['_source']['watch_id'].split('watch')[1]
+                if watchid not in newdataids:
+                    print("[update] set watch(%s) is_removed to 1" % ordata['_source']['watch_id'])
+                    self.esClient.updateToRemoved(ordata['_id'])
+            elif type == "repo":
+                if ordata['_source']['repository'] not in newdataids:
+                    print("[update] set repository(%s) is_removed to 1" % ordata['_source']['repository'])
+                    self.esClient.updateToRemoved(ordata['_id'])
 
     def writeForks(self, owner, repo, from_date):
         startTime = datetime.datetime.now()
@@ -302,7 +340,14 @@ class Gitee(object):
             fork_ids.append(fork["id"])
 
         self.esClient.safe_put_bulk(actions)
-        # self.updateRemovedForks("https://gitee.com/" + owner + "/" + repo, fork_ids)
+        self.updateRemovedData(fork_ids, 'fork', [{
+            "name": "is_gitee_fork",
+            "value": 1,
+        },
+            {
+                "name": "gitee_repo.keyword",
+                "value": "https://gitee.com/" + owner + "/" + repo,
+            }])
 
         endTime = datetime.datetime.now()
         print("Collect repo(%s) fork request data finished, spend %s seconds"
@@ -312,7 +357,14 @@ class Gitee(object):
         client = GiteeClient(owner, repo, self.gitee_token)
         star_data = self.getGenerator(client.stars())
         actions = ""
-
+        self.updateRemovedData(star_data, 'star', [{
+            "name": "is_gitee_star",
+            "value": 1,
+        },
+            {
+                "name": "gitee_repo.keyword",
+                "value": "https://gitee.com/" + owner + "/" + repo,
+            }])
         for star in star_data:
             star_id = owner + "/" + repo + "_" + "star" + str(star['id'])
             if self.esClient.checkFieldExist(filter=star_id) == True:
@@ -342,6 +394,14 @@ class Gitee(object):
         client = GiteeClient(owner, repo, self.gitee_token)
 
         watch_data = self.getGenerator(client.watchs())
+        self.updateRemovedData(watch_data, 'watch', [{
+            "name": "is_gitee_watch",
+            "value": 1,
+        },
+            {
+                "name": "gitee_repo.keyword",
+                "value": "https://gitee.com/" + owner + "/" + repo,
+            }])
         actions = ""
         for watch in watch_data:
             # if watch['login'] in self.skip_user:
@@ -459,7 +519,7 @@ class Gitee(object):
         startTime = datetime.datetime.now()
         from_date = self.getFromDate(from_date, [
             {"name": "is_gitee_pull_request", "value": 1}])
-        print("Start collect issue data from ", from_date)
+        print("Start collect %s pull data from %s" %(repo,from_date))
 
         client = GiteeClient(owner, repo, self.gitee_token)
 
@@ -473,6 +533,14 @@ class Gitee(object):
             client.pulls(state='all', once_update_num_of_pr=once_update_num_of_pr, direction='desc',
                          sort='updated'))
         print(('collection %d pulls' % (len(pull_data))))
+        self.updateRemovedData(pull_data, 'pr', [{
+            "name": "is_gitee_pull_request",
+            "value": 1,
+        },
+            {
+                "name": "gitee_repo.keyword",
+                "value": "https://gitee.com/" + owner + "/" + repo,
+            }])
         for x in pull_data:
             print(x['number'])
             if common.str_to_datetime(x['updated_at']) < from_date:
@@ -539,9 +607,6 @@ class Gitee(object):
             indexData = {"index": {"_index": self.index_name, "_id": eitem['id']}}
             actions += json.dumps(indexData) + '\n'
             actions += json.dumps(eitem) + '\n'
-            if actions.count('\n') > 10000:
-                self.esClient.safe_put_bulk(actions)
-                actions = ""
         self.esClient.safe_put_bulk(actions)
 
         endTime = datetime.datetime.now()
@@ -608,12 +673,15 @@ class Gitee(object):
                 actions += json.dumps(issue_item) + '\n'
             except Exception as e:
                 print(e)
-            if actions.count('\n') > 10000:
-                self.esClient.safe_put_bulk(actions)
-                actions = ""
-
         self.esClient.safe_put_bulk(actions)
-        self.updateRemovedIssues("https://gitee.com/" + owner + "/" + repo, issue_data)
+        self.updateRemovedData(issue_data, 'issue', [{
+            "name": "is_gitee_issue",
+            "value": 1,
+        },
+            {
+                "name": "gitee_repo.keyword",
+                "value": "https://gitee.com/" + owner + "/" + repo,
+            }])
         endTime = datetime.datetime.now()
         print("Collect repo(%s/%s) issue data finished, spend %s seconds" % (
             owner, repo, (endTime - startTime).seconds))
