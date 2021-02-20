@@ -68,7 +68,7 @@ class ESClient(object):
             self.default_headers['Authorization'] = self.authorization
 
     def getuserInfoFromCla(self):
-        if self.is_update_tag_company_cla != 'true' and self.index_name_cla:
+        if self.is_update_tag_company_cla != 'true' or self.index_name_cla is None:
             return {}
 
         giteeid_company_dict = {}
@@ -1058,7 +1058,7 @@ class ESClient(object):
             { "size": %d, %s
             } ''' % (size, data_query)
         data = requests.get(self.getSearchUrl(),
-                            data=data_json,
+                            data=data_json.encode('utf-8'),
                             headers=self.default_headers, verify=False)
         if data.status_code != 200:
             print("match data failed, err=", data.text)
