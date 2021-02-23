@@ -453,7 +453,7 @@ class GiteeClient():
             yield items
             items = None
             if 'next' in response.links and (
-                    ((page) * self.max_items < once_update_num_of_pr) or once_update_num_of_pr == 0):
+                    ((page) * self.max_items <= once_update_num_of_pr) or once_update_num_of_pr == 0):
                 url_next = response.links['next']['url']
                 response = self.fetch(url_next, payload=payload)
                 page += 1

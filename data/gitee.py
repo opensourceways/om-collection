@@ -130,8 +130,6 @@ class Gitee(object):
             reposName = []
             for r in repos:
                 reposName.append(r['full_name'])
-                if r['name'] != 'docs':
-                    continue
                 t = threading.Thread(
                     target=func,
                     args=(org, r, from_time))
