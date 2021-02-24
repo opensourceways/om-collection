@@ -227,34 +227,51 @@ class ESClient(object):
         _url = self.url
         if url:
             _url = url
-        sub_bulk_json = bulk_json.split("\n")
-        bulk_json = ''
-        for data in sub_bulk_json:
-            bulk_json += data + '\n'
-            if bulk_json.count('\n') > 10000:
+
+        total_num = bulk_json.count("\n")
+        if total_num > 10000:
+            sub_bulk_json = bulk_json.split("\n")
+            bulk_json_temp = ''
+            for data in sub_bulk_json:
+                bulk_json_temp += data + '\n'
+                if bulk_json_temp.count('\n') > 10000:
+                    try:
+                        res = requests.post(_url + "/_bulk", data=bulk_json_temp,
+                                            headers=_header, verify=False)
+                        print(res)
+                        bulk_json_temp = ""
+                        res.raise_for_status()
+                    except UnicodeEncodeError:
+                        # Related to body.encode('iso-8859-1'). mbox data
+                        logger.warning("Encondig error ... converting bulk to iso-8859-1")
+                        bulk_json = bulk_json.encode('iso-8859-1', 'ignore')
+                        res = requests.put(url, data=bulk_json_temp, headers=headers)
+                        res.raise_for_status()
+            if bulk_json_temp is not None and len(bulk_json_temp) > 0:
                 try:
-                    res = requests.post(_url + "/_bulk", data=bulk_json,
+                    res = requests.post(_url + "/_bulk", data=bulk_json_temp,
                                         headers=_header, verify=False)
-                    res.raise_for_status()
                     print(res)
+                    bulk_json_temp = ""
+                    res.raise_for_status()
                 except UnicodeEncodeError:
                     # Related to body.encode('iso-8859-1'). mbox data
                     logger.warning("Encondig error ... converting bulk to iso-8859-1")
                     bulk_json = bulk_json.encode('iso-8859-1', 'ignore')
-                    res = requests.put(url, data=bulk_json, headers=headers)
+                    res = requests.put(url, data=bulk_json_temp, headers=headers)
                     res.raise_for_status()
-                bulk_json = ""
-        try:
-            res = requests.post(_url + "/_bulk", data=bulk_json,
-                                headers=_header, verify=False)
-            res.raise_for_status()
-            print(res)
-        except UnicodeEncodeError:
-            # Related to body.encode('iso-8859-1'). mbox data
-            logger.warning("Encondig error ... converting bulk to iso-8859-1")
-            bulk_json = bulk_json.encode('iso-8859-1', 'ignore')
-            res = requests.put(url, data=bulk_json, headers=headers)
-            res.raise_for_status()
+        else:
+            try:
+                res = requests.post(_url + "/_bulk", data=bulk_json,
+                                    headers=_header, verify=False)
+                res.raise_for_status()
+                print(res)
+            except UnicodeEncodeError:
+                # Related to body.encode('iso-8859-1'). mbox data
+                logger.warning("Encondig error ... converting bulk to iso-8859-1")
+                bulk_json = bulk_json.encode('iso-8859-1', 'ignore')
+                res = requests.put(url, data=bulk_json, headers=headers)
+                res.raise_for_status()
 
     def searchEsList(self, index_name, search=None):
         url = self.url + '/' + index_name + '/search'
@@ -371,9 +388,8 @@ class ESClient(object):
             return result
 
     def getRepoSigNames(self, index_name, repo=None):
-        result = {}
         if not index_name:
-            return result
+            return ""
         querystr = '''{
     "query": {
         "term":{
@@ -396,11 +412,11 @@ class ESClient(object):
             for s in tuplelist:
                 resultstr = resultstr + ',' + s
             if resultstr != "":
-                result['signames'] = resultstr[1:]
-            return result
+                return resultstr[1:]
+            return ""
         except:
             print(traceback.format_exc())
-            return result
+            return ""
 
     def geTimeofVersion(self, version, repo, index):
         url = self.url + '/' + index + '/_doc/' + repo + version
