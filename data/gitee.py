@@ -261,9 +261,9 @@ class Gitee(object):
         newdataids = []
         data_num = data['hits']['total']['value']
         original_datas = data['hits']['hits']
-        if type == 'repo' or type=='fork' :
+        if type == 'repo' or type == 'fork':
             print("%s original %s num is (%d), The current %s num is (%d)" % (
-                type, type, data_num,type, len(data)))
+                type, type, data_num, type, len(data)))
             newdataids = newdata
         else:
             print("%s original %s num is (%d), The current issue num is (%d)" % (
@@ -517,7 +517,7 @@ class Gitee(object):
         startTime = datetime.datetime.now()
         from_date = self.getFromDate(from_date, [
             {"name": "is_gitee_pull_request", "value": 1}])
-        print("Start collect %s pull data from %s" %(repo,from_date))
+        print("Start collect %s pull data from %s" % (repo, from_date))
 
         client = GiteeClient(owner, repo, self.gitee_token)
 
@@ -935,6 +935,9 @@ class Gitee(object):
             # rich_issue['assignee_geolocation'] = None
 
         rich_issue['id'] = issue['id']
+        rich_issue['body'] = issue['body']
+        rich_issue['plan_started_at'] = issue['plan_started_at']
+        rich_issue['deadline'] = issue['deadline']
         # 获取issue严重级别
         rich_issue['priority'] = issue['priority']
         rich_issue['issue_id'] = issue['id']
