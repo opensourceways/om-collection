@@ -287,6 +287,7 @@ class GiteeClient():
         return self.fetch_items(branchs, {})
 
     def getspecFile(self, org, repo, branch):
+        branch = str(branch).replace("/", "%2")
         url = 'https://gitee.com/%s/%s/raw/%s/%s.spec' % (org, repo, branch, repo)
         res = requests.get(url)
         if res.status_code == 200:
