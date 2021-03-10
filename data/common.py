@@ -234,7 +234,7 @@ class ESClient(object):
             bulk_json_temp = ''
             for data in sub_bulk_json:
                 bulk_json_temp += data + '\n'
-                if bulk_json_temp.count('\n') > 10000:
+                if bulk_json_temp.count('\n') >= 10000:
                     try:
                         res = requests.post(_url + "/_bulk", data=bulk_json_temp,
                                             headers=_header, verify=False)
