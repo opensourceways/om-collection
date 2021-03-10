@@ -584,9 +584,9 @@ class Gitee(object):
                 if ecomments:
                     eitem['firstreplyprtime'] = (datetime.datetime.strptime(firstreplyprtime,
                                                                             '%Y-%m-%dT%H:%M:%S+08:00') - datetime.datetime.strptime(
-                        eitem['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).days
-                    eitem['lastreplyprtime'] = (datetime.datetime.now() - (
-                        datetime.datetime.strptime(lastreplyprtime, '%Y-%m-%dT%H:%M:%S+08:00'))).days
+                        eitem['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).seconds
+                    eitem['lastreplyprtime'] = (datetime.datetime.now()+datetime.timedelta(hours=8) - (
+                        datetime.datetime.strptime(lastreplyprtime, '%Y-%m-%dT%H:%M:%S+08:00'))).seconds
             except Exception as e:
                 print(e)
                 print(firstreplyprtime)
@@ -655,9 +655,9 @@ class Gitee(object):
                 if issue_comments:
                     issue_item['firstreplyissuetime'] = (datetime.datetime.strptime(firstreplyissuetime,
                                                                                     '%Y-%m-%dT%H:%M:%S+08:00') - datetime.datetime.strptime(
-                        issue_item['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).days
-                    issue_item['lastreplyissuetime'] = (datetime.datetime.now() - (
-                        datetime.datetime.strptime(lastreplyissuetime, '%Y-%m-%dT%H:%M:%S+08:00'))).days
+                        issue_item['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).seconds
+                    issue_item['lastreplyissuetime'] = (datetime.datetime.now()+datetime.timedelta(hours=8) - (
+                        datetime.datetime.strptime(lastreplyissuetime, '%Y-%m-%dT%H:%M:%S+08:00'))).seconds
                 indexData = {"index": {"_index": self.index_name, "_id": issue_item['id']}}
                 actions += json.dumps(indexData) + '\n'
                 actions += json.dumps(issue_item) + '\n'
