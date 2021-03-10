@@ -1176,12 +1176,20 @@ class Gitee(object):
         else:
             users = self.internalUsers
 
+        dict_all_user = {}
+        # the first update all data
+        if len(self.giteeid_company_dict_last) == 0:
+            all_user = self.esClient.getTotalAuthorName(size=10000)
+            for user in all_user:
+                dict_all_user.update({user['key']: "independent"})
+
         diff = self.esClient.giteeid_company_dict.items() - self.giteeid_company_dict_last.items()
         dele = self.giteeid_company_dict_last.keys() - self.esClient.giteeid_company_dict.keys()
         for d in dele:
             diff.add((d, "independent"))
 
-        for item in diff:
+        dict_all_user.update(dict(diff))
+        for item in dict_all_user.items():
             u = item[0]
             company = item[1]
             if u in users or company == self.internal_company_name:
