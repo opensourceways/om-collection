@@ -461,8 +461,10 @@ class Gitee(object):
         repo_detail.update(signames)
         branches = self.getGenerator(client.getSingleReopBranch())
         brinfo = self.getbranchinfo(branches, client, owner, repo, repo_data['path'], self.versiontimemapping)
-        repo_detail["branches"] = brinfo
-
+        branchName=''
+        for br in brinfo:
+            branchName+=br['brname']+','
+        repo_detail["branches"] = branchName
         indexData = {
             "index": {"_index": self.index_name,
                       "_id": "gitee_repo_" + re.sub('.git$', '', repo_data['html_url'])}}
@@ -481,6 +483,7 @@ class Gitee(object):
                 version = spec.version
             except:
                 print('reop:%s branch:%s has No version' % (repopath, br['name']))
+                result.append(brresult)
             if version and self.versiontimemapping:
                 if str(version).startswith('%{'):
                     index = str(version).find("}")

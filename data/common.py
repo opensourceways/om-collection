@@ -328,7 +328,7 @@ class ESClient(object):
             mtstr = ""
             for m in maintainerdata:
                 mtstr = mtstr + str(m['key']) + ","
-                mtstr = mtstr[:len(mtstr) - 1]
+            mtstr = mtstr[:len(mtstr) - 1]
             result['Maintainer'] = mtstr
         return result
 
