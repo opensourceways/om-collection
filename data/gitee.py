@@ -464,7 +464,8 @@ class Gitee(object):
         branchName = ''
         for br in brinfo:
             branchName += br['brname'] + ','
-        repo_detail["branches"] = branchName
+        repo_detail['branchName'] = branchName
+        repo_detail['branches']=brinfo
         indexData = {
             "index": {"_index": self.index_name,
                       "_id": "gitee_repo_" + re.sub('.git$', '', repo_data['html_url'])}}
