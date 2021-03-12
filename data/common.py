@@ -57,13 +57,41 @@ class ESClient(object):
         self.orgs = self.getOrgs(config.get('orgs'))
         self.gitee_token = config.get('gitee_token')
         self.is_update_tag_company = config.get('is_update_tag_company', 'false')
+        self.is_update_tag_company_cla = config.get('is_update_tag_company_cla', 'false')
         self.data_yaml_url = config.get('data_yaml_url')
         self.data_yaml_path = config.get('data_yaml_path')
         self.company_yaml_url = config.get('company_yaml_url')
         self.company_yaml_path = config.get('company_yaml_path')
+        self.index_name_cla = config.get('index_name_cla')
         self.giteeid_company_dict = {}
         if self.authorization:
             self.default_headers['Authorization'] = self.authorization
+
+    def getuserInfoFromCla(self):
+        if self.is_update_tag_company_cla != 'true' or self.index_name_cla is None:
+            return {}
+
+        giteeid_company_dict = {}
+        search_json = '''{
+                          "size": 10000,
+                          "_source": {
+                            "includes": [
+                              "employee_id",
+                              "corporation"
+                            ]
+                          }
+                        }'''
+        res = requests.get(self.getSearchUrl(index_name=self.index_name_cla), data=search_json,
+                           headers=self.default_headers, verify=False)
+        if res.status_code != 200:
+            print("The index not exist")
+            return {}
+        data = res.json()
+        for hits in data['hits']['hits']:
+            source_data = hits['_source']
+            giteeid_company_dict.update({source_data['employee_id']: source_data['corporation']})
+
+        return giteeid_company_dict
 
     def getUserInfoFromFile(self):
         if self.is_update_tag_company != 'true':
@@ -95,6 +123,8 @@ class ESClient(object):
                         domain = str(email).split('@')[1]
                         if domain in domain_company_dict:
                             giteeid_company_dict.update({data['gitee_id']: domain_company_dict.get(domain)})
+                else:
+                    giteeid_company_dict.update({data['gitee_id']: "independent"})
 
         return giteeid_company_dict
 
@@ -115,7 +145,9 @@ class ESClient(object):
                 userExtra["tag_user_company"] = "independent"
                 userExtra["is_project_internal_user"] = 0
 
-        if self.is_update_tag_company == 'true' and self.data_yaml_url and login in self.giteeid_company_dict:
+        if (self.is_update_tag_company == 'true' and self.data_yaml_url) or \
+                (self.is_update_tag_company_cla == 'true' and self.index_name_cla) and \
+                login in self.giteeid_company_dict:
             userExtra["tag_user_company"] = self.giteeid_company_dict.get(login)
             if userExtra["tag_user_company"] == self.internal_company_name:
                 userExtra["is_project_internal_user"] = 1
@@ -1061,7 +1093,7 @@ class ESClient(object):
             { "size": %d, %s
             } ''' % (size, data_query)
         data = requests.get(self.getSearchUrl(),
-                            data=data_json,
+                            data=data_json.encode('utf-8'),
                             headers=self.default_headers, verify=False)
         if data.status_code != 200:
             print("match data failed, err=", data.text)

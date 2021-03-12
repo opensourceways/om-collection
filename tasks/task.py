@@ -43,6 +43,7 @@ BACKEND_MAPPING = {
     'meetings': 'data.meetings.Meetings',
     'report_email': 'data.report_email.ReportEmail',
     'cve': 'data.cve.CVE'
+    'cla': 'data.cla.Cla',
 }
 
 

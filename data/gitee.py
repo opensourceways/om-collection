@@ -74,6 +74,7 @@ class Gitee(object):
         self.sig_index = config.get('sig_index')
         self.versiontimemapping = config.get('versiontimemapping')
         self.internal_company_name = config.get('internal_company_name', 'internal_company')
+        self.highest_priority_tag_company = config.get('highest_priority_tag_company', 'cla')
         self.internalUsers = []
         self.all_user = []
         self.all_user_info = []
@@ -87,9 +88,7 @@ class Gitee(object):
 
     def run(self, from_time):
         print("Collect gitee data: staring")
-        if self.esClient.is_update_tag_company == 'true':
-            self.giteeid_company_dict_last = self.esClient.giteeid_company_dict
-            self.esClient.giteeid_company_dict = self.esClient.getUserInfoFromFile()
+        self.getGiteeId2Company()
 
         self.getEnterpriseUser()
         # return
@@ -101,7 +100,7 @@ class Gitee(object):
             # self.tagUsers()
             # self.tagHistoryUsers()
         else:
-            if self.esClient.is_update_tag_company == 'true':
+            if self.esClient.is_update_tag_company == 'true' or self.esClient.is_update_tag_company_cla == 'true':
                 self.tagHistoryUsers()
 
             if self.is_set_pr_issue_repo_fork == 'true':
@@ -122,6 +121,22 @@ class Gitee(object):
         spent_time = time.strftime("%H:%M:%S",
                                    time.gmtime(endTime - startTime))
         print("Collect all gitee data finished after %s" % spent_time)
+
+    def getGiteeId2Company(self):
+        self.giteeid_company_dict_last = self.esClient.giteeid_company_dict
+        if self.esClient.is_update_tag_company_cla == 'true' and self.esClient.is_update_tag_company == 'true':
+            giteeid_company_dict_yaml = self.esClient.getUserInfoFromFile()
+            giteeid_company_dict_cla = self.esClient.getuserInfoFromCla()
+            if self.highest_priority_tag_company == 'cla':
+                giteeid_company_dict_yaml.update(giteeid_company_dict_cla)
+                self.esClient.giteeid_company_dict = giteeid_company_dict_yaml
+            else:
+                giteeid_company_dict_cla.update(giteeid_company_dict_yaml)
+                self.esClient.giteeid_company_dict = giteeid_company_dict_cla
+        elif self.esClient.is_update_tag_company == 'true':
+            self.esClient.giteeid_company_dict = self.esClient.getUserInfoFromFile()
+        elif self.esClient.is_update_tag_company_cla == 'true':
+            self.esClient.giteeid_company_dict = self.esClient.getuserInfoFromCla()
 
     def writeData(self, func, from_time):
         threads = []
@@ -196,10 +211,6 @@ class Gitee(object):
         if self.filters is None:
             for repo in org_data:
                 print(repo['path'])
-                # if repo['public'] == False:
-                #     print("https://openeuler-ci-bot:edison12345@gitee.com/" + org + "/" + repo['path'] + ",")
-                # else:
-                #     print("https://gitee.com/" + org + "/" + repo['path'] + ",")
             return org_data
 
         repos = []
@@ -1165,12 +1176,20 @@ class Gitee(object):
         else:
             users = self.internalUsers
 
+        dict_all_user = {}
+        # the first update all data
+        if len(self.giteeid_company_dict_last) == 0:
+            all_user = self.esClient.getTotalAuthorName(size=10000)
+            for user in all_user:
+                dict_all_user.update({user['key']: "independent"})
+
         diff = self.esClient.giteeid_company_dict.items() - self.giteeid_company_dict_last.items()
         dele = self.giteeid_company_dict_last.keys() - self.esClient.giteeid_company_dict.keys()
         for d in dele:
             diff.add((d, "independent"))
 
-        for item in diff:
+        dict_all_user.update(dict(diff))
+        for item in dict_all_user.items():
             u = item[0]
             company = item[1]
             if u in users or company == self.internal_company_name:
