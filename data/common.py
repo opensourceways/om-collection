@@ -257,7 +257,7 @@ class ESClient(object):
                         bulk_json = bulk_json.encode('iso-8859-1', 'ignore')
                         res = requests.put(url, data=bulk_json_temp, headers=headers)
                         res.raise_for_status()
-            if bulk_json_temp is not None and len(bulk_json_temp) > 0:
+            if bulk_json_temp is not None and bulk_json_temp != '\n' and len(bulk_json_temp) > 0:
                 try:
                     res = requests.post(_url + "/_bulk", data=bulk_json_temp,
                                         headers=_header, verify=False)
