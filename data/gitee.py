@@ -1191,12 +1191,18 @@ class Gitee(object):
         dict_all_user.update(dict(diff))
         for item in dict_all_user.items():
             u = item[0]
-            company = item[1]
+            sp = item[1].split("_adminAdded_", 1)
+            company = sp[0]
+            if len(sp) == 2:
+                is_admin_added = sp[1]
+            else:
+                is_admin_added = 0
             if u in users or company == self.internal_company_name:
                 update_data = {
                     "doc": {
                         "tag_user_company": company,
                         "is_project_internal_user": 1,
+                        "is_admin_added": is_admin_added,
                     }
                 }
             else:
@@ -1204,6 +1210,7 @@ class Gitee(object):
                     "doc": {
                         "tag_user_company": company,
                         "is_project_internal_user": 0,
+                        "is_admin_added": is_admin_added,
                     }
                 }
 
