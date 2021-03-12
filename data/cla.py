@@ -43,6 +43,17 @@ class Cla(object):
         for corporation_info in corporation_infos['data']:
             admin_email = corporation_info['admin_email']
             corporation_name = corporation_info['corporation_name']
+            admin_name = corporation_info['admin_name']
+            admin_added = corporation_info['admin_added']
+            pdf_uploaded = corporation_info['pdf_uploaded']
+            if admin_added:
+                admin_added = 1
+            else:
+                admin_added = 0
+            if pdf_uploaded:
+                pdf_uploaded = 1
+            else:
+                pdf_uploaded = 0
 
             # fourth: get users
             employee_url = f'{self.api_url}/{EMPLOYEE}/{link_id}/{admin_email}'
@@ -52,9 +63,10 @@ class Cla(object):
                 continue
 
             # write to es
-            self.writeClaEmployees(corporation=corporation_name, employees=employees)
+            self.writeClaEmployees(corporation=corporation_name, admin_name=admin_name, admin_added=admin_added,
+                                   pdf_uploaded=pdf_uploaded, employees=employees)
 
-    def writeClaEmployees(self, corporation, employees):
+    def writeClaEmployees(self, corporation, admin_name, admin_added, pdf_uploaded, employees):
         actions = ""
         for employee in employees:
             action = {
@@ -64,6 +76,9 @@ class Cla(object):
                 "created_at": employee['date'],
                 "updated_at": employee['date'],
                 "corporation": corporation,
+                "admin_name": admin_name,
+                "is_admin_added": admin_added,
+                "is_pdf_uploaded": pdf_uploaded,
                 "is_corporation_signing": 1,
                 "is_individual_signing": 0,
             }
