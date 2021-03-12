@@ -22,8 +22,8 @@ from configparser import ConfigParser
 
 from tasks.utils import import_object
 from datetime import datetime
-logger = logging.getLogger(__name__)
 
+logger = logging.getLogger(__name__)
 
 BACKEND_MAPPING = {
     'baidutongji': 'data.baidutongji.BaiduTongji',
@@ -42,6 +42,7 @@ BACKEND_MAPPING = {
     'transform_data': 'data.transform_data.TransformData',
     'meetings': 'data.meetings.Meetings',
     'report_email': 'data.report_email.ReportEmail',
+    'cve': 'data.cve.CVE'
     'cla': 'data.cla.Cla',
 }
 
@@ -56,7 +57,6 @@ class George:
         self.sections = self.config.sections()
         self.from_data = self.config.get('general', 'from_data')
         self.sleep_time = self.config.getint('general', 'sleep_time')
-
 
     def start(self):
         logger.info("----------------------------")
@@ -85,7 +85,6 @@ class George:
             print("try to run again")
 
         logger.info("Finished engine ...")
-
 
     def getBackendConfig(self, backend_name):
         backend_conf = {}

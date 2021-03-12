@@ -82,7 +82,7 @@ class Gitee(object):
         self.enterpriseUsers = []
         self.giteeid_company_dict_last = {}
         self.index_name_all = None
-        self.once_update_num_of_pr = config.get('once_update_num_of_pr', 200)
+        self.once_update_num_of_pr = int(config.get('once_update_num_of_pr', 200))
         if 'index_name_all' in config:
             self.index_name_all = config.get('index_name_all').split(',')
 
@@ -458,12 +458,12 @@ class Gitee(object):
         sigcount = self.esClient.getRepoSigCount(self.sig_index, repo_data["full_name"])
         repo_detail.update(sigcount)
         signames = self.esClient.getRepoSigNames(self.sig_index, repo_data['full_name'])
-        repo_detail.update(signames)
+        repo_detail['signames'] = signames
         branches = self.getGenerator(client.getSingleReopBranch())
         brinfo = self.getbranchinfo(branches, client, owner, repo, repo_data['path'], self.versiontimemapping)
-        branchName=''
+        branchName = ''
         for br in brinfo:
-            branchName+=br['brname']+','
+            branchName += br['brname'] + ','
         repo_detail["branches"] = branchName
         indexData = {
             "index": {"_index": self.index_name,
@@ -596,7 +596,7 @@ class Gitee(object):
                     eitem['firstreplyprtime'] = (datetime.datetime.strptime(firstreplyprtime,
                                                                             '%Y-%m-%dT%H:%M:%S+08:00') - datetime.datetime.strptime(
                         eitem['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).seconds
-                    eitem['lastreplyprtime'] = (datetime.datetime.now()+datetime.timedelta(hours=8) - (
+                    eitem['lastreplyprtime'] = (datetime.datetime.now() + datetime.timedelta(hours=8) - (
                         datetime.datetime.strptime(lastreplyprtime, '%Y-%m-%dT%H:%M:%S+08:00'))).seconds
             except Exception as e:
                 print(e)
@@ -667,7 +667,7 @@ class Gitee(object):
                     issue_item['firstreplyissuetime'] = (datetime.datetime.strptime(firstreplyissuetime,
                                                                                     '%Y-%m-%dT%H:%M:%S+08:00') - datetime.datetime.strptime(
                         issue_item['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).seconds
-                    issue_item['lastreplyissuetime'] = (datetime.datetime.now()+datetime.timedelta(hours=8) - (
+                    issue_item['lastreplyissuetime'] = (datetime.datetime.now() + datetime.timedelta(hours=8) - (
                         datetime.datetime.strptime(lastreplyissuetime, '%Y-%m-%dT%H:%M:%S+08:00'))).seconds
                 indexData = {"index": {"_index": self.index_name, "_id": issue_item['id']}}
                 actions += json.dumps(indexData) + '\n'

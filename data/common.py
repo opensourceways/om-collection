@@ -495,7 +495,7 @@ class ESClient(object):
         return starTime
 
     def searchEsList(self, index_name, search=None):
-        url = self.url + '/' + index_name + '/search'
+        url = self.url + '/' + index_name + '/_search'
         data = '''{"size":10000,"query": {"bool": {%s}}}''' % search
         try:
             res = json.loads(
@@ -503,6 +503,7 @@ class ESClient(object):
             return res['hits']['hits']
         except:
             print(traceback.format_exc())
+            return None
 
     def getLastFormatTime(self):
         # 2020-04-29T15:59:59.000Z
