@@ -77,7 +77,8 @@ class ESClient(object):
                           "_source": {
                             "includes": [
                               "employee_id",
-                              "corporation"
+                              "corporation",
+                              "is_admin_added"
                             ]
                           }
                         }'''
@@ -89,7 +90,8 @@ class ESClient(object):
         data = res.json()
         for hits in data['hits']['hits']:
             source_data = hits['_source']
-            giteeid_company_dict.update({source_data['employee_id']: source_data['corporation']})
+            corporation_admin_added = source_data['corporation'] + "_adminAdded_" + str(source_data['is_admin_added'])
+            giteeid_company_dict.update({source_data['employee_id']: corporation_admin_added})
 
         return giteeid_company_dict
 
@@ -148,7 +150,13 @@ class ESClient(object):
         if (self.is_update_tag_company == 'true' and self.data_yaml_url) or \
                 (self.is_update_tag_company_cla == 'true' and self.index_name_cla) and \
                 login in self.giteeid_company_dict:
-            userExtra["tag_user_company"] = self.giteeid_company_dict.get(login)
+            sp = self.giteeid_company_dict.get(login).split("_adminAdded_", 1)
+            company = sp[0]
+            userExtra["tag_user_company"] = company
+            if len(sp) == 2:
+                userExtra["is_admin_added"] = sp[1]
+            else:
+                userExtra["is_admin_added"] = 0
             if userExtra["tag_user_company"] == self.internal_company_name:
                 userExtra["is_project_internal_user"] = 1
 
