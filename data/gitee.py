@@ -1201,7 +1201,7 @@ class Gitee(object):
             if u in users or company == self.internal_company_name:
                 update_data = {
                     "doc": {
-                        "tag_user_company": company,
+                        "tag_user_company": self.internal_company_name,
                         "is_project_internal_user": 1,
                         "is_admin_added": is_admin_added,
                     }
