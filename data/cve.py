@@ -128,27 +128,28 @@ class CVE(object):
                             resData['pr_merged_at'] = 0
                         # 漏洞修复时长
 
-                if brAffects[1] == '受影响':
-                    subResData['is_affected'] = 1
-                    subResData['branch'] = brAffects[0]
-                    res.append(subResData)
+                    if brAffects[1] == '受影响':
+                        subResData['is_affected'] = 1
+                        subResData['branch'] = brAffects[0]
+                        res.append(subResData)
 
-                else:
-                    subResData['branch'] = brAffects[0]
-                    res.append(subResData)
-                indexData = {
-                    "index": {"_index": self.index_name, "_id": subResData['issue_number'] + '_' + brAffects[0]}}
-                actions += json.dumps(indexData) + '\n'
-                actions += json.dumps(subResData) + '\n'
+                    else:
+                        subResData['branch'] = brAffects[0]
+                        res.append(subResData)
+                    indexData = {
+                        "index": {"_index": self.index_name, "_id": subResData['issue_number'] + '_' + brAffects[0]}}
+                    actions += json.dumps(indexData) + '\n'
+                    actions += json.dumps(subResData) + '\n'
 
-        self.esClient.safe_put_bulk(actions)
+            self.esClient.safe_put_bulk(actions)
+            actions=''
 
     def getIssueByNumber(self, number=None):
         search = '"must": [{"term":{"is_gitee_issue":1}},{ "term": { "issue_number.keyword":"%s"}}]' % (number)
         data = self.esClient.searchEsList(self.all_data_index, search)
         if data is None:
             return None
-        return data['_source']
+        return data[0]['_source']
 
     def getCveData(self, currentPage=None, pageSize=None):
         params = {}
