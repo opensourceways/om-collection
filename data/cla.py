@@ -83,7 +83,7 @@ class Cla(object):
                 "is_individual_signing": 0,
             }
 
-            index_data = {"index": {"_index": self.index_name, "_id": employee['id']}}
+            index_data = {"index": {"_index": self.index_name, "_id": employee['email']}}
             actions += json.dumps(index_data) + '\n'
             actions += json.dumps(action) + '\n'
 
