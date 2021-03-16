@@ -13,6 +13,13 @@ class CVE(object):
         self.index_name = config.get('index_name')
         self.esClient = ESClient(config)
         self.all_data_index = config.get('all_data_index')
+        self.branchMappingstr = config.get('branchmapping')
+        if self.branchMappingstr is not None:
+            self.branchMapping = {}
+            fromTo = str(self.branchMappingstr).split(',')
+            for branch in fromTo:
+                KV = branch.split(':');
+                self.branchMapping[KV[0]] = KV[1]
 
     def run(self, from_time):
         datas = self.getCveData()
@@ -95,7 +102,7 @@ class CVE(object):
                         datetime.strptime(data['SA_public_time'], '%Y-%m-%d %H:%M:%S') - datetime.strptime(
                     resData['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).seconds
             # 漏洞响应时长
-            if len(str(data['SA_public_time'])) <= 0 or len(str(data['CVE_public_time'])) < 0:
+            if len(str(data['SA_public_time'])) <= 0 or len(str(data['CVE_public_time'])) <= 0:
                 resData['loopholes_response_times'] = 0
             else:
                 resData['loopholes_response_times'] = (
@@ -107,6 +114,7 @@ class CVE(object):
                 branches = str(milestone).split(',')
                 for br in branches:
                     brAffects = str(br).split(':')
+                    brAffects[0] = self.transformBranch(brAffects[0])
                     subResData = resData.copy()
                     prs = self.getPrByTitle(issue['issue_title'], brAffects[0])
                     if prs is not None and len(prs) > 0:
@@ -142,7 +150,7 @@ class CVE(object):
                     actions += json.dumps(subResData) + '\n'
 
             self.esClient.safe_put_bulk(actions)
-            actions=''
+            actions = ''
 
     def getIssueByNumber(self, number=None):
         search = '"must": [{"term":{"is_gitee_issue":1}},{ "term": { "issue_number.keyword":"%s"}}]' % (number)
@@ -220,3 +228,10 @@ class CVE(object):
             return result
         except Exception:
             return None
+
+    def transformBranch(self, branch):
+        for br in self.branchMapping.keys():
+            if br == branch:
+                return self.branchMapping[br]
+
+        return branch
