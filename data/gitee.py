@@ -463,15 +463,40 @@ class Gitee(object):
         brinfo = self.getbranchinfo(branches, client, owner, repo, repo_data['path'], self.versiontimemapping)
         branchName = ''
         for br in brinfo:
-            branchName += br['brname']+':'+br['version'] + ','
+            branchName += br['brname'] + ','
+        branchName = branchName[0:len(branchName) - 1]
         repo_detail['branchName'] = branchName
         repo_detail['branches'] = brinfo
+        repo_detail['branchinfo'] = brinfo
         indexData = {
             "index": {"_index": self.index_name,
                       "_id": "gitee_repo_" + re.sub('.git$', '', repo_data['html_url'])}}
         actions += json.dumps(indexData) + '\n'
         actions += json.dumps(repo_detail) + '\n'
         self.esClient.safe_put_bulk(actions)
+
+    def transVar2Data(self, var, spec):
+        if var == 'description':
+            description = re.compile('%description\n(.+?)\n{2,}', re.DOTALL).search(
+                spec.__getattribute__('source')).groups()
+            return description
+        data = spec.__getattribute__(var)
+        resdata = ''
+        if str(data).__contains__('.'):
+            versionArr = str(data).split('.')
+            for v in versionArr:
+                if str(v).startswith('%{') and str(v).endswith("}"):
+                    resdata += spec.macros[str(v)[2:len(str(v)) - 1]] + "."
+                else:
+                    resdata += v + "."
+        else:
+            if str(data).startswith('%{') and str(data).endswith("}"):
+                resdata = spec.macros[str(data)[2:len(str(data)) - 1]]
+            else:
+                resdata += data
+        if resdata.endswith('.'):
+            resdata = resdata[0:len(resdata) - 1]
+        return resdata
 
     def getbranchinfo(self, branches, client, owner, repo, repopath, versiontimemapping_index):
         result = []
@@ -481,22 +506,13 @@ class Gitee(object):
             try:
                 brresult["brname"] = br['name']
                 spec = client.getspecFile(owner, repo, br['name'])
-                version = spec.version
-                versionstr = ''
-                if str(version).__contains__('.'):
-                    versionArr = str(version).split('.')
-                    for v in versionArr:
-                        if str(v).startswith('%{') and str(v).endswith("}"):
-                            versionstr += spec.macros[str(v)[2:len(str(v)) - 1]] + "."
-                        else:
-                            versionstr += v + "."
-                else:
-                    if str(version).startswith('%{') and str(version).endswith("}"):
-                        versionstr = spec.macros[str(version)[2:len(str(version)) - 1]]
-                    else:
-                        versionstr += version
-                if versionstr.endswith('.'):
-                    versionstr = versionstr[0:len(versionstr)-1]
+                if spec is not None:
+                    versionstr = self.transVar2Data('version', spec)
+                    summary = self.transVar2Data('summary', spec)
+                    description = self.transVar2Data('description', spec)
+                    brresult['summary'] = summary
+                    brresult['description'] = description
+                    brresult['version'] = versionstr
             except Exception as e:
                 print('reop:%s branch:%s has No version' % (repopath, br['name']))
                 result.append(brresult)
@@ -511,11 +527,11 @@ class Gitee(object):
                     # 版本发布到目前时间
                 brresult['releasetime2now'] = 0 if interval == 0 else interval.days
                 # 版本号
-                brresult['version'] = versionstr
+
                 # 版本发布时间
                 brresult['releasetime'] = times
                 print('reop:%s branch:%s has No version' % (repopath, br['name']))
-                result.append(brresult)
+            result.append(brresult)
         return result
 
     def getFromDate(self, from_date, filters):

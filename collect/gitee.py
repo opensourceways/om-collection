@@ -292,6 +292,7 @@ class GiteeClient():
         res = requests.get(url)
         if res.status_code == 200:
             spec = Spec.from_string(res.text)
+            spec.__setattr__('source', res.text)
             return spec
         else:
             return None
