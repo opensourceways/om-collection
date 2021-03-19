@@ -463,8 +463,9 @@ class Gitee(object):
         brinfo = self.getbranchinfo(branches, client, owner, repo, repo_data['path'], self.versiontimemapping)
         branchName = ''
         for br in brinfo:
-            branchName += br['brname'] + ','
-        repo_detail["branches"] = branchName
+            branchName += br['brname']+':'+br['version'] + ','
+        repo_detail['branchName'] = branchName
+        repo_detail['branches'] = brinfo
         indexData = {
             "index": {"_index": self.index_name,
                       "_id": "gitee_repo_" + re.sub('.git$', '', repo_data['html_url'])}}
@@ -481,17 +482,25 @@ class Gitee(object):
                 brresult["brname"] = br['name']
                 spec = client.getspecFile(owner, repo, br['name'])
                 version = spec.version
-            except:
+                versionstr = ''
+                if str(version).__contains__('.'):
+                    versionArr = str(version).split('.')
+                    for v in versionArr:
+                        if str(v).startswith('%{') and str(v).endswith("}"):
+                            versionstr += spec.macros[str(v)[2:len(str(v)) - 1]] + "."
+                        else:
+                            versionstr += v + "."
+                else:
+                    if str(version).startswith('%{') and str(version).endswith("}"):
+                        versionstr = spec.macros[str(version)[2:len(str(version)) - 1]]
+                    else:
+                        versionstr += version
+                if versionstr.endswith('.'):
+                    versionstr = versionstr[0:len(versionstr)-1]
+            except Exception as e:
                 print('reop:%s branch:%s has No version' % (repopath, br['name']))
                 result.append(brresult)
             if version and self.versiontimemapping:
-                if str(version).startswith('%{'):
-                    index = str(version).find("}")
-                    if index == -1:
-                        index = len(version) - 1
-                    version = version[2:index]
-                    version = spec.macros.get(version)
-                    brresult["version"] = version
                 times = self.esClient.geTimeofVersion(version, repopath, versiontimemapping_index)
                 interval = 0
                 if times is not None:
@@ -502,7 +511,7 @@ class Gitee(object):
                     # 版本发布到目前时间
                 brresult['releasetime2now'] = 0 if interval == 0 else interval.days
                 # 版本号
-                brresult['version'] = version
+                brresult['version'] = versionstr
                 # 版本发布时间
                 brresult['releasetime'] = times
                 print('reop:%s branch:%s has No version' % (repopath, br['name']))
