@@ -1157,7 +1157,7 @@ class Gitee(object):
         return ids['aggregations']["uniq_gender"]["buckets"]
 
     def getItselfUsers(self, filename="users"):
-        f = open(filename, 'r')
+        f = open(filename, 'r', encoding="utf-8")
 
         users = []
         for line in f.readlines():
