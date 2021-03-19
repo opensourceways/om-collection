@@ -164,7 +164,7 @@ class ESClient(object):
 
     def getItselfUsers(self, filename="users"):
         try:
-            f = open(filename, 'r')
+            f = open(filename, 'r', encoding="utf-8")
         except:
             return []
 

@@ -536,7 +536,7 @@ class CollectData(object):
             repo_path = self.sigs_dirs_path + '/' + dir
             cmdlog = 'cd %s;git log -p README.md' % repo_path
             log_popen = subprocess.Popen(cmdlog, stdout=subprocess.PIPE, shell=True)
-            log = str(log_popen.stdout.read())
+            log = bytes.decode(log_popen.stdout.read(), encoding="utf-8")
             loglist = log.split('\n')
             n = 0
             rs = []
@@ -547,16 +547,15 @@ class CollectData(object):
             rs.append('\n'.join(loglist[n:]))
             times = None
             for r in rs:
-                if re.search(r'--- .*null\n\+\+\+ .*/README.md', r):
-                    #date = re.search(r'Date: (.*)\n', r).group(1)
-                    date = r.split("Date:   ")[1].split(" +0800")[0]
-                    time_struct = time.strptime(date, '%a %b %d %H:%M:%S %Y')
+                if re.search(r'.*README.md', r):
+                    date = re.search(r'Date: (.*)\n', r).group(1)
+                    time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
                     times = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
                     break
 
             cmdowner = 'cd %s;git log -p OWNERS' % repo_path
             owners_popen = subprocess.Popen(cmdowner, stdout=subprocess.PIPE, shell=True)
-            owners = str(owners_popen.stdout.read())
+            owners = bytes.decode(owners_popen.stdout.read(), encoding="utf-8")
             ownerslist = owners.split('\n')
             n2 = 0
             rs2 = []
@@ -577,10 +576,10 @@ class CollectData(object):
                         ID_list = [r['_id'] for r in self.esClient.searchEsList(self.index_name_sigs, search)]
                         times_onwer = None
                         for r in rs2:
-                            if re.search(r'\+\s*-\s*%s' % onwer, r):
-                                #date = re.search(r'Date:\s*(.*)\n', r).group(1)
-                                date = r.split("Date:   ")[1].split(" +0800")[0]
-                                time_struct = time.strptime(date, '%a %b %d %H:%M:%S %Y')
+                            # if re.search(r'\+\s*-\s*%s' % onwer, r):
+                            if re.search(r'Author:\s%s' % onwer, r):
+                                date = re.search(r'Date:\s*(.*)\n', r).group(1)
+                                time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
                                 times_onwer = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
 
                         repo_mark = True
