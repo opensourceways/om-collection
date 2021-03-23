@@ -136,7 +136,8 @@ class CVE(object):
                             resData['pr_merged_at'] = 0
                         # 漏洞修复时长
 
-                    if brAffects[1] == '受影响':
+
+                    if len(brAffects)>1 and brAffects[1] == '受影响':
                         subResData['is_affected'] = 1
                         subResData['branch'] = brAffects[0]
                         res.append(subResData)
@@ -155,7 +156,7 @@ class CVE(object):
     def getIssueByNumber(self, number=None):
         search = '"must": [{"term":{"is_gitee_issue":1}},{ "term": { "issue_number.keyword":"%s"}}]' % (number)
         data = self.esClient.searchEsList(self.all_data_index, search)
-        if data is None:
+        if data is None or len(data)<=0:
             return None
         return data[0]['_source']
 
@@ -164,6 +165,8 @@ class CVE(object):
         if currentPage is not None and pageSize is not None:
             params['currentPage'] = currentPage
             params['pageSize'] = pageSize
+        else:
+            params['pageSize']=10000
         response = requests.get(self.cve_url, params=params)
         cveData = self.esClient.getGenerator(response.text)
         return cveData['body']
@@ -188,7 +191,7 @@ class CVE(object):
             "Content-Type": 'application/json',
             'Authorization': self.esClient.authorization
         }
-        res = requests.post(url=url, data=queryStr, verify=False, headers=header)
+        res = requests.post(url=url, data=queryStr.encode(encoding='utf-8 '), verify=False, headers=header,)
 
         responseData = json.loads(res.text)
         return responseData['hits']['hits']
