@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+import datetime
 
 import requests
 
@@ -14,6 +14,7 @@ class CVE(object):
         self.esClient = ESClient(config)
         self.all_data_index = config.get('all_data_index')
         self.branchMappingstr = config.get('branchmapping')
+        self.giteeToken = config.get('gitee_token');
         if self.branchMappingstr is not None:
             self.branchMapping = {}
             fromTo = str(self.branchMappingstr).split(',')
@@ -65,8 +66,9 @@ class CVE(object):
             if issue_closed_at is None:
                 resData['process_time'] = 0
             else:
-                process_time = (datetime.strptime(resData['created_at'], '%Y-%m-%dT%H:%M:%S+08:00') - datetime.strptime(
-                    issue_closed_at, '%Y-%m-%dT%H:%M:%S+08:00')).seconds
+                process_time = (datetime.datetime.strptime(issue_closed_at,
+                                                           '%Y-%m-%dT%H:%M:%S+08:00') - datetime.datetime.strptime(
+                    resData['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).total_seconds()
                 resData['process_time'] = process_time
             resData['issue_state'] = issue['issue_state']
             resData['repo_name'] = issue['gitee_repo']
@@ -76,71 +78,91 @@ class CVE(object):
                 resData['loopholes_perceive_times'] = 0
             else:
                 resData['loopholes_perceive_times'] = (
-                        datetime.strptime(resData['created_at'], '%Y-%m-%dT%H:%M:%S+08:00') - datetime.strptime(
-                    data['CVE_public_time'], '%Y-%m-%d')).seconds
-            # issue 响应时长
+                        datetime.datetime.strptime(resData['created_at'],
+                                                   '%Y-%m-%dT%H:%M:%S+08:00') + datetime.timedelta(
+                    hours=-8) - datetime.datetime.strptime(
+                    data['CVE_public_time'], '%Y-%m-%d')).total_seconds()
+                if resData['loopholes_perceive_times'] < 0:
+                    resData['loopholes_perceive_times'] = 0
+            # issue 首次响应时长
             firstreplyissuetime = self.getFirstReplyTime(resData['issue_number'])
             if firstreplyissuetime is None or len(str(firstreplyissuetime)) <= 0:
                 resData['first_reply_times'] = 0
             else:
                 resData['first_reply_times'] = (
-                        datetime.strptime(firstreplyissuetime, '%Y-%m-%dT%H:%M:%S.000Z') - datetime.strptime(
-                    resData['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).seconds
+                        datetime.datetime.strptime(firstreplyissuetime,
+                                                   '%Y-%m-%dT%H:%M:%S.000Z') - datetime.datetime.strptime(
+                    resData['created_at'], '%Y-%m-%dT%H:%M:%S+08:00') + datetime.timedelta(hours=8)).total_seconds()
 
             # 漏洞补丁修复时长
             if len(str(data['rpm_public_time'])) <= 0:
                 resData['loopholes_patch_times'] = 0
             else:
                 resData['loopholes_patch_times'] = (
-                        datetime.strptime(data['rpm_public_time'], '%Y-%m-%d %H:%M:%S') - datetime.strptime(
-                    resData['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).seconds
+                        datetime.datetime.strptime(data['rpm_public_time'],
+                                                   '%Y-%m-%d %H:%M:%S') - datetime.datetime.strptime(
+                    resData['created_at'], '%Y-%m-%dT%H:%M:%S+08:00') + datetime.timedelta(hours=8)).total_seconds()
+            if resData['loopholes_patch_times'] < 0:
+                resData['loopholes_patch_times'] = 0
             # SA 发布时长
             if len(str(data['SA_public_time'])) <= 0:
                 resData['loopholes_sa_release_times'] = 0
             else:
                 resData['loopholes_sa_release_times'] = (
-                        datetime.strptime(data['SA_public_time'], '%Y-%m-%d %H:%M:%S') - datetime.strptime(
-                    resData['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).seconds
+                        datetime.datetime.strptime(data['SA_public_time'],
+                                                   '%Y-%m-%d %H:%M:%S') - datetime.datetime.strptime(
+                    resData['created_at'], '%Y-%m-%dT%H:%M:%S+08:00') + datetime.timedelta(hours=8)).total_seconds()
+            if resData['loopholes_sa_release_times'] < 0:
+                resData['loopholes_sa_release_times'] = 0
             # 漏洞响应时长
             if len(str(data['SA_public_time'])) <= 0 or len(str(data['CVE_public_time'])) <= 0:
                 resData['loopholes_response_times'] = 0
             else:
                 resData['loopholes_response_times'] = (
-                        datetime.strptime(data['SA_public_time'], '%Y-%m-%d %H:%M:%S') - datetime.strptime(
-                    data['CVE_public_time'], '%Y-%m-%d')).seconds
+                        datetime.datetime.strptime(data['SA_public_time'],
+                                                   '%Y-%m-%d %H:%M:%S') - datetime.datetime.strptime(
+                    data['CVE_public_time'], '%Y-%m-%d')).total_seconds()
             # 分支
             milestone = data['milestone']
             if milestone is not None and milestone != '':
                 branches = str(milestone).split(',')
+                ownerRepo = str(issue['repository']).split('/')
+                prs = self.getPrByIssueNumber(ownerRepo[0], ownerRepo[1], issue['issue_number'])
+                branchUpdate = {}
+                for p in prs:
+                    branchUpdate[p['base']['label']] = p
                 for br in branches:
                     brAffects = str(br).split(':')
                     brAffects[0] = self.transformBranch(brAffects[0])
                     subResData = resData.copy()
-                    prs = self.getPrByTitle(issue['issue_title'], brAffects[0])
-                    if prs is not None and len(prs) > 0:
+                    if branchUpdate is not None and len(prs) > 0:
                         # pr 合入时间
-                        pr = prs[0]['_source']
                         try:
-                            resData['pr_merged_at'] = pr['pull_merged_at']
-                            resData['loopholes_fix_times'] = (
-                                    datetime.strptime(resData['pr_merged_at'],
-                                                      '%Y-%m-%dT%H:%M:%S+08:00') - datetime.strptime(
-                                resData['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).seconds
-                            # 待版本发布时长
-                            if len(data['rpm_public_time']) >= 1 and len(resData['pr_merged_at']) >= 1:
-                                resData['loopholes_times'] = (
-                                        datetime.strptime(data['rpm_public_time'],
-                                                          '%Y-%m-%d %H:%M:%S') - datetime.strptime(
-                                    resData['pr_merged_at'], '%Y-%m-%dT%H:%M:%S+08:00')).seconds
+                            pr = branchUpdate[brAffects[0]];
+                            subResData['pr_merged_at'] = pr['merged_at']
+                            # 漏洞修复时长
+                            subResData['loopholes_fix_times'] = (
+                                    datetime.datetime.strptime(subResData['pr_merged_at'],
+                                                               '%Y-%m-%dT%H:%M:%S+08:00') - datetime.datetime.strptime(
+                                subResData['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).total_seconds()
+                            # 漏洞时长
+                            if len(data['rpm_public_time']) >= 1 and len(subResData['pr_merged_at']) >= 1:
+                                subResData['loopholes_times'] = (
+                                        datetime.datetime.strptime(data['rpm_public_time'],
+                                                                   '%Y-%m-%d %H:%M:%S') - datetime.datetime.strptime(
+                                    subResData['pr_merged_at'], '%Y-%m-%dT%H:%M:%S+08:00') + datetime.timedelta(
+                                    hours=8)).total_seconds()
+                            if subResData['loopholes_times'] < 0:
+                                subResData['loopholes_times'] = 0
                         except Exception:
-                            resData['pr_merged_at'] = 0
-                        # 漏洞修复时长
+                            subResData['pr_merged_at'] = 0
 
-
-                    if len(brAffects)>1 and brAffects[1] == '受影响':
+                    if len(brAffects) > 1 and brAffects[1] == '受影响':
                         subResData['is_affected'] = 1
                         subResData['branch'] = brAffects[0]
                         res.append(subResData)
+
+
 
                     else:
                         subResData['branch'] = brAffects[0]
@@ -156,7 +178,7 @@ class CVE(object):
     def getIssueByNumber(self, number=None):
         search = '"must": [{"term":{"is_gitee_issue":1}},{ "term": { "issue_number.keyword":"%s"}}]' % (number)
         data = self.esClient.searchEsList(self.all_data_index, search)
-        if data is None or len(data)<=0:
+        if data is None or len(data) <= 0:
             return None
         return data[0]['_source']
 
@@ -166,7 +188,7 @@ class CVE(object):
             params['currentPage'] = currentPage
             params['pageSize'] = pageSize
         else:
-            params['pageSize']=10000
+            params['pageSize'] = 10000
         response = requests.get(self.cve_url, params=params)
         cveData = self.esClient.getGenerator(response.text)
         return cveData['body']
@@ -191,10 +213,17 @@ class CVE(object):
             "Content-Type": 'application/json',
             'Authorization': self.esClient.authorization
         }
-        res = requests.post(url=url, data=queryStr.encode(encoding='utf-8 '), verify=False, headers=header,)
+        res = requests.post(url=url, data=queryStr.encode(encoding='utf-8 '), verify=False, headers=header, )
 
         responseData = json.loads(res.text)
         return responseData['hits']['hits']
+
+    def getPrByIssueNumber(self, owner, repo, issueNumber):
+        url = 'https://gitee.com/api/v5/repos/%s/issues/%s/pull_requests?access_token=%s&repo=%s' % (
+        owner, issueNumber, self.giteeToken, repo)
+        res = requests.get(url=url, verify=False)
+        prs = json.loads(res.text)
+        return prs
 
     def getFirstReplyTime(self, issueNumber):
         querystr = '''{
