@@ -584,7 +584,7 @@ class CollectData(object):
 
                         repo_mark = True
                         for d in data:
-                            if d['name'] == dir:
+                            if d is not None and 'name' in d and d['name'] == dir:
                                 repos = d['repositories']
                                 for repo in repos:
                                     ID = self.org + '_' + dir + '_' + repo + '_' + onwer
@@ -618,15 +618,72 @@ class CollectData(object):
                             dataw.update(userExtra)
                             datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
                             datas += datar
-                        for id in ID_list:
-                            data = '''{"size":10000,"query": {"bool": {"must": [{ "match": { "_id":%s }}]}}}''' % id
-                            self.esClient.post_delete_delete_by_query(data, self.index_name_sigs)
-                            print('delete ID: %s' % id)
+                        # for id in ID_list:
+                        #     data = '''{"size":10000,"query": {"bool": {"match": [{ "term": { "_id":"%s"}}]}}}''' % id
+                        #     self.esClient.post_delete_delete_by_query(data, self.index_name_sigs)
+                        #     print('delete ID: %s' % id)
                 self.safe_put_bulk(datas)
                 print("this sig done: %s" % dir)
                 time.sleep(1)
             except:
                 print(traceback.format_exc())
+
+        self.mark_removed_sigs(dirs=dirs)
+
+    def mark_removed_sigs(self, dirs):
+        search = '''{
+                    	"size": 0,
+                    	"query": {
+                    		"bool": {
+                    			"filter": [
+                    				{
+                    					"query_string": {
+                    						"analyze_wildcard": true,
+                    						"query": "*"
+                    					}
+                    				}
+                    			]
+                    		}
+                    	},
+                    	"aggs": {
+                    		"2": {
+                    			"terms": {
+                    				"field": "sig_name.keyword",
+                    				"size": 10000,
+                    				"order": {
+                    					"_key": "desc"
+                    				},
+                    				"min_doc_count": 0
+                    			},
+                    			"aggs": {}
+                    		}
+                    	}
+                    }'''
+        url = self.url + '/' + self.index_name_sigs + '/_search'
+        res = requests.post(url, headers=self.esClient.default_headers, verify=False, data=search)
+        data = res.json()
+
+        removed_sigs = ['sig-template']
+        for sig in data['aggregations']['2']['buckets']:
+            sig_name = sig['key']
+            if sig_name not in dirs:
+                removed_sigs.append(sig_name)
+
+        for s in removed_sigs:
+            mark = '''{
+                            "script": {
+                                "source":"ctx._source['is_removed']=1"
+                            },
+                            "query": {
+                                "term": {
+                                    "sig_name.keyword":"%s"
+                                }
+                            } 
+                        }''' % s
+            url = self.url + '/' + self.index_name_sigs + '/_update_by_query'
+            requests.post(url, headers=self.esClient.default_headers, verify=False, data=mark)
+            print('<%s> has been marked for removal')
+        print(res)
 
     def gte_enterprise_committers(self):
         self.gitee.getEnterpriseUser()
