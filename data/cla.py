@@ -6,6 +6,7 @@ from collect.cla import ClaClient
 LINK = 'link'
 CORPORATION = 'corporation-signing'
 EMPLOYEE = 'employee-signing'
+INDIVIDUAL = 'individual-signing'
 
 
 class Cla(object):
@@ -20,6 +21,7 @@ class Cla(object):
 
     def run(self, from_time):
         print("Collect CLA data: start")
+        self.getClaIndiviualsSigning()
         self.getClaCorporationsSigning()
         print("Collect CLA data: finished")
 
@@ -84,6 +86,50 @@ class Cla(object):
             }
 
             index_data = {"index": {"_index": self.index_name, "_id": employee['email']}}
+            actions += json.dumps(index_data) + '\n'
+            actions += json.dumps(action) + '\n'
+
+        self.esClient.safe_put_bulk(actions)
+
+    def getClaIndiviualsSigning(self):
+        # first: get token
+        token = self.claClient.get_token_cla()
+        headers = {'token': token}
+
+        # second: get link
+        link_url = f'{self.api_url}/{LINK}'
+        link_infos = self.claClient.fetch_cla(url=link_url, method='get', headers=headers)
+        link_id = ''
+        for link_info in link_infos['data']:
+            if link_info['org_id'] != self.orgs:
+                continue
+            link_id = link_info['link_id']
+
+        # third: get individuals
+        individual_url = f'{self.api_url}/{INDIVIDUAL}/{link_id}'
+        individual_infos = self.claClient.fetch_cla(url=individual_url, method='get', headers=headers)
+        individuals = individual_infos["data"]
+
+        # write to es
+        self.writeClaIndividuals(individuals)
+
+    def writeClaIndividuals(self, individuals):
+        actions = ""
+        for individual in individuals:
+            if individual['enabled']:
+                individual_enabled = 1
+            action = {
+                "individual_id": individual["id"],
+                "email": individual["email"],
+                "name": individual["name"],
+                "created_at": individual['date'],
+                "is_enabled": individual_enabled,
+                "is_corporation_signing": 0,
+                "is_individual_signing": 1,
+            }
+
+
+            index_data = {"index": {"_index": self.index_name, "_id": individual['email']}}
             actions += json.dumps(index_data) + '\n'
             actions += json.dumps(action) + '\n'
 
