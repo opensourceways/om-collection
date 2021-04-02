@@ -85,6 +85,7 @@ class Gitee(object):
         self.once_update_num_of_pr = int(config.get('once_update_num_of_pr', 200))
         if 'index_name_all' in config:
             self.index_name_all = config.get('index_name_all').split(',')
+        self.repo_spec = config.get('repo_spec_mapping')
 
     def run(self, from_time):
         print("Collect gitee data: staring")
@@ -477,8 +478,14 @@ class Gitee(object):
 
     def transVar2Data(self, var, spec):
         if var == 'description':
-            description = re.compile('%description\n(.+?)\n{2,}', re.DOTALL).search(
-                spec.__getattribute__('source')).groups()
+            des = re.compile('%description\s{0,1}\n(.+?)\n{2,}', re.DOTALL).search(spec.__getattribute__('source'))
+            if des is None:
+                desc = re.compile(r'%description\s%{(.*)}', re.DOTALL).search(spec.__getattribute__('source')).groups()[0]
+                desc = desc.split('}')[0]
+                description = re.compile(r'%s\s\\\n(.+?)\n{2,}' % desc, re.DOTALL).search(spec.__getattribute__('source')).groups()
+            else:
+                description = des.groups()
+
             return description
         data = spec.__getattribute__(var)
         resdata = ''
@@ -501,11 +508,21 @@ class Gitee(object):
     def getbranchinfo(self, branches, client, owner, repo, repopath, versiontimemapping_index):
         result = []
         version = None
+
+        file_name = repo
+        repo_spec_dict = {}
+        if self.repo_spec is not None:
+            for rs in str(self.repo_spec).split(';'):
+                r_s = rs.split(',')
+                repo_spec_dict.update({r_s[0]: r_s[1]})
+        if repo_spec_dict is not None and repo_spec_dict.keys().__contains__(repo):
+            file_name = repo_spec_dict[repo]
+
         for br in branches:
             brresult = {}
             try:
                 brresult["brname"] = br['name']
-                spec = client.getspecFile(owner, repo, br['name'])
+                spec = client.getspecFile(owner, repo, br['name'], file_name)
                 if spec is not None:
                     versionstr = self.transVar2Data('version', spec)
                     summary = self.transVar2Data('summary', spec)

@@ -80,6 +80,17 @@ class ESClient(object):
                               "corporation",
                               "is_admin_added"
                             ]
+                          },
+                          "query": {
+                            "bool": {
+                              "must": [
+                                {
+                                  "term": {
+                                    "is_corporation_signing": "1"
+                                  }
+                                }
+                              ]
+                            }
                           }
                         }'''
         res = requests.get(self.getSearchUrl(index_name=self.index_name_cla), data=search_json,

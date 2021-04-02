@@ -682,7 +682,7 @@ class CollectData(object):
                         }''' % s
             url = self.url + '/' + self.index_name_sigs + '/_update_by_query'
             requests.post(url, headers=self.esClient.default_headers, verify=False, data=mark)
-            print('<%s> has been marked for removal')
+            print('<%s> has been marked for removal' % s)
         print(res)
 
     def gte_enterprise_committers(self):

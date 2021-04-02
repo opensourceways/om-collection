@@ -286,13 +286,17 @@ class GiteeClient():
         branchs = self.urijoin("branches")
         return self.fetch_items(branchs, {})
 
-    def getspecFile(self, org, repo, branch):
+    def getspecFile(self, org, repo, branch, file_name):
         branch = str(branch).replace("/", "%2")
-        url = 'https://gitee.com/%s/%s/raw/%s/%s.spec' % (org, repo, branch, repo)
+        url = 'https://gitee.com/%s/%s/raw/%s/%s.spec' % (org, repo, branch, file_name)
         res = requests.get(url)
         if res.status_code == 200:
-            spec = Spec.from_string(res.text)
-            spec.__setattr__('source', res.text)
+            rs_text = res.text
+            pa = re.search(r'%package([\s\S]*)Source|patch', rs_text)
+            if pa is not None:
+                rs_text = rs_text[:pa.regs[0][0]] + rs_text[pa.regs[0][1]:]
+            spec = Spec.from_string(rs_text)
+            spec.__setattr__('source', rs_text)
             return spec
         else:
             return None
