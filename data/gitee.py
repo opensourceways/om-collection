@@ -477,8 +477,14 @@ class Gitee(object):
 
     def transVar2Data(self, var, spec):
         if var == 'description':
-            description = re.compile('%description\n(.+?)\n{2,}', re.DOTALL).search(
-                spec.__getattribute__('source')).groups()
+            des = re.compile('%description\s{0,1}\n(.+?)\n{2,}', re.DOTALL).search(spec.__getattribute__('source'))
+            if des is None:
+                desc = re.compile(r'%description\s%{(.*)}', re.DOTALL).search(spec.__getattribute__('source')).groups()[0]
+                desc = desc.split('}')[0]
+                description = re.compile(r'%s\s\\\n(.+?)\n{2,}' % desc, re.DOTALL).search(spec.__getattribute__('source')).groups()
+            else:
+                description = des.groups()
+
             return description
         data = spec.__getattribute__(var)
         resdata = ''
