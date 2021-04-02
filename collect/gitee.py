@@ -286,10 +286,7 @@ class GiteeClient():
         branchs = self.urijoin("branches")
         return self.fetch_items(branchs, {})
 
-    def getspecFile(self, org, repo, branch):
-        file_name = repo
-        if repo.__contains__('A-Tune'):
-            file_name = file_name.replace('A-Tune', 'atune').lower()
+    def getspecFile(self, org, repo, branch, file_name):
         branch = str(branch).replace("/", "%2")
         url = 'https://gitee.com/%s/%s/raw/%s/%s.spec' % (org, repo, branch, file_name)
         res = requests.get(url)
