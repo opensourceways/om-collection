@@ -18,6 +18,7 @@ class Cla(object):
         self.api_url = self.claClient.api_url
         self.timeout = self.claClient.timeout
         self.index_name = config.get('index_name')
+        self.index_name_corporation = config.get('index_name_corporation')
 
     def run(self, from_time):
         print("Collect CLA data: start")
@@ -42,6 +43,8 @@ class Cla(object):
         # third: get corporation
         corporation_url = f'{self.api_url}/{CORPORATION}/{link_id}'
         corporation_infos = self.claClient.fetch_cla(url=corporation_url, method='get', headers=headers)
+
+        corDict = []
         for corporation_info in corporation_infos['data']:
             admin_email = corporation_info['admin_email']
             corporation_name = corporation_info['corporation_name']
@@ -61,12 +64,43 @@ class Cla(object):
             employee_url = f'{self.api_url}/{EMPLOYEE}/{link_id}/{admin_email}'
             employee_infos = self.claClient.fetch_cla(url=employee_url, method='get', headers=headers)
             employees = employee_infos['data']
-            if len(employees) == 0:
-                continue
 
-            # write to es
+            if len(employees) == 0:
+                corDict.append((corporation_info, 0))
+                continue
+            corDict.append((corporation_info, 1))
+
+            # write employees to es
             self.writeClaEmployees(corporation=corporation_name, admin_name=admin_name, admin_added=admin_added,
                                    pdf_uploaded=pdf_uploaded, employees=employees)
+
+        # write corporations to es
+        self.writeClaCorporation(corDict=corDict)
+
+    def writeClaCorporation(self, corDict):
+        if len(corDict) == 0:
+            return
+
+        actions = ""
+        for corporation, is_there_employees in corDict:
+            action = {
+                "cla_language": corporation["cla_language"],
+                "admin_email": corporation["admin_email"],
+                "admin_name": corporation["admin_name"],
+                "corporation_name": corporation['corporation_name'],
+                "created_at": corporation['date'],
+                "updated_at": corporation['date'],
+                "admin_added": 1 if bool(corporation['admin_added']) else 0,
+                "pdf_uploaded": 1 if bool(corporation['pdf_uploaded']) else 0,
+                "is_there_employees": is_there_employees,
+            }
+
+            index_id = corporation['corporation_name'] + corporation['admin_email']
+            index_data = {"index": {"_index": self.index_name_corporation, "_id": index_id}}
+            actions += json.dumps(index_data) + '\n'
+            actions += json.dumps(action) + '\n'
+
+        self.esClient.safe_put_bulk(actions)
 
     def writeClaEmployees(self, corporation, admin_name, admin_added, pdf_uploaded, employees):
         actions = ""
