@@ -44,6 +44,7 @@ BACKEND_MAPPING = {
     'report_email': 'data.report_email.ReportEmail',
     'cve': 'data.cve.CVE',
     'cla': 'data.cla.Cla',
+    'polymerization': 'data.combine.polymerization.Polymerization',
 }
 
 
