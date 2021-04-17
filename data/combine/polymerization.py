@@ -61,7 +61,7 @@ class Polymerization(object):
     def getTotalCount(self, querys, key_prefixs, count_keys):
         for i in range(len(count_keys)):
             query = querys[i] if querys else None
-            self.esClient.setToltalCount(self.from_d, field=None, query=query, count_key=count_keys[i],
+            self.esClient.setToltalCount(self.from_d, query=query, count_key=count_keys[i],
                                          key_prefix=key_prefixs[i])
 
     def tagFirstDoc(self, querys, key_prefixs, count_keys):

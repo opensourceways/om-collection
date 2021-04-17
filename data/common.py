@@ -1244,6 +1244,8 @@ class ESClient(object):
         if not key:
             return
         buckets = self.getFirstItemByKey(query, key, query_index_name)
+        if not buckets:
+            return
         for items in buckets:
             item = items["login_start"]["hits"]["hits"]
             if len(item) == 0:
