@@ -33,18 +33,39 @@ class Polymerization(object):
         self.key_prefix = config.get('key_prefix')
         self.from_d = config.get('polymerization_from_time')
         self.count_key = config.get('count_key')
+        self.is_get_total_count = config.get('is_get_total_count')
+        self.is_tag_first_doc = config.get('is_tag_first_doc')
         self.esClient = ESClient(config)
 
     def run(self, from_time):
         startTime = time.time()
-        querys = self.query.split(";")
-        key_prefixs = self.key_prefix.split(";")
-        count_keys = self.count_key.split(";")
-        for i in range(len(querys)):
-            self.esClient.setToltalCount(self.from_d, field=None, query=querys[i], count_key=count_keys[i], key_prefix=key_prefixs[i])
-        # self.esClient.setToltalCount(from_d, "pv_count", field="user_login.keyword")
+
+        querys, key_prefixs, count_keys = None, None, None
+        if self.query:
+            querys = self.query.split(";")
+        if self.key_prefix:
+            key_prefixs = self.key_prefix.split(";")
+        if self.count_key:
+            count_keys = self.count_key.split(";")
+
+        if self.is_get_total_count == "true":
+            self.getTotalCount(querys, key_prefixs, count_keys)
+        if self.is_tag_first_doc == "true":
+            self.tagFirstDoc(querys, key_prefixs, count_keys)
 
         endTime = time.time()
         spent_time = time.strftime("%H:%M:%S",
                                    time.gmtime(endTime - startTime))
         print("Collect Polymerization data: finished after ", spent_time)
+
+    def getTotalCount(self, querys, key_prefixs, count_keys):
+        for i in range(len(count_keys)):
+            query = querys[i] if querys else None
+            self.esClient.setToltalCount(self.from_d, field=None, query=query, count_key=count_keys[i],
+                                         key_prefix=key_prefixs[i])
+
+    def tagFirstDoc(self, querys, key_prefixs, count_keys):
+        for i in range(len(querys)):
+            query = querys[i] if querys else None
+            self.esClient.setFirstItem(key_prefix=key_prefixs[i], query=query, key=count_keys[i],
+                                       query_index_name=self.query_index_name)

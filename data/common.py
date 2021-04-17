@@ -1202,6 +1202,69 @@ class ESClient(object):
 
         self.safe_put_bulk(actions)
 
+    def getFirstItemByKey(self, query=None, key=None, query_index_name=None):
+        data_json = '''{
+            "size": 2000,
+            "query": {
+                "bool": {
+                    "filter": [
+                        {"query_string": {
+                            "analyze_wildcard": true,
+                            "query": "%s"
+                        }}]
+                }
+            },
+            "aggs": {
+                "group_by_login": {
+                "terms": {
+                    "field": "%s",
+                    "size": 10000
+                },
+                "aggs": {
+                    "login_start": {"top_hits": {"size": 1, "sort": [{"created_at": {"order": "asc"}}]}}
+
+                }
+            }}
+        }''' % (query, key)
+
+        if query_index_name is None:
+            query_index_name = self.index_name
+        res = requests.get(self.getSearchUrl(index_name=query_index_name), data=data_json,
+                           headers=self.default_headers, verify=False)
+        if res.status_code != 200:
+            print("get First Item By Key(%s), err=%s"
+                  % (key, res))
+            return None
+
+        data = res.json()
+
+        buckets = data["aggregations"]["group_by_login"]["buckets"]
+        if len(buckets) == 0:
+            return None
+        return buckets
+
+
+
+    def setFirstItem(self, key_prefix=None, query=None, key=None, query_index_name=None):
+        actions = ""
+        buckets = self.getFirstItemByKey(query, key, query_index_name)
+        for items in buckets:
+            item = items["login_start"]["hits"]["hits"]
+            if len(item) == 0:
+                continue
+            else:
+                user = {
+                    "updated_at": item[0].get("_source").get("updated_at"),
+                    "created_at": item[0].get("_source").get("created_at"),
+                    "is_first" + key_prefix + key: 1
+                }
+                id = item[0].get("_id") + "_is_" + key_prefix
+                action = getSingleAction(self.index_name, id, user)
+                actions += action
+
+        self.safe_put_bulk(actions)
+
+
 
 def get_date(time):
     if time:
