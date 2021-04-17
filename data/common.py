@@ -953,11 +953,6 @@ class ESClient(object):
             }''' % (from_date, to_date, field)
 
 
-
-        print(data_json)
-        # default_headers = {
-        #     'Content-Type': 'application/json'
-        # }
         if query_index_name is None:
             query_index_name = index_name
         res = requests.get(self.getSearchUrl(url, query_index_name), data=data_json,
@@ -1204,7 +1199,7 @@ class ESClient(object):
 
     def getFirstItemByKey(self, query=None, key=None, query_index_name=None):
         data_json = '''{
-            "size": 2000,
+            "size": 0,
             "query": {
                 "bool": {
                     "filter": [
@@ -1244,9 +1239,10 @@ class ESClient(object):
         return buckets
 
 
-
     def setFirstItem(self, key_prefix=None, query=None, key=None, query_index_name=None):
         actions = ""
+        if not key:
+            return
         buckets = self.getFirstItemByKey(query, key, query_index_name)
         for items in buckets:
             item = items["login_start"]["hits"]["hits"]
