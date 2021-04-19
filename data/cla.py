@@ -1,5 +1,7 @@
 import json
 
+import requests
+
 from data.common import ESClient
 from collect.cla import ClaClient
 
@@ -19,12 +21,18 @@ class Cla(object):
         self.timeout = self.claClient.timeout
         self.index_name = config.get('index_name')
         self.index_name_corporation = config.get('index_name_corporation')
+        self.claIds = []
+        self.corporationIds = []
 
     def run(self, from_time):
+        self.getEsIds()
+
         print("Collect CLA data: start")
         self.getClaIndiviualsSigning()
         self.getClaCorporationsSigning()
         print("Collect CLA data: finished")
+
+        self.deleteByIds()
 
     def getClaCorporationsSigning(self):
         # first: get token
@@ -96,6 +104,8 @@ class Cla(object):
             }
 
             index_id = corporation['corporation_name'] + corporation['admin_email']
+            if index_id in self.corporationIds:
+                self.corporationIds.remove(index_id)
             index_data = {"index": {"_index": self.index_name_corporation, "_id": index_id}}
             actions += json.dumps(index_data) + '\n'
             actions += json.dumps(action) + '\n'
@@ -119,6 +129,8 @@ class Cla(object):
                 "is_individual_signing": 0,
             }
 
+            if employee['email'] in self.claIds:
+                self.claIds.remove(employee['email'])
             index_data = {"index": {"_index": self.index_name, "_id": employee['email']}}
             actions += json.dumps(index_data) + '\n'
             actions += json.dumps(action) + '\n'
@@ -162,9 +174,80 @@ class Cla(object):
                 "is_individual_signing": 1,
             }
 
-
+            if individual['email'] in self.claIds:
+                self.claIds.remove(individual['email'])
             index_data = {"index": {"_index": self.index_name, "_id": individual['email']}}
             actions += json.dumps(index_data) + '\n'
             actions += json.dumps(action) + '\n'
 
         self.esClient.safe_put_bulk(actions)
+
+    def getEsIds(self):
+        search_json = '''{
+                            "size":10000,
+                            "_source": {
+                              "includes": [
+                                "email"
+                              ]
+                            }
+                        }'''
+        res = requests.post(self.esClient.getSearchUrl(index_name=self.index_name), data=search_json,
+                           headers=self.esClient.default_headers, verify=False)
+        if res.status_code != 200:
+            print("The index not exist")
+            return {}
+        data = res.json()
+        for hit in data['hits']['hits']:
+            self.claIds.append(hit['_source']['email'])
+
+        search_json = '''{
+                            "size":10000,
+                            "_source": {
+                               "includes": [
+                                 "corporation_name",
+                                 "admin_email"
+                               ]
+                             }
+                        }'''
+        res = requests.post(self.esClient.getSearchUrl(index_name=self.index_name_corporation), data=search_json,
+                            headers=self.esClient.default_headers, verify=False)
+        if res.status_code != 200:
+            print("The index not exist")
+            return {}
+        data = res.json()
+        for hit in data['hits']['hits']:
+            source = hit['_source']
+            self.corporationIds.append(source['corporation_name'] + source['admin_email'])
+
+    def deleteByIds(self):
+        for id in self.claIds:
+            search_json = '''{
+                               "query": {
+                                 "bool": {
+                                   "must": [
+                                     {
+                                       "term": {
+                                         "_id": "%s"
+                                       }
+                                     }
+                                   ]
+                                 }
+                               }
+                             }''' % id
+            self.esClient.post_delete_delete_by_query(index_name=self.index_name_corporation, bulk_json=search_json.encode("utf-8"))
+
+        for id in self.corporationIds:
+            search_json = '''{
+                               "query": {
+                                 "bool": {
+                                   "must": [
+                                     {
+                                       "term": {
+                                         "_id": "%s"
+                                       }
+                                     }
+                                   ]
+                                 }
+                               }
+                             }''' % id
+            self.esClient.post_delete_delete_by_query(index_name=self.index_name_corporation, bulk_json=search_json.encode("utf-8"))
