@@ -43,6 +43,7 @@ class ESClient(object):
         self.url = config.get('es_url')
         self.from_date = config.get('from_date')
         self.index_name = config.get('index_name')
+        self.query_index_name = config.get('query_index_name')
         self.authorization = config.get('authorization')
         self.default_headers = {
             'Content-Type': 'application/json'
@@ -54,7 +55,6 @@ class ESClient(object):
         self.internal_company_name = config.get('internal_company_name', 'internal_company')
         self.is_gitee_enterprise = config.get('is_gitee_enterprise')
         self.enterpriseUsers = []
-        self.orgs = self.getOrgs(config.get('orgs'))
         self.gitee_token = config.get('gitee_token')
         self.is_update_tag_company = config.get('is_update_tag_company', 'false')
         self.is_update_tag_company_cla = config.get('is_update_tag_company_cla', 'false')
@@ -191,6 +191,7 @@ class ESClient(object):
         if self.is_gitee_enterprise != "true":
             return
 
+        self.orgs = self.getOrgs(config.get('orgs'))
         client = GiteeClient(self.orgs[0], "", self.gitee_token)
 
         data = self.getGenerator(client.enterprise_members())
@@ -880,8 +881,58 @@ class ESClient(object):
         return data["aggregations"]["sum"]["value"]
 
     def getCountByTermDate(self, term=None, field=None, from_date=None, to_date=None,
-                           url=None, index_name=None):
-        if not term:
+                           url=None, index_name=None, query=None, query_index_name=None):
+        if query:
+            if field:
+                agg_json = '''"aggs":{"sum":{"cardinality":{"field":"%s"}}} ''' % field
+            else:
+                agg_json = '''"aggs":{}'''
+            data_json = '''{
+                "size": 0,
+                "query": {
+                    "bool":{
+                        "filter":[
+                            {"range": {
+                                "created_at": {
+                                    "gte": "%s",
+                                    "lte": "%s"
+                                }
+                            }},
+                            {"query_string":{
+                                "analyze_wildcard":true,
+                                "query": "%s"
+                            }}]
+                    }
+                },
+                %s
+            }''' % (from_date, to_date, query, agg_json)
+        elif term:
+            data_json = '''{
+                "size": 3,
+                "query": {
+                    "range": {
+                        "created_at": {
+                            "gte": "%s",
+                            "lte": "%s"
+                        }
+                    }
+                },
+                "aggs": {
+                    "list": {
+                        "terms": {
+                            "field": "%s"
+                        },
+                        "aggs": {
+                            "sum": {
+                                "sum": {
+                                    "field": "%s"
+                                }
+                            }
+                        }
+                    }
+                }
+            }''' % (from_date, to_date, term, field)
+        else:
             data_json = '''{
                 "size": 0,
                 "query": {
@@ -900,38 +951,11 @@ class ESClient(object):
                     }
                 }
             }''' % (from_date, to_date, field)
-        else:
-            data_json = '''{
-                        "size": 3,
-                        "query": {
-                            "range": {
-                                "created_at": {
-                                    "gte": "%s",
-                                    "lte": "%s"
-                                }
-                            }
-                        },
-                        "aggs": {
-                            "list": {
-                                "terms": {
-                                    "field": "%s"
-                                },
-                                "aggs": {
-                                    "sum": {
-                                        "sum": {
-                                            "field": "%s"
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }''' % (from_date, to_date, term, field)
 
-        print(data_json)
-        # default_headers = {
-        #     'Content-Type': 'application/json'
-        # }
-        res = requests.get(self.getSearchUrl(url, index_name), data=data_json,
+
+        if query_index_name is None:
+            query_index_name = index_name
+        res = requests.get(self.getSearchUrl(url, query_index_name), data=data_json,
                            headers=self.default_headers, verify=False)
         if res.status_code != 200:
             print("The field (%s) not exist from time(%s) to (%s), err=%s"
@@ -941,7 +965,9 @@ class ESClient(object):
         data = res.json()
         print(data)
         count = 0
-        if term is None:
+        if query and not field:
+            count = data["hits"]["total"]["value"]
+        elif term is None:
             count = data["aggregations"]["sum"]["value"]
         else:
             for b in data["aggregations"]["list"]["buckets"]:
@@ -1135,7 +1161,7 @@ class ESClient(object):
         print("set fork is_removed value to 1 success")
 
     def setToltalCount(self, from_date, count_key,
-                       field=None):
+                       field=None, query=None, key_prefix=None):
         starTime = datetime.strptime(from_date, "%Y%m%d")
         fromTime = datetime.strptime(from_date, "%Y%m%d")
         to = datetime.today().strftime("%Y%m%d")
@@ -1149,20 +1175,22 @@ class ESClient(object):
                 count_key,
                 starTime.strftime("%Y-%m-%dT00:00:00+08:00"),
                 fromTime.strftime("%Y-%m-%dT23:59:59+08:00"),
-                index_name=self.index_name)
+                index_name=self.index_name,
+                query_index_name=self.query_index_name,
+                query=query)
             # return
             if c is not None:
                 user = {
-                    "all_" + count_key: c,
+                    "all_" + key_prefix + count_key: c,
                     "updated_at": fromTime.strftime(
                         "%Y-%m-%dT00:00:00+08:00"),
                     "created_at": fromTime.strftime(
                         "%Y-%m-%dT23:59:59+08:00"),
                     # "metadata__updated_on": fromTime.strftime("%Y-%m-%dT23:59:59+08:00"),
-                    "is_all" + count_key: 1
+                    "is_all" + key_prefix + count_key: 1
                 }
                 id = fromTime.strftime(
-                    "%Y-%m-%dT00:00:00+08:00") + "all_" + count_key
+                    "%Y-%m-%dT00:00:00+08:00") + "all_" + key_prefix + count_key
                 action = getSingleAction(self.index_name, id, user)
                 actions += action
             fromTime = fromTime + timedelta(days=1)
@@ -1205,6 +1233,72 @@ class ESClient(object):
                            }
                          }''' % id
         self.post_delete_delete_by_query(index_name=index_name, bulk_json=search_json.encode("utf-8"))
+        
+    def getFirstItemByKey(self, query=None, key=None, query_index_name=None):
+        data_json = '''{
+            "size": 0,
+            "query": {
+                "bool": {
+                    "filter": [
+                        {"query_string": {
+                            "analyze_wildcard": true,
+                            "query": "%s"
+                        }}]
+                }
+            },
+            "aggs": {
+                "group_by_login": {
+                "terms": {
+                    "field": "%s",
+                    "size": 10000
+                },
+                "aggs": {
+                    "login_start": {"top_hits": {"size": 1, "sort": [{"created_at": {"order": "asc"}}]}}
+
+                }
+            }}
+        }''' % (query, key)
+
+        if query_index_name is None:
+            query_index_name = self.index_name
+        res = requests.get(self.getSearchUrl(index_name=query_index_name), data=data_json,
+                           headers=self.default_headers, verify=False)
+        if res.status_code != 200:
+            print("get First Item By Key(%s), err=%s"
+                  % (key, res))
+            return None
+
+        data = res.json()
+
+        buckets = data["aggregations"]["group_by_login"]["buckets"]
+        if len(buckets) == 0:
+            return None
+        return buckets
+
+
+    def setFirstItem(self, key_prefix=None, query=None, key=None, query_index_name=None):
+        actions = ""
+        if not key:
+            return
+        buckets = self.getFirstItemByKey(query, key, query_index_name)
+        if not buckets:
+            return
+        for items in buckets:
+            item = items["login_start"]["hits"]["hits"]
+            if len(item) == 0:
+                continue
+            else:
+                user = {
+                    "updated_at": item[0].get("_source").get("updated_at"),
+                    "created_at": item[0].get("_source").get("created_at"),
+                    "is_first" + key_prefix + key: 1
+                }
+                id = item[0].get("_id") + "_is_" + key_prefix
+                action = getSingleAction(self.index_name, id, user)
+                actions += action
+
+        self.safe_put_bulk(actions)
+
 
 
 def get_date(time):
