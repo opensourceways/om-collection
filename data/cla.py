@@ -19,12 +19,16 @@ class Cla(object):
         self.timeout = self.claClient.timeout
         self.index_name = config.get('index_name')
         self.index_name_corporation = config.get('index_name_corporation')
+        self.claIds = self.esClient.getEsIds(self.index_name)
+        self.corporationIds = self.esClient.getEsIds(self.index_name_corporation)
 
     def run(self, from_time):
         print("Collect CLA data: start")
         self.getClaIndiviualsSigning()
         self.getClaCorporationsSigning()
         print("Collect CLA data: finished")
+
+        self.deleteByIds()
 
     def getClaCorporationsSigning(self):
         # first: get token
@@ -96,6 +100,8 @@ class Cla(object):
             }
 
             index_id = corporation['corporation_name'] + corporation['admin_email']
+            if index_id in self.corporationIds:
+                self.corporationIds.remove(index_id)
             index_data = {"index": {"_index": self.index_name_corporation, "_id": index_id}}
             actions += json.dumps(index_data) + '\n'
             actions += json.dumps(action) + '\n'
@@ -119,6 +125,8 @@ class Cla(object):
                 "is_individual_signing": 0,
             }
 
+            if employee['email'] in self.claIds:
+                self.claIds.remove(employee['email'])
             index_data = {"index": {"_index": self.index_name, "_id": employee['email']}}
             actions += json.dumps(index_data) + '\n'
             actions += json.dumps(action) + '\n'
@@ -162,9 +170,17 @@ class Cla(object):
                 "is_individual_signing": 1,
             }
 
-
+            if individual['email'] in self.claIds:
+                self.claIds.remove(individual['email'])
             index_data = {"index": {"_index": self.index_name, "_id": individual['email']}}
             actions += json.dumps(index_data) + '\n'
             actions += json.dumps(action) + '\n'
 
         self.esClient.safe_put_bulk(actions)
+
+    def deleteByIds(self):
+        for id in self.claIds:
+            self.esClient.deleteById(id=id, index_name=self.index_name)
+
+        for id in self.corporationIds:
+            self.esClient.deleteById(id=id, index_name=self.index_name_corporation)

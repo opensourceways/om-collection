@@ -1197,6 +1197,43 @@ class ESClient(object):
 
         self.safe_put_bulk(actions)
 
+    def getEsIds(self, index_name):
+        search_json = '''{
+                            "size": 10000,
+                            "_source": false,
+                            "query": {
+                              "match_all": {}
+                            }
+                          }'''
+        res = requests.post(self.getSearchUrl(index_name=index_name), data=search_json, headers=self.default_headers,
+                            verify=False)
+        if res.status_code != 200:
+            print("The search not exist")
+            return []
+
+        ids = []
+        data = res.json()
+        for hit in data['hits']['hits']:
+            ids.append(hit['_id'])
+
+        return ids
+
+    def deleteById(self, id, index_name):
+        search_json = '''{
+                           "query": {
+                             "bool": {
+                               "must": [
+                                 {
+                                   "term": {
+                                     "_id": "%s"
+                                   }
+                                 }
+                               ]
+                             }
+                           }
+                         }''' % id
+        self.post_delete_delete_by_query(index_name=index_name, bulk_json=search_json.encode("utf-8"))
+        
     def getFirstItemByKey(self, query=None, key=None, query_index_name=None):
         data_json = '''{
             "size": 0,
