@@ -965,13 +965,15 @@ class ESClient(object):
         data = res.json()
         print(data)
         count = 0
-        if query and not field:
-            # count = data["hits"]["total"]["value"]
-            for bucket in data["aggregations"]["2"]["buckets"]:
-                count += bucket["doc_count"]
+        if query:
+            if not field:
+                for bucket in data["aggregations"]["2"]["buckets"]:
+                    count += bucket["doc_count"]
+            else:
+                count = len(data["aggregations"]["2"]["buckets"])
+
         elif term is None:
-            # count = data["aggregations"]["sum"]["value"]
-            count = len(data["aggregations"]["2"]["buckets"])
+            count = data["aggregations"]["sum"]["value"]
         else:
             for b in data["aggregations"]["list"]["buckets"]:
                 count += b["sum"]["value"]
