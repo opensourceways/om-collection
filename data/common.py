@@ -884,9 +884,10 @@ class ESClient(object):
                            url=None, index_name=None, query=None, query_index_name=None):
         if query:
             if field:
-                agg_json = '''"aggs":{"sum":{"cardinality":{"field":"%s"}}} ''' % field
+                agg_json = '''"aggs": {"2": {"terms": {"field": "%s","size": 10000,"min_doc_count": 1}}}''' % field
             else:
-                agg_json = '''"aggs":{}'''
+                agg_json = '''"aggs": {"2": {"date_histogram": {"interval": "10000d","field": "created_at","min_doc_count": 0}}}'''
+
             data_json = '''{
                 "size": 0,
                 "query": {
@@ -952,7 +953,6 @@ class ESClient(object):
                 }
             }''' % (from_date, to_date, field)
 
-
         if query_index_name is None:
             query_index_name = index_name
         res = requests.get(self.getSearchUrl(url, query_index_name), data=data_json,
@@ -965,8 +965,13 @@ class ESClient(object):
         data = res.json()
         print(data)
         count = 0
-        if query and not field:
-            count = data["hits"]["total"]["value"]
+        if query:
+            if not field:
+                for bucket in data["aggregations"]["2"]["buckets"]:
+                    count += bucket["doc_count"]
+            else:
+                count = len(data["aggregations"]["2"]["buckets"])
+
         elif term is None:
             count = data["aggregations"]["sum"]["value"]
         else:
