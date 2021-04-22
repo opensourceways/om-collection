@@ -161,13 +161,17 @@ class ESClient(object):
         if (self.is_update_tag_company == 'true' and self.data_yaml_url) or \
                 (self.is_update_tag_company_cla == 'true' and self.index_name_cla) and \
                 login in self.giteeid_company_dict:
-            sp = self.giteeid_company_dict.get(login).split("_adminAdded_", 1)
-            company = sp[0]
-            userExtra["tag_user_company"] = company
-            if len(sp) == 2:
-                userExtra["is_admin_added"] = sp[1]
+            if self.giteeid_company_dict.get(login) is None:
+                userExtra["tag_user_company"] = 'independent'
             else:
-                userExtra["is_admin_added"] = 0
+                sp = self.giteeid_company_dict.get(login).split("_adminAdded_", 1)
+                company = sp[0]
+                userExtra["tag_user_company"] = company
+                if len(sp) == 2:
+                    userExtra["is_admin_added"] = sp[1]
+                else:
+                    userExtra["is_admin_added"] = 0
+
             if userExtra["tag_user_company"] == self.internal_company_name:
                 userExtra["is_project_internal_user"] = 1
 
@@ -1241,7 +1245,7 @@ class ESClient(object):
                            }
                          }''' % id
         self.post_delete_delete_by_query(index_name=index_name, bulk_json=search_json.encode("utf-8"))
-        
+
     def getFirstItemByKey(self, query=None, key=None, query_index_name=None):
         data_json = '''{
             "size": 0,
@@ -1283,7 +1287,6 @@ class ESClient(object):
             return None
         return buckets
 
-
     def setFirstItem(self, key_prefix=None, query=None, key=None, query_index_name=None):
         actions = ""
         if not key:
@@ -1306,7 +1309,6 @@ class ESClient(object):
                 actions += action
 
         self.safe_put_bulk(actions)
-
 
 
 def get_date(time):
