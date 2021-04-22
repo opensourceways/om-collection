@@ -1172,8 +1172,12 @@ class ESClient(object):
         to = datetime.today().strftime("%Y%m%d")
 
         actions = ""
-        while fromTime.strftime("%Y%m%d") < to:
+        while fromTime.strftime("%Y%m%d") <= to:
             print(fromTime)
+
+            created_at = fromTime.strftime("%Y-%m-%dT23:59:59+08:00")
+            if fromTime.strftime("%Y%m%d") == to:
+                created_at = fromTime.strftime("%Y-%m-%dT00:00:01+08:00")
 
             c = self.getCountByTermDate(
                 field,
@@ -1189,8 +1193,7 @@ class ESClient(object):
                     "all_" + key_prefix + count_key: c,
                     "updated_at": fromTime.strftime(
                         "%Y-%m-%dT00:00:00+08:00"),
-                    "created_at": fromTime.strftime(
-                        "%Y-%m-%dT23:59:59+08:00"),
+                    "created_at": created_at,
                     # "metadata__updated_on": fromTime.strftime("%Y-%m-%dT23:59:59+08:00"),
                     "is_all" + key_prefix + count_key: 1
                 }
