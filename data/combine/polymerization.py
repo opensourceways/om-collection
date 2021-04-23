@@ -65,7 +65,7 @@ class Polymerization(object):
                                          key_prefix=key_prefixs[i])
 
     def tagFirstDoc(self, querys, key_prefixs, count_keys):
-        for i in range(len(querys)):
+        for i in range(len(count_keys)):
             query = querys[i] if querys else None
             self.esClient.setFirstItem(key_prefix=key_prefixs[i], query=query, key=count_keys[i],
                                        query_index_name=self.query_index_name)
