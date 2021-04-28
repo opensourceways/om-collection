@@ -14,14 +14,9 @@
 #
 
 import time
-from datetime import timedelta, datetime
-
-import threading
+from collections import Counter
 import json
-
-from data import common
 from data.common import ESClient
-
 
 
 class Polymerization(object):
@@ -36,6 +31,8 @@ class Polymerization(object):
         self.is_get_total_count = config.get('is_get_total_count')
         self.is_tag_first_doc = config.get('is_tag_first_doc')
         self.esClient = ESClient(config)
+        self.collections = config.get('collections')
+        self.is_mix_download = config.get('is_mix_download')
 
     def run(self, from_time):
         startTime = time.time()
@@ -48,10 +45,16 @@ class Polymerization(object):
         if self.count_key:
             count_keys = self.count_key.split(";")
 
-        if self.is_get_total_count == "true":
-            self.getTotalCount(querys, key_prefixs, count_keys)
-        if self.is_tag_first_doc == "true":
-            self.tagFirstDoc(querys, key_prefixs, count_keys)
+        if self.is_mix_download == "true":
+            if self.is_get_total_count == "true":
+                self.getDownloadMix()
+            if self.is_tag_first_doc == "true":
+                self.tagIpDownloadMix()
+        else:
+            if self.is_get_total_count == "true":
+                self.getTotalCount(querys, key_prefixs, count_keys)
+            if self.is_tag_first_doc == "true":
+                self.tagFirstDoc(querys, key_prefixs, count_keys)
 
         endTime = time.time()
         spent_time = time.strftime("%H:%M:%S",
@@ -69,3 +72,64 @@ class Polymerization(object):
             query = querys[i] if querys else None
             self.esClient.setFirstItem(key_prefix=key_prefixs[i], query=query, key=count_keys[i],
                                        query_index_name=self.query_index_name)
+
+    def getDownloadMix(self):
+        j = json.loads(self.collections)
+        counter = Counter({})
+        for coll in j['collections']:
+            query, key_prefix, count_key, query_es = None, None, None, None
+            if 'query' in coll:
+                query = coll['query']
+            if 'count_key' in coll:
+                count_key = coll['count_key']
+            if 'query_es' in coll:
+                query_es = coll['query_es']
+
+            query_index_name = coll['query_index_name']
+            self.esClient.query_index_name = query_index_name
+            polymerization_from_time = coll['polymerization_from_time']
+            if query is not None:
+                query = str(query).replace('"', '\\"')
+            if query_es is not None:
+                time_count_dict = self.esClient.splitMixDockerHub(from_date=polymerization_from_time,
+                                                                  count_key=count_key, query=query,
+                                                                  query_index_url=query_es,
+                                                                  query_index_name=query_index_name)
+                self.esClient.writeMixDownload(time_count_dict, "day_download")
+            else:
+                time_count_dict = self.esClient.getTotalCountMix(polymerization_from_time, query=query,
+                                                                 count_key=count_key, key_prefix=key_prefix)
+                # the same key, add value
+                counter = counter + Counter(time_count_dict)
+
+        self.esClient.writeMixDownload(dict(counter), "all_download")
+
+    def tagIpDownloadMix(self):
+        j = json.loads(self.collections)
+        com_keys = {}.keys()
+        dicts = []
+        query, key_prefix, count_key, query_es = None, None, None, None
+        for coll in j['collections']:
+            if 'query' in coll:
+                query = coll['query']
+            count_key = coll['count_key']
+            query_index_name = coll['query_index_name']
+            self.esClient.query_index_name = query_index_name
+            if query is not None:
+                query = str(query).replace('"', '\\"')
+            ip_first_dict = self.esClient.getFirstItemMix(query=query, key=count_key,
+                                                          query_index_name=query_index_name)
+            dicts.append(ip_first_dict)
+            com_keys = com_keys | ip_first_dict.keys()
+
+        # the same key, min value
+        ip_first_comb_dict = {key: min(
+            [dicts[0].get(key, float('inf')), dicts[1].get(key, float('inf')), dicts[2].get(key, float('inf'))]) for key
+            in com_keys}
+        self.esClient.writeFirstDownload(ip_first_comb_dict)
+
+        # total ip
+        self.esClient.query_index_name = self.index_name
+        ip_all_dict = self.esClient.getTotalCountMix(self.from_d, query="is_first_download:1",
+                                                     count_key='ip.keyword')
+        self.esClient.writeMixDownload(ip_all_dict, "all_ip")

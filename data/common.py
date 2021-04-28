@@ -15,7 +15,8 @@
 
 
 import json
-import subprocess
+import time
+from dateutil import parser
 import types
 import re
 import dateutil.parser
@@ -30,11 +31,9 @@ import urllib3
 from collect.gitee import GiteeClient
 
 urllib3.disable_warnings()
-
 import requests
 import os
 import yaml
-from requests.auth import HTTPBasicAuth
 
 
 class ESClient(object):
@@ -1169,6 +1168,138 @@ class ESClient(object):
             return
         print("set fork is_removed value to 1 success")
 
+    def splitMixDockerHub(self, from_date, count_key, query=None,
+                          query_index_url=None, query_index_name=None):
+        fromTime = datetime.strptime(from_date, "%Y%m%d")
+        to = datetime.strptime(datetime.today().strftime("%Y%m%d"), "%Y%m%d")
+
+        data_json = '''{
+                         "size": 0,
+                         "query": {
+                           "bool": {
+                             "filter": [
+                               {
+                                 "range": {
+                                   "metadata__updated_on": {
+                                     "gte": "%s",
+                                     "lte": "%s"
+                                   }
+                                 }
+                               },
+                               {
+                                 "query_string": {
+                                   "analyze_wildcard": true,
+                                   "query": "%s"
+                                 }
+                               }
+                             ]
+                           }
+                         },
+                         "aggs": {
+                           "2": {
+                             "date_histogram": {
+                               "interval": "1d",
+                               "field": "metadata__updated_on",
+                               "min_doc_count": 0
+                             },
+                             "aggs": {
+                               "maxCount": {
+                                 "max": {
+                                   "field": "%s"
+                                 }
+                               }
+                             }
+                           }
+                         }
+                       }''' % (fromTime.strftime("%Y-%m-%dT00:00:00+00:00"),
+                               to.strftime("%Y-%m-%dT23:59:59+00:00"), query, count_key)
+
+        res = requests.get(self.getSearchUrl(query_index_url, query_index_name), data=data_json,
+                           headers=self.default_headers, verify=False)
+        if res.status_code != 200:
+            return 0
+        data = res.json()
+        buckets = data['aggregations']['2']['buckets']
+        time_count_dict = {}
+        for bucket in buckets:
+            timestamp = bucket['key']
+            max_count = bucket['maxCount']['value']
+            if max_count is None:
+                max_count = 0
+            time_count_dict.update({timestamp: max_count})
+
+        last_not_0_count = 0
+        count_dict = {}
+        for key, value in time_count_dict.items():
+            dt = time.strftime("%Y%m%d", time.localtime(key / 1000))
+            created_at = datetime.strptime(dt, "%Y%m%d").strftime("%Y-%m-%dT23:59:59+08:00")
+            if datetime.strptime(dt, "%Y%m%d") == to:
+                created_at = datetime.strptime(dt, "%Y%m%d").strftime("%Y-%m-%dT00:00:01+08:00")
+
+            before_value = time_count_dict.get(key - 86400000)
+            if value == 0 or before_value is None:
+                count_dict.update({created_at: value})
+            elif before_value != 0:
+                count_dict.update({created_at: value - before_value})
+                last_not_0_count = value
+            else:
+                count_dict.update({created_at: value - last_not_0_count})
+
+        return count_dict
+
+    def getTotalCountMix(self, from_date, count_key,
+                         field=None, query=None, key_prefix=None):
+        starTime = datetime.strptime(from_date, "%Y%m%d")
+        fromTime = datetime.strptime(from_date, "%Y%m%d")
+        to = datetime.today().strftime("%Y%m%d")
+
+        time_count_dict = {}
+        while fromTime.strftime("%Y%m%d") <= to:
+            print(fromTime)
+
+            created_at = fromTime.strftime("%Y-%m-%dT23:59:59+08:00")
+            if fromTime.strftime("%Y%m%d") == to:
+                created_at = fromTime.strftime("%Y-%m-%dT00:00:01+08:00")
+
+            c = self.getCountByTermDate(
+                field,
+                count_key,
+                starTime.strftime("%Y-%m-%dT00:00:00+08:00"),
+                fromTime.strftime("%Y-%m-%dT23:59:59+08:00"),
+                index_name=self.index_name,
+                query_index_name=self.query_index_name,
+                query=query)
+            if c is None:
+                c = 0
+            time_count_dict.update({created_at: c})
+            fromTime = fromTime + timedelta(days=1)
+        return time_count_dict
+
+    def writeMixDownload(self, time_count_dict, item):
+        actions = ''
+        for key, value in time_count_dict.items():
+            user = {
+                item: value,
+                "created_at": key,
+                "is_%s" % item: 1
+            }
+            id = key.split("T")[0] + item
+            action = getSingleAction(self.index_name, id, user)
+            actions += action
+        self.safe_put_bulk(actions)
+
+    def writeFirstDownload(self, ip_time_dict):
+        actions = ''
+        for key, value in ip_time_dict.items():
+            user = {
+                "ip": key,
+                "created_at": time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time.localtime(value)),
+                "is_first_download": 1
+            }
+            action = getSingleAction(self.index_name, key, user)
+            actions += action
+        self.safe_put_bulk(actions)
+
     def setToltalCount(self, from_date, count_key,
                        field=None, query=None, key_prefix=None):
         starTime = datetime.strptime(from_date, "%Y%m%d")
@@ -1286,6 +1417,24 @@ class ESClient(object):
         if len(buckets) == 0:
             return None
         return buckets
+
+    def getFirstItemMix(self, key_prefix=None, query=None, key=None, query_index_name=None):
+        if not key:
+            return
+        buckets = self.getFirstItemByKey(query, key, query_index_name)
+        if not buckets:
+            return
+
+        ip_first_dict = {}
+        for items in buckets:
+            item = items["login_start"]["hits"]["hits"]
+            if len(item) == 0:
+                continue
+            else:
+                ip = item[0].get("_source").get("ip")
+                created_at = parser.parse(item[0].get("_source").get("created_at")).timestamp()
+                ip_first_dict.update({ip: created_at})
+        return ip_first_dict
 
     def setFirstItem(self, key_prefix=None, query=None, key=None, query_index_name=None):
         actions = ""
