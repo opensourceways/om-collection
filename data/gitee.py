@@ -497,8 +497,10 @@ class Gitee(object):
                 else:
                     resdata += v + "."
         else:
-            if str(data).startswith('%{') and str(data).endswith("}"):
-                resdata = spec.macros[str(data)[2:len(str(data)) - 1]]
+            if str(data).__contains__('%{') and str(data).__contains__('}'):
+                strHead = str(data).split("%{")
+                strLast = strHead[1].split("}")
+                resdata = strHead[0] + spec.macros[strLast[0]] + strLast[1]
             else:
                 resdata += data
         if resdata.endswith('.'):
