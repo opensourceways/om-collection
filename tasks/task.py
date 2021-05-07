@@ -45,6 +45,7 @@ BACKEND_MAPPING = {
     'cve': 'data.cve.CVE',
     'cla': 'data.cla.Cla',
     'polymerization': 'data.combine.polymerization.Polymerization',
+    'git': 'data.git_commit.GitCommit',
 }
 
 
