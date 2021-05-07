@@ -23,9 +23,6 @@ class GitCommit(object):
 
     def __init__(self, config=None):
         self.config = config
-        self.default_headers = {
-            'Content-Type': 'application/json'
-        }
         self.index_name = config.get('index_name').split(',')
         self.sigs_code_all = config.get('sigs_code_all').split(',')
         self.url = config.get('es_url')
@@ -41,9 +38,7 @@ class GitCommit(object):
 
     def run(self, from_date=None):
         if self.repo_scope != None:
-            # pdb.set_trace()  # set a breakpoint
             self.reposcope = self.get_repo_scope(self.repo_scope)
-        # self.authordomainaddr = self.getauthordomain_addr(self.authordomain_addr)
         self.get_sigs_code_all(from_date, self.projects_repo)
 
     def untar(self, fname, dirs='./'):
@@ -81,51 +76,6 @@ class GitCommit(object):
 
             sum_code = res[-1]
 
-    def safe_put_bulk(self, bulk_json, header=None, url=None):
-        """Bulk items to a target index `url`. In case of UnicodeEncodeError,
-        the bulk is encoded with iso-8859-1.
-
-        :param url: target index where to bulk the items
-        :param bulk_json: str representation of the items to upload
-        """
-        if not bulk_json:
-            return
-        _header = {
-            "Content-Type": 'application/x-ndjson',
-            'Authorization': self.authorization
-        }
-        if header:
-            _header = header
-
-        _url = self.url
-        if url:
-            _url = url
-
-        try:
-            res = requests.post(_url + "/_bulk", data=bulk_json,
-                                headers=_header, verify=False)
-
-            # pdb.set_trace()
-            res.raise_for_status()
-        except UnicodeEncodeError:
-
-            # Related to body.encode('iso-8859-1'). mbox data
-            bulk_json = bulk_json.encode('iso-8859-1', 'ignore')
-            res = requests.put(url, data=bulk_json, headers=headers)
-            res.raise_for_status()
-
-    def getItselfUsers(self, filename="huaweiusers"):
-        file_path = os.path.abspath('.') + '/config/' + filename
-        f = open(file_path, 'r')
-
-        users = []
-        for line in f.readlines():
-            if line != "\n":
-                users.append(line.split('\n')[0])
-        # print(users)
-        # print(len(users))
-        return users
-
     def getauthordomain_addr(self, filename="gauthordomain_addr"):
         file_path = os.path.abspath('.') + '/config/' + filename
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -149,7 +99,6 @@ class GitCommit(object):
                 dic.append(b)
 
         dic = dict(dic)
-        # print(dic)
         return dic
 
     def getSingleAction(self, index_name, id, body, act="index"):
@@ -179,7 +128,6 @@ class GitCommit(object):
             gitpath = path + repo
             gc = git.Git(path)
             g = git.Git(gitpath)
-            # print(gitpath)
 
             if flag == 1:
                 conf = 'git config --global core.compression -1'
@@ -291,9 +239,7 @@ class GitCommit(object):
                 result['file_changed'] = file_changed
                 result['add'] = lines_added
                 result['remove'] = lines_removed
-                result['total'] = lines_added - lines_removed
-
-
+                result['total'] = lines_added + lines_removed
                 results.append(result)
 
         return results
@@ -370,9 +316,7 @@ class GitCommit(object):
             for body in res:
                 ID = body['commit_id']
                 data = self.getSingleAction(index_name, ID, body)
-                self.safe_put_bulk(data)
-        # if self.huawei_users != None:
-        #     self.statisticCommit()
+                self.esClient.safe_put_bulk(data)
 
 
     def statisticCommit(self):
@@ -461,7 +405,6 @@ class GitCommit(object):
             dateiise = dateii
             dateii += datetime.timedelta(days=1)
             stime = datetime.datetime.strftime(dateiise, "%Y-%m-%d")
-            # data = '''{"size":9999,"query": {"bool": {"must": [{ "match": { "created_at":"%s" }}%s]}}}''' % (stime, mactch)
             if commit:
                 commitdata = ''',"aggs": {
         "age_count": {
@@ -505,7 +448,7 @@ class GitCommit(object):
             body = {'created_at': stime, totalmark: 1, 'tatol_num': sum(numList)}
             ID = id + stime
             data = self.getSingleAction(index_name, ID, body)
-            self.safe_put_bulk(data)
+            self.esClient.safe_put_bulk(data)
             print(data)
             print(numList)
 
