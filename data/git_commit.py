@@ -5,10 +5,12 @@ import re
 from urllib.parse import quote
 from wsgiref import headers
 
+import yaml
 from bs4 import BeautifulSoup
 from urllib3.connectionpool import xrange
 
 from data import common
+from data.gitee import Gitee
 
 os.environ["GIT_PYTHON_REFRESH"] = "quiet"
 import git
@@ -23,6 +25,9 @@ class GitCommit(object):
 
     def __init__(self, config=None):
         self.config = config
+        self.default_headers = {
+            'Content-Type': 'application/json'
+        }
         self.index_name = config.get('index_name').split(',')
         self.sigs_code_all = config.get('sigs_code_all').split(',')
         self.url = config.get('es_url')
@@ -36,7 +41,19 @@ class GitCommit(object):
         self.username = config.get('username')
         self.password = config.get('password')
 
+        self.data_yaml_url = config.get('data_yaml_url')
+        self.data_yaml_path = config.get('data_yaml_path')
+        self.company_yaml_url = config.get('company_yaml_url')
+        self.company_yaml_path = config.get('company_yaml_path')
+
+
+
+
+
     def run(self, from_date=None):
+        self.domain_companies = self.getInfoFromCompany()['domains_company_list']
+        self.alias_companies = self.getInfoFromCompany()['aliases_company_list']
+        self.users = self.getInfoFromCompany()["datas"]["users"]
         if self.repo_scope != None:
             self.reposcope = self.get_repo_scope(self.repo_scope)
         self.get_sigs_code_all(from_date, self.projects_repo)
@@ -253,6 +270,7 @@ class GitCommit(object):
         date_str = log_date.strftime("%Y-%m-%d")
         time_str = split_list[2].split()[3]
         time_zone = split_list[2].split()[5]
+        company_name = self.find_company(author, email)
 
         # if ':' not in time_str:
         #     continue
@@ -260,11 +278,56 @@ class GitCommit(object):
         commit_id = split_list[- 1]
 
         result = {'created_at': preciseness_time_str, "file_changed": 0, "add": 0,
-                  'remove': 0, 'total': 0, 'author': author,
+                  'remove': 0, 'total': 0, 'author': author, 'company': company_name,
                   'email': email, 'commit_id': commit_id}
 
         return result
 
+    def find_company(self, author, email):
+        company_name = 'independent'
+        for user in self.users:
+            if email in user["emails"]:
+                company_name = self.alias_companies.get(user["companies"][0]["company_name"])
+
+        if self.domain_companies.get(email.split("@")[-1]):
+            company_name = self.domain_companies.get(email.split("@")[-1])
+
+        print(author, "'s company is ", company_name)
+        return company_name
+
+    def getInfoFromCompany(self):
+        companyInfo = {}
+
+        if self.data_yaml_url and self.company_yaml_url:
+            # cmd = 'wget -N %s' % self.data_yaml_url
+            # p = os.popen(cmd.replace('=', ''))
+            # p.read()
+
+            self.data_yaml_path = "data/data.yaml"
+            self.company_yaml_path = "data/company.yaml"
+
+            datas = yaml.load_all(open(self.data_yaml_path, encoding='UTF-8'), Loader=yaml.FullLoader).__next__()
+
+            # cmd = 'wget -N %s' % self.company_yaml_url
+            # p = os.popen(cmd.replace('=', ''))
+            # p.read()
+            companies = yaml.load_all(open(self.company_yaml_path, encoding='UTF-8'), Loader=yaml.FullLoader).__next__()
+            # p.close()
+
+            domains_company_dict = {}
+            aliases_company_dict = {}
+            for company in companies['companies']:
+                for domain in company['domains']:
+                    domains_company_dict[domain] = company['company_name']
+
+                for alias in company["aliases"]:
+                    aliases_company_dict[alias] = company['company_name']
+
+            companyInfo["domains_company_list"] = domains_company_dict
+            companyInfo["aliases_company_list"] = aliases_company_dict
+            companyInfo["datas"] = datas
+
+        return companyInfo
 
     def find_addr_index(self, split_list):
         for sp_str in split_list:
