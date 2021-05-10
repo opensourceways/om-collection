@@ -12,13 +12,15 @@ from urllib3.connectionpool import xrange
 from data import common
 from data.gitee import Gitee
 
-os.environ["GIT_PYTHON_REFRESH"] = "quiet"
 import git
 import datetime
 import json
 import requests
 from data.common import ESClient
+import base64
 import xlwt
+
+os.environ["GIT_PYTHON_REFRESH"] = "quiet"
 
 
 class GitCommit(object):
@@ -50,8 +52,8 @@ class GitCommit(object):
         self.domain_companies = self.getInfoFromCompany()['domains_company_list']
         self.alias_companies = self.getInfoFromCompany()['aliases_company_list']
         self.users = self.getInfoFromCompany()["datas"]["users"]
-        if self.repo_scope != None:
-            self.reposcope = self.get_repo_scope(self.repo_scope)
+        # if self.repo_scope != None:
+        #     self.reposcope = self.get_repo_scope(self.repo_scope)
         self.get_sigs_code_all(from_date, self.projects_repo)
 
     def untar(self, fname, dirs='./'):
@@ -147,7 +149,7 @@ class GitCommit(object):
         return dic
 
     def get_repo_scope(self, filename="repo_scope"):
-        file_path = os.path.abspath('.') + '/config/' + filename
+        file_path = os.path.abspath('.') + 'config/' + filename
         with open(file_path, 'r', encoding='utf-8') as f:
             dic = []
             for line in f.readlines():
@@ -175,17 +177,15 @@ class GitCommit(object):
         reL = []
         flag = 1
         for repourl in repolist:
-
             repo = repourl.split('/')[-1]
-
-            usr = self.username  # transform normal string into origin string
+            usr = base64.b64decode(self.username).decode()
             pwd = quote(self.password)
+            pwd= base64.b64decode(pwd).decode()
 
             clone_url = 'https://' + usr + ':' + pwd + '@gitee.com/' + project + '/' + repo
             gitpath = path + repo
             gc = git.Git(path)
             g = git.Git(gitpath)
-            # print(gitpath)
 
             if flag == 1:
                 conf = 'git config --global core.compression -1'
@@ -233,12 +233,11 @@ class GitCommit(object):
                 no_merged_commit = self.parse_commit(no_merge_log, datei, repourl, False)
                 merged_commit = self.parse_commit(merge_log, datei, repourl, True)
 
-                re.extend(merged_commit)
+                reL.extend(merged_commit)
                 reL.extend(no_merged_commit)
 
                 datei = dateii
         return reL
-
 
     def parse_commit(self, log, log_date, repourl, is_merged):
         results = []
@@ -353,7 +352,6 @@ class GitCommit(object):
             p = os.popen(cmd.replace('=', ''))
             p.read()
 
-
             # Test in windows without wget command
             # self.data_yaml_path = "data/data.yaml"
             # self.company_yaml_path = "data/company.yaml"
@@ -411,7 +409,7 @@ class GitCommit(object):
         return from_date
 
     def getProjectFilePath(self, filename):
-        return os.path.abspath('.') + "\\" + filename + '.json'
+        return os.path.abspath('.') + "/" + filename + '.json'
 
     def get_sigs_code_all(self, from_date=None, filename="projects"):
         project_file_path = self.getProjectFilePath(filename)
@@ -421,7 +419,6 @@ class GitCommit(object):
             from_date = self.getFromDate(from_date, [
                 {"name": "is_git_commit", "value": 1}])
             sig = self.sigs_code_all[index]
-            # project_file_path = os.path.abspath('.') + '/config/' + filename + '.json'
 
             with open(project_file_path, 'r') as f:
                 res = json.load(f)
