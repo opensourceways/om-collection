@@ -12,13 +12,15 @@ from urllib3.connectionpool import xrange
 from data import common
 from data.gitee import Gitee
 
-os.environ["GIT_PYTHON_REFRESH"] = "quiet"
 import git
 import datetime
 import json
 import requests
 from data.common import ESClient
+import base64
 import xlwt
+
+os.environ["GIT_PYTHON_REFRESH"] = "quiet"
 
 
 class GitCommit(object):
@@ -46,16 +48,12 @@ class GitCommit(object):
         self.company_yaml_url = config.get('company_yaml_url')
         self.company_yaml_path = config.get('company_yaml_path')
 
-
-
-
-
     def run(self, from_date=None):
         self.domain_companies = self.getInfoFromCompany()['domains_company_list']
         self.alias_companies = self.getInfoFromCompany()['aliases_company_list']
         self.users = self.getInfoFromCompany()["datas"]["users"]
-        if self.repo_scope != None:
-            self.reposcope = self.get_repo_scope(self.repo_scope)
+        # if self.repo_scope != None:
+        #     self.reposcope = self.get_repo_scope(self.repo_scope)
         self.get_sigs_code_all(from_date, self.projects_repo)
 
     def untar(self, fname, dirs='./'):
@@ -93,6 +91,17 @@ class GitCommit(object):
 
             sum_code = res[-1]
 
+    def getItselfUsers(self, filename="huaweiusers"):
+        file_path = os.path.abspath('.') + '/config/' + filename
+        f = open(file_path, 'r')
+        users = []
+        for line in f.readlines():
+            if line != "\n":
+                users.append(line.split('\n')[0])
+        # print(users)
+        # print(len(users))
+        return users
+
     def getauthordomain_addr(self, filename="gauthordomain_addr"):
         file_path = os.path.abspath('.') + '/config/' + filename
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -116,6 +125,7 @@ class GitCommit(object):
                 dic.append(b)
 
         dic = dict(dic)
+        # print(dic)
         return dic
 
     def getSingleAction(self, index_name, id, body, act="index"):
@@ -127,7 +137,6 @@ class GitCommit(object):
         return action
 
     def collect_code(self, from_date, repolist=[], project=None):
-        res_all = {}
 
         path = '/home/collect-code-clone/' + project + '/'
         if not os.path.exists(path):
@@ -135,11 +144,10 @@ class GitCommit(object):
         reL = []
         flag = 1
         for repourl in repolist:
-
             repo = repourl.split('/')[-1]
-
-            usr = self.username  # transform normal string into origin string
+            usr = base64.b64decode(self.username).decode()
             pwd = quote(self.password)
+            pwd= base64.b64decode(pwd).decode()
 
             clone_url = 'https://' + usr + ':' + pwd + '@gitee.com/' + project + '/' + repo
             gitpath = path + repo
@@ -189,14 +197,13 @@ class GitCommit(object):
                 no_merge_log = g.execute(logcmd_no_merge, shell=True)
                 merge_log = g.execute(logcmd_merge, shell=True)
 
-                merged_commit = self.parse_commit(merge_log, datei, repourl, True)
                 no_merged_commit = self.parse_commit(no_merge_log, datei, repourl, False)
+                merged_commit = self.parse_commit(merge_log, datei, repourl, True)
 
                 reL.extend(merged_commit)
                 reL.extend(no_merged_commit)
 
                 datei = dateii
-
         return reL
 
     def parse_commit(self, log, log_date, repourl, is_merged):
@@ -227,7 +234,6 @@ class GitCommit(object):
                 result['project'] = repo
                 result['repo'] = repourl
 
-
                 file_changed = 0
                 lines_added = 0
                 lines_removed = 0
@@ -257,10 +263,10 @@ class GitCommit(object):
                 result['add'] = lines_added
                 result['remove'] = lines_removed
                 result['total'] = lines_added + lines_removed
+
                 results.append(result)
 
         return results
-
 
     def parse_commit_log(self, commit_log, log_date):
         split_list = commit_log.split(",")
@@ -269,12 +275,21 @@ class GitCommit(object):
         email = split_list[1]
         date_str = log_date.strftime("%Y-%m-%d")
         time_str = split_list[2].split()[3]
-        time_zone = split_list[2].split()[5]
+
+        # there are two dilemma in commit log: has time zone and has no time zone, such as  'Tue Jan 7 18:09:19 2020'  and 'Tue Feb 2 17:00:42 2021 +0800'. Give two solutions for them.
+        try:
+            time_zone = split_list[2].split()[5]
+        except IndexError:
+            time_zone = None
+        # search the company of author then write into dict
         company_name = self.find_company(author, email)
 
         # if ':' not in time_str:
         #     continue
-        preciseness_time_str = date_str + "T" + time_str + time_zone
+        if time_zone:
+            preciseness_time_str = date_str + "T" + time_str + time_zone
+        else:
+            preciseness_time_str = date_str + "T" + time_str
         commit_id = split_list[- 1]
 
         result = {'created_at': preciseness_time_str, "file_changed": 0, "add": 0,
@@ -285,6 +300,7 @@ class GitCommit(object):
 
     def find_company(self, author, email):
         company_name = 'independent'
+
         for user in self.users:
             if email in user["emails"]:
                 company_name = self.alias_companies.get(user["companies"][0]["company_name"])
@@ -299,20 +315,21 @@ class GitCommit(object):
         companyInfo = {}
 
         if self.data_yaml_url and self.company_yaml_url:
-            # cmd = 'wget -N %s' % self.data_yaml_url
-            # p = os.popen(cmd.replace('=', ''))
-            # p.read()
+            cmd = 'wget -N %s' % self.data_yaml_url
+            p = os.popen(cmd.replace('=', ''))
+            p.read()
 
+            # Test in windows without wget command
             self.data_yaml_path = "data/data.yaml"
             self.company_yaml_path = "data/company.yaml"
 
-            datas = yaml.load_all(open(self.data_yaml_path, encoding='UTF-8'), Loader=yaml.FullLoader).__next__()
+            datas = yaml.load_all(open(self.data_yaml_path, encoding='UTF-8')).__next__()
 
-            # cmd = 'wget -N %s' % self.company_yaml_url
-            # p = os.popen(cmd.replace('=', ''))
-            # p.read()
-            companies = yaml.load_all(open(self.company_yaml_path, encoding='UTF-8'), Loader=yaml.FullLoader).__next__()
-            # p.close()
+            cmd = 'wget -N %s' % self.company_yaml_url
+            p = os.popen(cmd.replace('=', ''))
+            p.read()
+            companies = yaml.load_all(open(self.company_yaml_path, encoding='UTF-8')).__next__()
+            p.close()
 
             domains_company_dict = {}
             aliases_company_dict = {}
@@ -334,7 +351,6 @@ class GitCommit(object):
             if '@' in sp_str:
                 return split_list.index(sp_str)
 
-
     def get_author(self, split_list, addr_index):
         author = ''
         for item in range(addr_index):
@@ -344,7 +360,6 @@ class GitCommit(object):
                 author += split_list[item] + ' '
         return author
 
-
     def find_last(self, string, str):
         last_position = -1
         while True:
@@ -353,7 +368,6 @@ class GitCommit(object):
                 return last_position
             last_position = position
 
-
     def getFromDate(self, from_date, filters):
         if from_date is None:
             from_date = self.esClient.get_from_create_date(filters)
@@ -361,15 +375,17 @@ class GitCommit(object):
             from_date = common.str_to_datetime(from_date)
         return from_date
 
+    def getProjectFilePath(self, filename):
+        return os.path.abspath('.') + "/" + filename + '.json'
 
     def get_sigs_code_all(self, from_date=None, filename="projects"):
+        project_file_path = self.getProjectFilePath(filename)
+
         for index in range(len(self.index_name)):
             index_name = self.index_name[index]
             from_date = self.getFromDate(from_date, [
                 {"name": "is_git_commit", "value": 1}])
             sig = self.sigs_code_all[index]
-            # print(os.path.abspath('.'))
-            project_file_path = os.path.abspath('.') + '/config/' + filename + '.json'
 
             with open(project_file_path, 'r') as f:
                 res = json.load(f)
@@ -380,7 +396,8 @@ class GitCommit(object):
                 ID = body['commit_id']
                 data = self.getSingleAction(index_name, ID, body)
                 self.esClient.safe_put_bulk(data)
-
+        # if self.huawei_users != None:
+        #     self.statisticCommit()
 
     def statisticCommit(self):
         from_d = "20200701"
@@ -393,7 +410,6 @@ class GitCommit(object):
         # 按月统计编码占比
         self.esClient.setToltalCountByMonth(from_d, "add", field="author.keyword",
                                             query_filter="is_huawei_author_by_month")
-
 
     def write_data_to_excel(self, all_code):
         self.delete_old_file()
@@ -429,7 +445,6 @@ class GitCommit(object):
         datei = datetime.datetime.strftime(datetime.datetime.now(), "%Y%m%d%H%M%S")
         wbk.save("gitee_commit_info" + datei + '.xls')
 
-
     def style(self, sheet):
         # 初始化表头样式
         style = xlwt.XFStyle()
@@ -445,7 +460,6 @@ class GitCommit(object):
         style.pattern = pattern
         return style
 
-
     def delete_old_file(self):
         dirPath = os.path.abspath('.')
         os.chdir(dirPath)
@@ -454,7 +468,6 @@ class GitCommit(object):
             print(filename)
             if "gitee_commit_info" in filename:
                 os.remove(dirPath + '/' + filename)
-
 
     def get_totals(self, url, index_name, date, mactch, totalmark, id, down=False, commit=False):
         datei = datetime.datetime.strptime(date, "%Y-%m-%d")
@@ -468,6 +481,7 @@ class GitCommit(object):
             dateiise = dateii
             dateii += datetime.timedelta(days=1)
             stime = datetime.datetime.strftime(dateiise, "%Y-%m-%d")
+            # data = '''{"size":9999,"query": {"bool": {"must": [{ "match": { "created_at":"%s" }}%s]}}}''' % (stime, mactch)
             if commit:
                 commitdata = ''',"aggs": {
         "age_count": {
@@ -514,5 +528,3 @@ class GitCommit(object):
             self.esClient.safe_put_bulk(data)
             print(data)
             print(numList)
-
-

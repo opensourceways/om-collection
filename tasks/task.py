@@ -40,12 +40,13 @@ BACKEND_MAPPING = {
     'bilibili': 'data.bilibili.BILIBILI',
     'collect_data': 'data.collect_data.CollectData',
     'transform_data': 'data.transform_data.TransformData',
+    'git_commit': 'data.git_commit.GitCommit',
     'meetings': 'data.meetings.Meetings',
     'report_email': 'data.report_email.ReportEmail',
     'cve': 'data.cve.CVE',
     'cla': 'data.cla.Cla',
     'polymerization': 'data.combine.polymerization.Polymerization',
-    'git': 'data.git_commit.GitCommit',
+    'git': 'data.git_commit.GitCommit'
 }
 
 
@@ -63,7 +64,7 @@ class George:
     def start(self):
         logger.info("----------------------------")
         logger.info("Starting engine ...")
-        logger.info("- - - - - - - - - - - - - - ")
+        logger.info("- - - - - - - - - - - - - - - ")
 
         drivers = []
         for backend in self.sections:
