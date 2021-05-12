@@ -498,14 +498,28 @@ class Gitee(object):
                     resdata += v + "."
         else:
             if str(data).__contains__('%{') and str(data).__contains__('}'):
-                strHead = str(data).split("%{")
-                strLast = strHead[1].split("}")
-                resdata = strHead[0] + spec.macros[strLast[0]] + strLast[1]
+                self.findVar(data, spec)
+                resdata = strsss
             else:
                 resdata += data
         if resdata.endswith('.'):
             resdata = resdata[0:len(resdata) - 1]
         return resdata
+
+    # Multi-layer variable
+    def findVar(self, versionStr, spec):
+        global strsss
+        allVar = re.findall(r'%{(.*?)}', versionStr)
+        if len(allVar) == 0:
+            strsss = versionStr
+            return strsss
+        for var in allVar:
+            try:
+                value = spec.macros[var]
+            except:
+                value = spec.macros[str(var).replace("patch", "")]
+            versionStr = str(versionStr).replace('%{' + var + '}', value)
+        self.findVar(versionStr, spec)
 
     def getbranchinfo(self, branches, client, owner, repo, repopath, versiontimemapping_index):
         result = []
