@@ -2,17 +2,10 @@
 # -*- coding: utf-8 -*-
 import os
 import re
-from urllib.parse import quote
-from wsgiref import headers
-import pdb
-
 import yaml
 from bs4 import BeautifulSoup
 from urllib3.connectionpool import xrange
-
 from data import common
-from data.gitee import Gitee
-
 import git
 import datetime
 import json
@@ -571,3 +564,4 @@ class GitCommit(object):
             self.esClient.safe_put_bulk(data)
             print(data)
             print(numList)
+
