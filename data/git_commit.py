@@ -2,16 +2,10 @@
 # -*- coding: utf-8 -*-
 import os
 import re
-from urllib.parse import quote
-from wsgiref import headers
-
 import yaml
 from bs4 import BeautifulSoup
 from urllib3.connectionpool import xrange
-
 from data import common
-from data.gitee import Gitee
-
 import git
 import datetime
 import json
@@ -136,79 +130,141 @@ class GitCommit(object):
         action += json.dumps(body) + '\n'
         return action
 
-    def collect_code(self, from_date, repolist=[], project=None):
+    def get_sigs_code_all(self, from_date=None, filename="projects"):
+        project_file_path = self.getProjectFilePath(filename)
+
+        for index in range(len(self.index_name)):
+            index_name = self.index_name[index]
+            from_date = self.getFromDate(from_date, [
+                {"name": "is_git_commit", "value": 1}])
+            sig = self.sigs_code_all[index]
+
+            with open(project_file_path, 'r') as f:
+                res = json.load(f)
+                repos = res[sig]['git']
+            self.collect_code(from_date, index_name,repos, sig)
+
+    def collect_code(self, from_date, index_name, repourl_list, project=None):
 
         path = '/home/collect-code-clone/' + project + '/'
         if not os.path.exists(path):
             os.makedirs(path)
-        reL = []
+
+        for repourl in repourl_list:
+            repo = repourl.split("/")[-1]
+            g = self.pull_Repo_To_Local(repourl, project, path)
+            repo_commit_list = self.fetch_commit_log_from_repo(from_date, g, repourl)
+
+            # store a single repo data into ES
+            action = ''
+            for commit in repo_commit_list:
+                ID = commit["commit_id"]
+                commit_str = self.getSingleAction(index_name, ID, commit)
+                action += commit_str
+            print(f"Start store {repo} data to ES.")
+            self.esClient.safe_put_bulk(action)
+
+            print(repo, f" has {len(repo_commit_list)} commits. All has been collected into ES.")
+
+    def push_repo_data_into_es(self, index_name, repo_data_list, repo):
+        action = ''
+        for commit in repo_data_list:
+            ID = commit["commit_id"]
+            commit_log = self.getSingleAction(index_name, ID, commit)
+            action += commit_log
+        self.esClient.safe_put_bulk(action)
+        print(repo, " data has stored into ES")
+
+    def pull_Repo_To_Local(self, repourl, project, path):
+        repo = repourl.split("/")[-1]
+        website = repourl.split("/")[2]
+        username = base64.b64decode(self.username).decode()
+        passwd = base64.b64decode(self.password).decode()
+
+        clone_url = 'https://' + website + '/' + project + '/' + repo
+        if username and passwd:
+            clone_url = 'https://' + username + ':' + passwd + '@' + website + '/' + project + '/' + repo
+        gitpath = path + repo
+        gc = git.Git(path)
+        g = git.Git(gitpath)
+
         flag = 1
-        for repourl in repolist:
-            repo = repourl.split('/')[-1]
-            usr = base64.b64decode(self.username).decode()
-            pwd = quote(self.password)
-            pwd= base64.b64decode(pwd).decode()
+        if flag == 1:
+            conf = 'git config --global core.compression -1'
+            conf2 = 'git config --global http.postBuffer 1048576000'
+            gc.execute(conf, shell=True)
+            gc.execute(conf2, shell=True)
+            flag == 2
 
-            clone_url = 'https://' + usr + ':' + pwd + '@gitee.com/' + project + '/' + repo
-            gitpath = path + repo
-            gc = git.Git(path)
-            g = git.Git(gitpath)
+        # clone the repos to local
+        if not os.path.exists(gitpath):
+            cmdclone = 'git clone %s.git' % clone_url
+            try:
+                gc.execute(cmdclone, shell=True)
+            except  Exception as e:
+                print(f'Occur error when clone repository: {repo}. Error Name is: ', e.__class__)
 
-            if flag == 1:
-                conf = 'git config --global core.compression -1'
-                conf2 = 'git config --global http.postBuffer 1048576000'
-                gc.execute(conf, shell=True)
-                gc.execute(conf2, shell=True)
-                flag = 2
-            if not os.path.exists(gitpath):
-                cmdclone = 'git clone %s.git' % clone_url
+        else:
+            cmdpull = "git pull"
+            try:
+                g.execute(cmdpull, shell=True)
+            except:
+                print(f'{repo} pull error')
 
-                try:
-                    gc.execute(cmdclone, shell=True)
-                except  Exception as e:
+        return g
 
-                    print('There is the Exception, which has no permisstion to clone: ', e.__class__)
-                    continue
-            else:
-                setbrunch = 'git branch --set-upstream-to=origin/master master'
-                g.execute(setbrunch, shell=True)
-                cmdpull = 'git pull'
-                try:
-                    g.execute(cmdpull, shell=True)
-                except:
-                    print('pull error')
-            datei = datetime.datetime.strptime(datetime.datetime.strftime(from_date, "%Y-%m-%d"),
-                                               "%Y-%m-%d")
-            dateii = datei
-            while True:  # pull, parse, assemble commit records
-                datenow = datetime.datetime.strptime(datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d"),
-                                                     "%Y-%m-%d")
-                if dateii == datenow:
-                    break
-                dateii += datetime.timedelta(days=3)
-                if dateii > datenow:
-                    dateii = datenow
+    def fetch_commit_log_from_repo(self, from_date, g, repourl):
+        repo_commit_list = []
+        repo = repourl.split("/")[-1]
+        datei = datetime.datetime.strptime(datetime.datetime.strftime(from_date, "%Y-%m-%d"), "%Y-%m-%d")
+        dateii = datei
 
-                logcmd_no_merge = "git log --after=\"%s\" --before=\"%s\" --shortstat --pretty=\"%%an,%%ae,%%ad,%%H\" --no-merges " % (
-                    datei, dateii)
+        while True:  # pull, parse, assemble commit records
+            datenow = datetime.datetime.strptime(datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d"),
+                                                 "%Y-%m-%d")
+            if dateii == datenow:
+                break
+            dateii += datetime.timedelta(days=3)
+            if dateii > datenow:
+                dateii = datenow
 
-                logcmd_merge = "git log --after=\"%s\" --before=\"%s\" --shortstat --pretty=\"%%an,%%ae,%%ad,%%H\" --merges " % (
-                    datei, dateii)
+            logcmd_no_merge = "git log --after=\"%s\" --before=\"%s\" --shortstat --pretty=\"%%an;%%ae;%%ad;%%H\" --no-merges " % (
+                datei, dateii)
+            logcmd_merge = "git log --after=\"%s\" --before=\"%s\" --shortstat --pretty=\"%%an;%%ae;%%ad;%%H\" --merges " % (
+                datei, dateii)
+
+            no_merge_log=''
+            try:
                 no_merge_log = g.execute(logcmd_no_merge, shell=True)
+            except:
+                pass
+
+            merge_log=''
+            try:
                 merge_log = g.execute(logcmd_merge, shell=True)
+            except:
+                pass
 
-                no_merged_commit = self.parse_commit(no_merge_log, datei, repourl, False)
-                merged_commit = self.parse_commit(merge_log, datei, repourl, True)
+            no_merged_commit = self.parse_commit(no_merge_log, datei, repourl, False)
+            merged_commit = self.parse_commit(merge_log, datei, repourl, True)
 
-                reL.extend(merged_commit)
-                reL.extend(no_merged_commit)
+            repo_commit_list.extend(merged_commit)
+            repo_commit_list.extend(no_merged_commit)
 
-                datei = dateii
-        return reL
+
+            if dateii.month != datei.month:
+                print(f"Repository: {repo} ************{datei.year} year - {datei.month} month commits has been collected.")
+
+            datei = dateii
+
+
+
+
+
+        return repo_commit_list
 
     def parse_commit(self, log, log_date, repourl, is_merged):
         results = []
-        result = {}
 
         if not log:
             return results
@@ -269,7 +325,7 @@ class GitCommit(object):
         return results
 
     def parse_commit_log(self, commit_log, log_date):
-        split_list = commit_log.split(",")
+        split_list = commit_log.split(";")
 
         author = split_list[0]
         email = split_list[1]
@@ -308,7 +364,7 @@ class GitCommit(object):
         if self.domain_companies.get(email.split("@")[-1]):
             company_name = self.domain_companies.get(email.split("@")[-1])
 
-        print(author, "'s company is ", company_name)
+        # print(author, "'s company is ", company_name)
         return company_name
 
     def getInfoFromCompany(self):
@@ -319,17 +375,18 @@ class GitCommit(object):
             p = os.popen(cmd.replace('=', ''))
             p.read()
 
-            # Test in windows without wget command
-            self.data_yaml_path = "data/data.yaml"
-            self.company_yaml_path = "data/company.yaml"
-
             datas = yaml.load_all(open(self.data_yaml_path, encoding='UTF-8')).__next__()
-
             cmd = 'wget -N %s' % self.company_yaml_url
             p = os.popen(cmd.replace('=', ''))
             p.read()
             companies = yaml.load_all(open(self.company_yaml_path, encoding='UTF-8')).__next__()
             p.close()
+
+            # ###Test in windows without wget command
+            # self.data_yaml_path = "data/data.yaml"
+            # self.company_yaml_path = "data/company.yaml"
+            # datas = yaml.load_all(open(self.data_yaml_path, encoding='UTF-8'), Loader=yaml.FullLoader).__next__()
+            # companies = yaml.load_all(open(self.company_yaml_path, encoding='UTF-8'), Loader=yaml.FullLoader).__next__()
 
             domains_company_dict = {}
             aliases_company_dict = {}
@@ -377,27 +434,6 @@ class GitCommit(object):
 
     def getProjectFilePath(self, filename):
         return os.path.abspath('.') + "/" + filename + '.json'
-
-    def get_sigs_code_all(self, from_date=None, filename="projects"):
-        project_file_path = self.getProjectFilePath(filename)
-
-        for index in range(len(self.index_name)):
-            index_name = self.index_name[index]
-            from_date = self.getFromDate(from_date, [
-                {"name": "is_git_commit", "value": 1}])
-            sig = self.sigs_code_all[index]
-
-            with open(project_file_path, 'r') as f:
-                res = json.load(f)
-                repos = res[sig]['git']
-            res = self.collect_code(from_date, repos, sig)
-
-            for body in res:
-                ID = body['commit_id']
-                data = self.getSingleAction(index_name, ID, body)
-                self.esClient.safe_put_bulk(data)
-        # if self.huawei_users != None:
-        #     self.statisticCommit()
 
     def statisticCommit(self):
         from_d = "20200701"
@@ -528,3 +564,4 @@ class GitCommit(object):
             self.esClient.safe_put_bulk(data)
             print(data)
             print(numList)
+
