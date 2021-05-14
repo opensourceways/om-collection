@@ -20,7 +20,6 @@ import time
 import requests
 import json
 
-
 EVENT_ADD_REPO = "新增了仓库"
 EVENT_FORK_REPO = "fork了仓库"
 EVENT_DELETE_REPO = "删除了仓库"
@@ -31,7 +30,6 @@ EVENT_CODE_HTTP_PULL = "HTTP PULL"
 EVENT_CODE_SSH_PUSH = "SSH PUSH"
 EVENT_CODE_DOWNLOAD_ZIP = "DOWNLOAD ZIP"
 OWNERS = ['mindspore']
-
 
 from os import path
 from data import common
@@ -60,6 +58,8 @@ class GiteeEvent(object):
             self.gitee_event_log_dir = config.get('gitee_event_log_dir', "").split(",")
         self.esClient.getEnterpriseUser()
         self.esClient.internalUsers = self.esClient.getItselfUsers(self.esClient.internal_users)
+        self.is_get_all_event = config.get('is_get_all_event')
+        self.esClient.giteeid_company_dict = self.esClient.getuserInfoFromCla()
 
     def writeGiteeDownDataByFile(self, filename, indexName=None):
         with open(filename, 'r', encoding='utf-8') as f:
@@ -88,7 +88,7 @@ class GiteeEvent(object):
                 # if ip == "127.0.0.1":
                 #     continue
 
-                time = time.split( )[0] + "T" + time.split( )[1] + "+08:00"
+                time = time.split()[0] + "T" + time.split()[1] + "+08:00"
                 is_forked_repo = 0
                 if repo_full_name.split('/')[0] not in OWNERS:
                     is_forked_repo = 1
@@ -131,7 +131,6 @@ class GiteeEvent(object):
         self.esClient.safe_put_bulk(actions)
         f.close()
 
-
     def get_repos(self, org):
         client = GiteeClient(org, None, self.gitee_token)
         print(self.is_gitee_enterprise)
@@ -166,7 +165,6 @@ class GiteeEvent(object):
         thread_func_args[self.writeGiteeDownDataByFile] = files
         return thread_func_args
 
-
     def getRepoThreadFuncs(self, from_date):
         thread_func_args = {}
         values = []
@@ -177,66 +175,77 @@ class GiteeEvent(object):
         thread_func_args[self.getEventFromRepo] = values
         return thread_func_args
 
-
     def getEventFromRepo(self, owner, repo):
-        page = 1
-        print("start  owner(%s) repo(%s) page=%d" % (
-        owner, repo, page))
+        prev_id = 0
+        print("start  owner(%s) repo(%s) prev_id=%d" % (owner, repo, prev_id))
         client = GiteeClient(owner, repo, self.gitee_token)
-        actions = ''
+        if self.is_get_all_event == 'true':
+            max_id = 0
+        else:
+            max_id = self.esClient.giteeEventMaxId(repo_full_name=owner + '/' + repo)
+
         while 1:
             try:
-                response = client.events(page)
+                response = client.events_prev_id(prev_id)
 
                 events_data = common.getGenerator(response)
-                print("owner(%s) repo(%s) envents data num=%s, page=%d" % (owner, repo, len(events_data), page))
+                print("owner(%s) repo(%s) envents data num=%s, prev_id=%d" % (owner, repo, len(events_data), prev_id))
                 # print(events_data)
-                json_type ={
-                    "is_gitee_StarEvent":0,
-                    "is_gitee_PushEvent":0,
-                    "is_gitee_PullRequestCommentEvent":0,
-                    "is_gitee_ProjectCommentEvent":0,
-                    "is_gitee_MilestonEevent":0,
-                    "is_gitee_MemberEvent":0,
-                    "is_gitee_IssueEvent":0,
-                    "is_gitee_IssueCommentEvent":0,
-                    "is_gitee_ForkEvent":0,
-                    "is_gitee_CreateEvent":0,
-                    "is_gitee_DeleteEvent":0,
-                    "is_gitee_CommitCommentEvent":0,                 
+                json_type = {
+                    "is_gitee_StarEvent": 0,
+                    "is_gitee_PushEvent": 0,
+                    "is_gitee_PullRequestCommentEvent": 0,
+                    "is_gitee_ProjectCommentEvent": 0,
+                    "is_gitee_MilestonEevent": 0,
+                    "is_gitee_MemberEvent": 0,
+                    "is_gitee_IssueEvent": 0,
+                    "is_gitee_IssueCommentEvent": 0,
+                    "is_gitee_ForkEvent": 0,
+                    "is_gitee_CreateEvent": 0,
+                    "is_gitee_DeleteEvent": 0,
+                    "is_gitee_CommitCommentEvent": 0,
                 }
 
                 if len(events_data) == 0:
                     print("owner(%s) repo(%s) get event break " % (owner, repo))
                     break
+
+                prev_id = events_data[len(events_data) - 1]['id']
+
+                actions = ''
                 for e in events_data:
                     e.update(json_type)
                     id = owner + "-" + repo + "_"
                     if e.get('id'):
                         id = id + str(e.get('id'))
                     if e.get('type'):
-                        is_type='is_gitee_'+e.get('type')
-                        e[is_type]=1
+                        is_type = 'is_gitee_' + e.get('type')
+                        e[is_type] = 1
                         id = id + e.get('type')
                     is_inner_user = self.esClient.getUserInfo(e.get('actor')['login'])
                     e.update(is_inner_user)
                     action = common.getSingleAction(self.index_name, id, e)
                     actions += action
-                page += 1
+                # page += 1
             except ValueError as e:
-                print("error=%s, page=%d", (e, page))
-                page += 1
+                print("error=%s, prev_id=%d", (e, prev_id))
+                # page += 1
                 continue
             except TypeError as e:
-                print("error=%s, page=%d", (e, page))
-                page += 1
+                print("error=%s, prev_id=%d", (e, prev_id))
+                # page += 1
                 continue
 
-        self.esClient.safe_put_bulk(actions)
-        print("owner(%s) repo(%s) end page=%d" % (owner, repo, page))
+            self.esClient.safe_put_bulk(actions)
 
+            if prev_id < max_id:
+                print("owner(%s) repo(%s) get event max_id break " % (owner, repo))
+                break
+        print("owner(%s) repo(%s) end prev_id=%d" % (owner, repo, prev_id))
 
     def run(self, from_date):
+        self.getEventFromRepo(owner='openeuler', repo='community')
+
         if self.is_from_log_files == 'true':
             for path in self.gitee_event_log_dir:
                 thread_func_args = self.getThreadFuncs(from_date, path + "*.csv")

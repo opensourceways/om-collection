@@ -190,6 +190,19 @@ class GiteeClient():
         path = self.urijoin("events")
         return self.fetch_items(path, payload)
 
+    def events_prev_id(self, prev_id):
+        """Fetch the pull requests from the repository.
+        The method retrieves, from a Gitee repository, the pull requests
+        updated since the given date.
+        """
+        payload = {
+            'limit': self.max_items,
+            'prev_id': prev_id,
+        }
+        path = self.urijoin("events")
+        return self.fetch_items(path, payload)
+
+
     def repo(self):
         """Get repository data"""
 
