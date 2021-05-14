@@ -58,7 +58,7 @@ class George:
         self.config = ConfigParser()
         self.config.read('config.ini')
         self.sections = self.config.sections()
-        self.from_data = self.config.get('general', 'from_data')
+        self.from_date = self.config.get('general', 'from_date')
         self.sleep_time = self.config.getint('general', 'sleep_time')
 
     def start(self):
@@ -72,19 +72,18 @@ class George:
                 driver = import_object(BACKEND_MAPPING[backend], self.getBackendConfig(backend))
                 drivers.append(driver)
 
-        starTime = self.from_data
+        startTime = self.from_date
         while True:
-            if starTime is None:
+            if startTime is None:
                 print("[common] Start to run from itself time")
             else:
-                print("[common] Start to run from ", starTime)
+                print("[common] Start to run from ", startTime)
             for driver in drivers:
-                driver.run(starTime)
+                driver.run(startTime)
 
-            print("try to run again....waiting for %d seconds, from %s"
-                  % (self.sleep_time, datetime.now()))
+            print(f"try to run again. waiting for {self.sleep_time} seconds, from {self.sleep_time}. \n\n\n")
             time.sleep(self.sleep_time)
-            starTime = None
+            startTime = None
             print("try to run again")
 
         logger.info("Finished engine ...")
