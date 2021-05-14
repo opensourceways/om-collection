@@ -883,6 +883,38 @@ class ESClient(object):
         # print(data["aggregations"]["sum"]["value"])
         return data["aggregations"]["sum"]["value"]
 
+    def giteeEventMaxId(self, repo_full_name):
+        data_json = '''{
+              "size": 0,
+              "query": {
+                "bool": {
+                  "must": [
+                    {
+                      "term": {
+                        "repo.full_name.keyword": "%s"
+                      }
+                    }
+                  ]
+                }
+              },
+              "aggs": {
+                "max_id": {
+                  "max": {
+                    "field": "id"
+                  }
+                }
+              }
+            }''' % repo_full_name
+        self.setFirstItem()
+        res = requests.get(self.getSearchUrl(index_name=self.index_name), data=data_json,
+                           headers=self.default_headers, verify=False)
+        if res.status_code != 200:
+            return 0
+        max_id = res.json()['aggregations']['max_id']['value']
+        if max_id is None or max_id == 'null':
+            return 0
+        return max_id
+
     def getCountByTermDate(self, term=None, field=None, from_date=None, to_date=None,
                            url=None, index_name=None, query=None, query_index_name=None):
         if query:
