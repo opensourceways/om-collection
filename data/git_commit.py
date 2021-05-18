@@ -310,11 +310,10 @@ class GitCommit(object):
             time_zone = split_list[2].split()[5]
         except IndexError:
             time_zone = None
-        # search the company of author then write into dict
-        company_name = self.find_company(author, email)
 
-        # if ':' not in time_str:
-        #     continue
+        # search the company of author then write into dict
+        company_name = self.find_company(email)
+
         if time_zone:
             preciseness_time_str = date_str + "T" + time_str + time_zone
         else:
@@ -327,7 +326,7 @@ class GitCommit(object):
 
         return result
 
-    def find_company(self, author, email):
+    def find_company(self, email):
         company_name = 'independent'
 
         for user in self.users:
