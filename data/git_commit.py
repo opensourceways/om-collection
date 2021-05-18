@@ -19,7 +19,7 @@ class GitCommit(object):
         self.default_headers = {
             'Content-Type': 'application/json'
         }
-        self.from_date = config.get("from_date")
+        self.from_date = config.get("from_data")
         self.index_name = config.get('index_name').split(',')
         self.sigs_code_all = config.get('sigs_code_all').split(',')
         self.url = config.get('es_url')
@@ -44,7 +44,6 @@ class GitCommit(object):
             from_date = self.from_date
 
         print(f"*************Begin to collect commits.  From :{from_date}***********")
-        self.is_run_over = False
         self.domain_companies = self.getInfoFromCompany()['domains_company_list']
         self.alias_companies = self.getInfoFromCompany()['aliases_company_list']
         self.users = self.getInfoFromCompany()["datas"]["users"]
@@ -74,9 +73,11 @@ class GitCommit(object):
                 res = json.load(f)
                 repos = res[sig]['git']
 
-            if index == len(self.index_name) - 1:
-                self.is_run_over = True
             self.collect_code(from_date, index_name, repos, sig)
+
+            if index == len(self.index_name) - 1:
+                self.from_date = datetime.datetime.now()
+
         print(f"Collected {len(repos)} repositories for this project")
 
     def collect_code(self, from_date, index_name, repourl_list, project=None):
@@ -88,6 +89,8 @@ class GitCommit(object):
         for repourl in repourl_list:
             repo = repourl.split("/")[-1]
             g = self.pull_Repo_To_Local(repourl, project, path)
+
+            # Get commits for each branch
             repo_commit_list = self.fetch_commit_log_from_repo(from_date, g, repourl)
 
             # store a single repo data into ES
@@ -100,6 +103,23 @@ class GitCommit(object):
             self.esClient.safe_put_bulk(action)
 
             print(repo, f" has {len(repo_commit_list)} commits. All has been collected into ES.")
+
+    def get_repo_branches(self, g):
+        branch_names = []
+        text = g.execute("git branch -a", shell=True)
+        branch_list = text.split("\n")
+
+        master_index = 0
+        for i in range(len(branch_list)):
+            if branch_list[i].find("->") != -1:
+                master_index = i
+                break
+        branches = branch_list[master_index + 1:][::-1]
+
+        for branch in branches:
+            branch_name = branch.split("/")[-1]
+            branch_names.append(branch_name)
+        return branch_names
 
     def push_repo_data_into_es(self, index_name, repo_data_list, repo):
         action = ''
@@ -138,7 +158,6 @@ class GitCommit(object):
                 gc.execute(cmdclone, shell=True)
             except  Exception as e:
                 print(f'Occur error when clone repository: {repo}. Error Name is: ', e.__class__)
-
         else:
             cmdpull = "git pull"
             try:
@@ -151,54 +170,72 @@ class GitCommit(object):
     def fetch_commit_log_from_repo(self, from_date, g, repourl):
         repo_commit_list = []
         repo = repourl.split("/")[-1]
-        datei = datetime.datetime.strptime(datetime.datetime.strftime(from_date, "%Y-%m-%d"), "%Y-%m-%d")
-        dateii = datei
-
-        while True:  # pull, parse, assemble commit records
-            datenow = datetime.datetime.strptime(datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d"),
-                                                 "%Y-%m-%d")
-            if dateii == datenow:
-                break
-            dateii += datetime.timedelta(days=3)
-            if dateii > datenow:
-                dateii = datenow
-
-            logcmd_no_merge = "git log --after=\"%s\" --before=\"%s\" --shortstat --pretty=\"%%an;%%ae;%%ad;%%H\" --no-merges " % (
-                datei, dateii)
-            logcmd_merge = "git log --after=\"%s\" --before=\"%s\" --shortstat --pretty=\"%%an;%%ae;%%ad;%%H\" --merges " % (
-                datei, dateii)
-
-            no_merge_log = ''
+        branch_names = self.get_repo_branches(g)  # ensure branch name, then get its commits.
+        for branch_name in branch_names:
             try:
-                no_merge_log = g.execute(logcmd_no_merge, shell=True)
-            except:
-                pass
+                g.execute(f"git checkout -f {branch_name}", shell=True)
+                branch_text = g.execute(f"git branch", shell=True)
+                current_branch_name = self.getCurrentBranchName(branch_text)
+            except Exception as e:
+                print(repr(e))
 
-            merge_log = ''
-            try:
-                merge_log = g.execute(logcmd_merge, shell=True)
-            except:
-                pass
+            branch_commits = []
 
-            no_merged_commit = self.parse_commit(no_merge_log, datei, repourl, False)
-            merged_commit = self.parse_commit(merge_log, datei, repourl, True)
+            datei = datetime.datetime.strptime(datetime.datetime.strftime(from_date, "%Y-%m-%d"), "%Y-%m-%d")
+            dateii = datei
 
-            repo_commit_list.extend(merged_commit)
-            repo_commit_list.extend(no_merged_commit)
+            while True:  # pull, parse, assemble commit records
+                datenow = datetime.datetime.strptime(datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d"),
+                                                     "%Y-%m-%d")
+                if dateii == datenow:
+                    break
+                dateii += datetime.timedelta(days=3)
+                if dateii > datenow:
+                    dateii = datenow
 
-            if dateii.month != datei.month:
-                print(
-                    f"Repository: {repo} ************{datei.year} year - {datei.month} month commits has been collected.")
-            datei = dateii
+                logcmd_no_merge = "git log --after=\"%s\" --before=\"%s\" --shortstat --pretty=\"%%an;%%ae;%%ad;%%H\" --no-merges " % (
+                    datei, dateii)
+                logcmd_merge = "git log --after=\"%s\" --before=\"%s\" --shortstat --pretty=\"%%an;%%ae;%%ad;%%H\" --merges " % (
+                    datei, dateii)
 
-            if self.is_run_over:
-                self.from_date = datei
+                no_merge_log = ''
+                try:
+                    no_merge_log = g.execute(logcmd_no_merge, shell=True)
+                except:
+                    pass
+
+                merge_log = ''
+                try:
+                    merge_log = g.execute(logcmd_merge, shell=True)
+                except:
+                    pass
+
+                no_merged_commit = self.parse_commit(no_merge_log, datei, repourl, current_branch_name, False)
+                merged_commit = self.parse_commit(merge_log, datei, repourl, current_branch_name, True)
+
+                branch_commits.extend(merged_commit)
+                branch_commits.extend(no_merged_commit)
+
+                if dateii.month != datei.month:
+                    print(
+                        f"Repository: {repo}\tBranch_name: {branch_name} \t*******  {datei.year}-{datei.month} commits has been collected.")
+                datei = dateii
+
+            repo_commit_list.extend(branch_commits)
 
         return repo_commit_list
 
-    def parse_commit(self, log, log_date, repourl, is_merged):
-        results = []
+    def getCurrentBranchName(self, branch_text):
+        current_branch_name = ""
+        branch_list = branch_text.split("\n")
+        for each in branch_list:
+            if each.find("*") != -1:
+                current_branch_name = each.split()[-1]
+                break
+        return current_branch_name
 
+    def parse_commit(self, log, log_date, repourl, branch_name, is_merged):
+        results = []
         if not log:
             return results
 
@@ -213,6 +250,8 @@ class GitCommit(object):
                 result['project'] = repo
                 result['repo'] = repourl
                 result['is_merged'] = 1
+
+                result['branch_name'] = branch_name
                 results.append(result)
 
         else:
@@ -222,13 +261,14 @@ class GitCommit(object):
                 result = self.parse_commit_log(line1, log_date)
                 result['project'] = repo
                 result['repo'] = repourl
+                result['project'] = repo
+                result['repo'] = repourl
+                result['is_merged'] = 0
+                result['branch_name'] = branch_name
 
                 file_changed = 0
                 lines_added = 0
                 lines_removed = 0
-                result['project'] = repo
-                result['repo'] = repourl
-                result['is_merged'] = 0
 
                 if len(commit_log.split('@@')) == 1:
                     results.append(result)
@@ -270,11 +310,10 @@ class GitCommit(object):
             time_zone = split_list[2].split()[5]
         except IndexError:
             time_zone = None
-        # search the company of author then write into dict
-        company_name = self.find_company(author, email)
 
-        # if ':' not in time_str:
-        #     continue
+        # search the company of author then write into dict
+        company_name = self.find_company(email)
+
         if time_zone:
             preciseness_time_str = date_str + "T" + time_str + time_zone
         else:
@@ -287,7 +326,7 @@ class GitCommit(object):
 
         return result
 
-    def find_company(self, author, email):
+    def find_company(self, email):
         company_name = 'independent'
 
         for user in self.users:
@@ -297,17 +336,14 @@ class GitCommit(object):
         if self.domain_companies.get(email.split("@")[-1]):
             company_name = self.domain_companies.get(email.split("@")[-1])
 
-        # print(author, "'s company is ", company_name)
         return company_name
 
     def getInfoFromCompany(self):
         companyInfo = {}
-
         if self.data_yaml_url and self.company_yaml_url:
             cmd = 'wget -N %s' % self.data_yaml_url
             p = os.popen(cmd.replace('=', ''))
             p.read()
-
             datas = yaml.load_all(open(self.data_yaml_path, encoding='UTF-8')).__next__()
             cmd = 'wget -N %s' % self.company_yaml_url
             p = os.popen(cmd.replace('=', ''))
