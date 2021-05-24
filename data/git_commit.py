@@ -217,17 +217,12 @@ class GitCommit(object):
                 branch_commits.extend(merged_commit)
                 branch_commits.extend(no_merged_commit)
 
-                # if dateii.month != datei.month:
-                #     print(
-                #         f"Repository: {repo}\tBranch_name: {branch_name} \t*******  {datei.year}-{datei.month} commits has been collected.")
-
                 temp_dateii = datetime.datetime.strftime(dateii, "%Y-%m-%d")
-
                 temp_datei = datetime.datetime.strftime(datei, "%Y-%m-%d")
                 print(
                     f"Repository: {repo}\tBranch_name: {branch_name} \t from date: {temp_datei}  end date: {temp_dateii}  commits has been collected.")
-                datei = dateii
 
+                datei = dateii
             repo_commit_list.extend(branch_commits)
 
         return repo_commit_list
