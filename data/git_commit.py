@@ -221,7 +221,6 @@ class GitCommit(object):
                 temp_datei = datetime.datetime.strftime(datei, "%Y-%m-%d")
                 print(
                     f"Repository: {repo}\tBranch_name: {branch_name} \t from date: {temp_datei}  end date: {temp_dateii}  commits has been collected.")
-
                 datei = dateii
             repo_commit_list.extend(branch_commits)
 
