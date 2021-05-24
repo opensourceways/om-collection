@@ -81,8 +81,7 @@ class George:
             for driver in drivers:
                 driver.run(starTime)
 
-            print("try to run again....waiting for %d seconds, from %s"
-                  % (self.sleep_time, datetime.now()))
+            print("try to run again....waiting for %d seconds, from %s" % (self.sleep_time, self.from_data))
             time.sleep(self.sleep_time)
             starTime = None
             print("try to run again")
