@@ -76,7 +76,8 @@ class GitCommit(object):
             self.collect_code(from_date, index_name, repos, sig)
 
             if index == len(self.index_name) - 1:
-                self.from_date = datetime.datetime.now()
+                now = datetime.datetime.now()
+                self.from_date = datetime.datetime(year=now.year, month=now.month, day=now.day - 1)
 
         print(f"Collected {len(repos)} repositories for this project")
 
@@ -216,11 +217,11 @@ class GitCommit(object):
                 branch_commits.extend(merged_commit)
                 branch_commits.extend(no_merged_commit)
 
-                if dateii.month != datei.month:
-                    print(
-                        f"Repository: {repo}\tBranch_name: {branch_name} \t*******  {datei.year}-{datei.month} commits has been collected.")
+                temp_dateii = datetime.datetime.strftime(dateii, "%Y-%m-%d")
+                temp_datei = datetime.datetime.strftime(datei, "%Y-%m-%d")
+                print(
+                    f"Repository: {repo}\tBranch_name: {branch_name} \t from date: {temp_datei}  end date: {temp_dateii}  commits has been collected.")
                 datei = dateii
-
             repo_commit_list.extend(branch_commits)
 
         return repo_commit_list
