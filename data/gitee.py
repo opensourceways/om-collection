@@ -618,7 +618,7 @@ class Gitee(object):
             for item in pull_code_diff:
                 if isinstance(item, dict):
                     codediffadd = int(codediffadd) + int(item['additions'])
-                    codediffdelete = int(codediffadd) + int(item['deletions'])
+                    codediffdelete = int(codediffdelete) + int(item['deletions'])
             merged_item = None
             if x['state'] == "closed":
                 if isinstance(pull_action_logs, list):

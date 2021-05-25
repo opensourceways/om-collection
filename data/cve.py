@@ -23,6 +23,9 @@ class CVE(object):
                 self.branchMapping[KV[0]] = KV[1]
 
     def run(self, from_time):
+        self.getData()
+
+    def getDataOld(self):
         datas = self.getCveData()
         res = []
         actions = ''
@@ -220,7 +223,7 @@ class CVE(object):
 
     def getPrByIssueNumber(self, owner, repo, issueNumber):
         url = 'https://gitee.com/api/v5/repos/%s/issues/%s/pull_requests?access_token=%s&repo=%s' % (
-        owner, issueNumber, self.giteeToken, repo)
+            owner, issueNumber, self.giteeToken, repo)
         res = requests.get(url=url, verify=False)
         prs = json.loads(res.text)
         return prs
@@ -267,3 +270,74 @@ class CVE(object):
                 return self.branchMapping[br]
 
         return branch
+
+    def getData(self):
+        cve_data = self.getCveData()
+        actions = ''
+        for cve in cve_data:
+            issue = self.getIssueByNumber(cve['issue_id'])
+            if issue is None:
+                continue
+            res = cve
+            res.update(self.getInvolvedBranch(branch=cve['milestone']))
+            # 推送时间（issue的创建时间）
+            res['created_at'] = issue['created_at']
+            # 漏洞感知时长(小时) TODO 需要使用 cve['CVE_vtopic_rec_time']
+            res['cve_rec_duration'] = self.getDuration(res['created_at'], '%Y-%m-%dT%H:%M:%S+08:00',
+                                                       res['CVE_public_time'], '%Y-%m-%d')
+            res['user_login'] = issue['user_login']
+            res['issue_state'] = issue['issue_state']
+            # 受影响软件（仓库）
+            res['repository'] = str(issue['repository']).split("/")[1]
+            # TODO (openeuler_score or NVD_score)
+            res['cvss_score'] = cve['openeuler_score']
+            # 修复时长(天) = 补丁发布时间 - 漏洞创建时间
+            res['cve_close_duration'] = self.getDuration(res['rpm_public_time'], '%Y-%m-%d %H:%M:%S', res['created_at'],
+                                                         '%Y-%m-%dT%H:%M:%S+08:00') / 24
+            res['is_slo'] = self.getSlo(res['cvss_score'], res['cve_close_duration'])
+            res['issue_url'] = issue['issue_url']
+
+            indexData = {"index": {"_index": self.index_name, "_id": res['issue_id'] + '_' + res['CVE_num']}}
+            actions += json.dumps(indexData) + '\n'
+            actions += json.dumps(res) + '\n'
+
+        self.esClient.safe_put_bulk(actions)
+
+    def getInvolvedBranch(self, branch):
+        involved_branchs = str(branch).split(",")
+        affected_branchs = []
+        unaffected_branchs = []
+        not_analyze_dbranchs = []
+        for involved_branch in involved_branchs:
+            branch_info = involved_branch.split(":")
+            if len(branch_info) == 2:
+                if branch_info[1] == '受影响':
+                    affected_branchs.append(branch_info[0])
+                else:
+                    unaffected_branchs.append(branch_info[0])
+            else:
+                not_analyze_dbranchs.append(branch_info[0])
+
+        return {"affected_branchs": affected_branchs,
+                "unaffected_branchs": unaffected_branchs,
+                "not_analyze_dbranchs": not_analyze_dbranchs}
+
+    def getDuration(self, max_time, max_time_format, min_time, min_time_format):
+        if max_time is not None and max_time != '' and min_time is not None and min_time != '':
+            max_datetime = datetime.datetime.strptime(max_time, max_time_format)
+            min_datetime = datetime.datetime.strptime(min_time, min_time_format)
+            res = (max_datetime - min_datetime).total_seconds()
+            return res / 60 / 60
+        else:
+            return 0
+
+    def getSlo(self, cvss_score, close_duration):
+        if close_duration == 0:
+            return 0
+        if (cvss_score >= 9 and close_duration <= 7) or \
+                (9 > cvss_score >= 7 and close_duration <= 14) or \
+                (7 > cvss_score >= 0.1 and close_duration <= 30):
+            is_slo = 1
+        else:
+            is_slo = 0
+        return is_slo
