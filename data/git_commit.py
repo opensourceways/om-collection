@@ -301,8 +301,10 @@ class GitCommit(object):
     def parse_commit_log(self, commit_log, log_date):
         split_list = commit_log.split(";")
 
-        author = split_list[0]
         email = split_list[1]
+        # if "yao@apache.org" in email:
+        #     print("stop")
+        author = self.get_author(split_list)
         date_str = log_date.strftime("%Y-%m-%d")
         time_str = split_list[2].split()[3]
 
@@ -328,14 +330,18 @@ class GitCommit(object):
         return result
 
     def find_company(self, email):
-        company_name = 'independent'
+        company_name = ''
+        email_tag = email.split("@")[-1]
 
         for user in self.users:
             if email in user["emails"]:
                 company_name = self.alias_companies.get(user["companies"][0]["company_name"])
 
-        if self.domain_companies.get(email.split("@")[-1]):
-            company_name = self.domain_companies.get(email.split("@")[-1])
+        if not company_name and self.domain_companies.get(email_tag):
+            company_name = self.domain_companies.get(email_tag)
+
+        if not company_name:
+            company_name = "independent"
 
         return company_name
 
@@ -373,13 +379,13 @@ class GitCommit(object):
 
         return companyInfo
 
-    def get_author(self, split_list, addr_index):
-        author = ''
-        for item in range(addr_index):
-            if item == addr_index - 1:
-                author += split_list[item]
-            else:
-                author += split_list[item] + ' '
+    def get_author(self, split_list):
+        author = split_list[0]
+        email = split_list[1]
+        for user in self.users:
+            if email in user['emails']:
+                author = user['user_name']
+                break
         return author
 
     def find_last(self, string, str):
