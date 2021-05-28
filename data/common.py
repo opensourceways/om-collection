@@ -70,6 +70,42 @@ class ESClient(object):
         if self.authorization:
             self.default_headers['Authorization'] = self.authorization
 
+    def getOrgByEmail(self):
+        if self.index_name_org is None:
+            return
+
+        email_org_dict = {}
+        search_json = '''{
+                          "size": 10000,
+                          "_source": {
+                            "includes": [
+                              "email",
+                              "organization"
+                            ]
+                          },
+                          "query": {
+                            "bool": {
+                              "must": [
+                                {
+                                  "term": {
+                                    "is_cla": "1"
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }'''
+        res = requests.get(self.getSearchUrl(index_name=self.index_name_org), data=search_json,
+                           headers=self.default_headers, verify=False)
+        if res.status_code != 200:
+            print("The index not exist")
+            return {}
+        data = res.json()
+        for hits in data['hits']['hits']:
+            source_data = hits['_source']
+            email_org_dict.update({source_data['email']: source_data['organization']})
+        return email_org_dict
+
     def getOrgByGiteeID(self):
         dic = {}
         giteeid_orgs_dict = defaultdict(dict)
