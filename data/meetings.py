@@ -18,7 +18,9 @@ class Meetings(object):
         self.headers = {'Content-Type': 'application/json', 'Authorization': config.get('authorization')}
 
     def run(self, from_time):
+        self.getGiteeId2Company()
         self.get_all_meetings()
+        self.tagUserOrgChanged()
 
     def get_all_meetings(self):
         res = requests.get(url=self.meetings_url + "allmeetings/", headers=self.headers)
@@ -29,6 +31,10 @@ class Meetings(object):
             participants = self.get_participants_by_meet(i.get("mid"))
             i["total_records"] = participants.get("total_records", 0)
             i["participants"] = participants.get("participants", [])
+            company = 'independent'
+            if i['sponsor'] in self.esClient.giteeid_company_dict:
+                company = self.esClient.giteeid_company_dict[i['sponsor']]
+            i["tag_user_company"] = company
             datar = common.getSingleAction(self.index_name, i['id'], i)
             datap += datar
         self.esClient.safe_put_bulk(datap)
@@ -46,3 +52,53 @@ class Meetings(object):
 
         participants = json.loads(res.content)
         return participants
+
+    def getGiteeId2Company(self):
+        dic = self.esClient.getOrgByGiteeID()
+        self.esClient.giteeid_company_dict = dic[0]
+        self.esClient.giteeid_company_change_dict = dic[1]
+
+    def tagUserOrgChanged(self):
+        if len(self.esClient.giteeid_company_change_dict) == 0:
+            return
+
+        for key, vMap in self.esClient.giteeid_company_change_dict.items():
+            vMap.keys()
+            times = sorted(vMap.keys())
+            for i in range(1, len(times)):
+                if i == 1:
+                    startTime = '1990-01-01'
+                else:
+                    startTime = times[i - 1]
+                if i == len(times):
+                    endTime = '2222-01-01'
+                else:
+                    endTime = times[i]
+                company = vMap.get(times[i - 1])
+
+                query = '''{
+                            	"script": {
+                            		"source": "ctx._source['tag_user_company']='%s'"
+                            	},
+                            	"query": {
+                            		"bool": {
+                            			"must": [
+                            				{
+                            					"range": {
+                            						"create_time": {
+                            							"gte": "%s",
+                            							"lt": "%s"
+                            						}
+                            					}
+                            				},
+                            				{
+                            					"term": {
+                            						"sponsor.keyword": "%s"
+                            					}
+                            				}
+                            			]
+                            		}
+                            	}
+                            }''' % (company, startTime, endTime, key)
+                url = self.esClient.url + '/' + self.index_name + '/_update_by_query'
+                requests.post(url, headers=self.esClient.default_headers, verify=False, data=query)
