@@ -100,5 +100,4 @@ class Meetings(object):
                             		}
                             	}
                             }''' % (company, startTime, endTime, key)
-                url = self.esClient.url + '/' + self.index_name + '/_update_by_query'
-                requests.post(url, headers=self.esClient.default_headers, verify=False, data=query)
+                self.esClient.updateByQuery(query=query)

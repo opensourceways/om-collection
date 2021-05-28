@@ -942,6 +942,10 @@ class ESClient(object):
             print("update repo author name failed:", res.text)
             return
 
+    def updateByQuery(self, query):
+        url = self.url + '/' + self.index_name + '/_update_by_query'
+        requests.post(url, headers=self.default_headers, verify=False, data=query)
+
     def getUniqueCountByDate(self, field, from_date, to_date,
                              url=None, index_name=None):
         data_json = '''{"size": 0,
