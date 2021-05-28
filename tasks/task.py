@@ -45,6 +45,7 @@ BACKEND_MAPPING = {
     'cve': 'data.cve.CVE',
     'cla': 'data.cla.Cla',
     'polymerization': 'data.combine.polymerization.Polymerization',
+    'account_org': 'data.account_org.AccountOrg',
 }
 
 
@@ -54,7 +55,7 @@ class George:
         """ config is a Config object """
         # self.from_data = config.from_data
         self.config = ConfigParser()
-        self.config.read('config.ini')
+        self.config.read('config.ini', 'UTF-8')
         self.sections = self.config.sections()
         self.from_data = self.config.get('general', 'from_data')
         self.sleep_time = self.config.getint('general', 'sleep_time')
