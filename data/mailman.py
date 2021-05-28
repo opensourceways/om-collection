@@ -50,6 +50,7 @@ class MailMan(object):
 
 
     def prepare_list(self):
+        email_orgs_dict = self.esClient.getOrgByEmail()
         # pre-check before handling mailman core service
         if self.domain_name == "":
             print("Must specify 'domain_name' for mail list preparation.")
@@ -78,6 +79,9 @@ class MailMan(object):
 
                 for address in user.addresses:
                     print("member maillist adress %s,  num= %d" % (address.email, i))
+                    company = 'independent'
+                    if address.email in email_orgs_dict:
+                        company = email_orgs_dict[address.email]
                     body = {
                         "user_name": user.display_name,
                         "email_domain": address.email.split('@')[1],
@@ -94,6 +98,7 @@ class MailMan(object):
                         "registeredTime": address.registered_on.split('.')[0] + "+08:00",
                         "created_at": user.created_on.split('.')[0] + "+08:00",
                         "updated_at": user.created_on.split('.')[0] + "+08:00",
+                        "tag_user_company": company,
                     }
                     id = user.user_id + address.email + mlist.fqdn_listname
 
@@ -105,7 +110,7 @@ class MailMan(object):
                     all_emails.append(address.email)
 
 
-        self.esClient.safe_put_bulk(actions)
+        # self.esClient.safe_put_bulk(actions)
 
         actions = ""
         for suser in client.users:
@@ -115,6 +120,9 @@ class MailMan(object):
                 print(address)
                 print("maillist adress %s,  num= %d" % (
                 address.email, i))
+                company = 'independent'
+                if address.email in email_orgs_dict:
+                    company = email_orgs_dict[address.email]
                 body = {
                      "user_name": suser.display_name,
                      "email_domain": address.email.split('@')[1],
@@ -131,6 +139,7 @@ class MailMan(object):
                      "registeredTime": address.registered_on.split('.')[0] + "+08:00",
                      "created_at": suser.created_on.split('.')[0] + "+08:00",
                      "updated_at": suser.created_on.split('.')[0] + "+08:00",
+                     "tag_user_company": company,
                 }
                 id = suser.user_id + address.email
 
