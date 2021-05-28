@@ -16,6 +16,8 @@
 
 import os
 import signal
+from collections import defaultdict
+
 import yaml
 
 import json
@@ -101,8 +103,9 @@ class Gitee(object):
             # self.tagUsers()
             # self.tagHistoryUsers()
         else:
-            if self.esClient.is_update_tag_company == 'true' or self.esClient.is_update_tag_company_cla == 'true':
+            if self.esClient.is_update_tag_company == 'true':
                 self.tagHistoryUsers()
+                self.tagUserOrgChanged()
 
             if self.is_set_pr_issue_repo_fork == 'true':
                 self.writeData(self.writeContributeForSingleRepo, from_time)
@@ -125,19 +128,9 @@ class Gitee(object):
 
     def getGiteeId2Company(self):
         self.giteeid_company_dict_last = self.esClient.giteeid_company_dict
-        if self.esClient.is_update_tag_company_cla == 'true' and self.esClient.is_update_tag_company == 'true':
-            giteeid_company_dict_yaml = self.esClient.getUserInfoFromFile()
-            giteeid_company_dict_cla = self.esClient.getuserInfoFromCla()
-            if self.highest_priority_tag_company == 'cla':
-                giteeid_company_dict_yaml.update(giteeid_company_dict_cla)
-                self.esClient.giteeid_company_dict = giteeid_company_dict_yaml
-            else:
-                giteeid_company_dict_cla.update(giteeid_company_dict_yaml)
-                self.esClient.giteeid_company_dict = giteeid_company_dict_cla
-        elif self.esClient.is_update_tag_company == 'true':
-            self.esClient.giteeid_company_dict = self.esClient.getUserInfoFromFile()
-        elif self.esClient.is_update_tag_company_cla == 'true':
-            self.esClient.giteeid_company_dict = self.esClient.getuserInfoFromCla()
+        dic = self.esClient.getOrgByGiteeID()
+        self.esClient.giteeid_company_dict = dic[0]
+        self.esClient.giteeid_company_change_dict = dic[1]
 
     def writeData(self, func, from_time):
         threads = []
@@ -1224,6 +1217,54 @@ class Gitee(object):
         print(users)
         print(len(users))
         return users
+
+    def tagUserOrgChanged(self):
+        if len(self.esClient.giteeid_company_change_dict) == 0:
+            return
+
+        for key, vMap in self.esClient.giteeid_company_change_dict.items():
+            vMap.keys()
+            times = sorted(vMap.keys())
+            for i in range(1, len(times)):
+                if i == 1:
+                    startTime = '1990-01-01'
+                else:
+                    startTime = times[i - 1]
+                if i == len(times):
+                    endTime = '2222-01-01'
+                else:
+                    endTime = times[i]
+                company = vMap.get(times[i - 1])
+                is_project_internal_user = 0
+                if company == self.internal_company_name:
+                    is_project_internal_user = 1
+
+                query = '''{
+                            	"script": {
+                            		"source": "ctx._source['tag_user_company']='%s';ctx._source['is_project_internal_user']=%s"
+                            	},
+                            	"query": {
+                            		"bool": {
+                            			"must": [
+                            				{
+                            					"range": {
+                            						"created_at": {
+                            							"gte": "%s",
+                            							"lt": "%s"
+                            						}
+                            					}
+                            				},
+                            				{
+                            					"term": {
+                            						"user_login.keyword": "%s"
+                            					}
+                            				}
+                            			]
+                            		}
+                            	}
+                            }''' % (company, is_project_internal_user, startTime, endTime, key)
+                url = self.esClient.url + '/' + self.index_name + '/_update_by_query'
+                requests.post(url, headers=self.esClient.default_headers, verify=False, data=query)
 
     def tagHistoryUsers(self):
         if self.giteeid_company_dict_last == self.esClient.giteeid_company_dict:

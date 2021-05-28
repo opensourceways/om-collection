@@ -16,6 +16,8 @@
 
 import json
 import time
+from collections import defaultdict
+
 from dateutil import parser
 import types
 import re
@@ -62,9 +64,64 @@ class ESClient(object):
         self.company_yaml_url = config.get('company_yaml_url')
         self.company_yaml_path = config.get('company_yaml_path')
         self.index_name_cla = config.get('index_name_cla')
+        self.index_name_org = config.get('index_name_org')
         self.giteeid_company_dict = {}
+        self.giteeid_company_change_dict = defaultdict(dict)
         if self.authorization:
             self.default_headers['Authorization'] = self.authorization
+
+    def getOrgByGiteeID(self):
+        dic = {}
+        giteeid_orgs_dict = defaultdict(dict)
+
+        if self.index_name_org is None:
+            return dic, giteeid_orgs_dict
+
+        search_json = '''{
+                          "size": 10000,
+                          "_source": {
+                            "includes": [
+                              "gitee_id",
+                              "organization",
+                              "created_at"
+                            ]
+                          },
+                          "query": {
+                            "bool": {
+                              "must": [
+                                {
+                                  "term": {
+                                    "is_cla": "1"
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }'''
+        res = requests.get(self.getSearchUrl(index_name=self.index_name_org), data=search_json,
+                           headers=self.default_headers, verify=False)
+        if res.status_code != 200:
+            print("The index not exist")
+            return {}
+        data = res.json()
+        for hits in data['hits']['hits']:
+            source_data = hits['_source']
+            gitee_id = source_data['gitee_id']
+            if gitee_id is None:
+                continue
+            value = {source_data['created_at']: source_data['organization']}
+            giteeid_orgs_dict[gitee_id].update(value)
+
+        dic_change = giteeid_orgs_dict.copy()
+        for key, vMap in giteeid_orgs_dict.items():
+            if len(vMap) > 1:
+                last_time = max(vMap.keys())
+                dic.update({key: vMap[last_time]})
+            else:
+                dic.update({key: list(vMap.values())[0]})
+                dic_change.pop(key)
+
+        return dic, dic_change
 
     def getuserInfoFromCla(self):
         if self.is_update_tag_company_cla != 'true' or self.index_name_cla is None:
@@ -156,10 +213,7 @@ class ESClient(object):
             else:
                 userExtra["tag_user_company"] = "independent"
                 userExtra["is_project_internal_user"] = 0
-
-        if (self.is_update_tag_company == 'true' and self.data_yaml_url) or \
-                (self.is_update_tag_company_cla == 'true' and self.index_name_cla) and \
-                login in self.giteeid_company_dict:
+        if self.is_update_tag_company == 'true':
             if self.giteeid_company_dict.get(login) is None:
                 userExtra["tag_user_company"] = 'independent'
             else:
