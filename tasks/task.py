@@ -40,12 +40,14 @@ BACKEND_MAPPING = {
     'bilibili': 'data.bilibili.BILIBILI',
     'collect_data': 'data.collect_data.CollectData',
     'transform_data': 'data.transform_data.TransformData',
+    'git_commit': 'data.git_commit.GitCommit',
     'meetings': 'data.meetings.Meetings',
     'report_email': 'data.report_email.ReportEmail',
     'cve': 'data.cve.CVE',
     'cla': 'data.cla.Cla',
     'polymerization': 'data.combine.polymerization.Polymerization',
     'account_org': 'data.account_org.AccountOrg',
+    'git': 'data.git_commit.GitCommit'
 }
 
 
@@ -63,7 +65,7 @@ class George:
     def start(self):
         logger.info("----------------------------")
         logger.info("Starting engine ...")
-        logger.info("- - - - - - - - - - - - - - ")
+        logger.info("- - - - - - - - - - - - - - - ")
 
         drivers = []
         for backend in self.sections:
@@ -80,8 +82,7 @@ class George:
             for driver in drivers:
                 driver.run(starTime)
 
-            print("try to run again....waiting for %d seconds, from %s"
-                  % (self.sleep_time, datetime.now()))
+            print("try to run again....waiting for %d seconds, from %s" % (self.sleep_time, self.from_data))
             time.sleep(self.sleep_time)
             starTime = None
             print("try to run again")
