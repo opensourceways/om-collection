@@ -480,7 +480,13 @@ class Gitee(object):
             else:
                 description = des.groups()
 
-            return description
+            dre = description
+            for de in description:
+                if de.__contains__('%{') and de.__contains__('}'):
+                    findVar(de, spec)
+                    dre = strsss
+
+            return dre
         data = spec.__getattribute__(var)
         resdata = ''
         if str(data).__contains__('.'):
