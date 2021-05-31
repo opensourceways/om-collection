@@ -59,7 +59,6 @@ class GiteeEvent(object):
         self.esClient.getEnterpriseUser()
         self.esClient.internalUsers = self.esClient.getItselfUsers(self.esClient.internal_users)
         self.is_get_all_event = config.get('is_get_all_event')
-        self.esClient.giteeid_company_dict = self.esClient.getuserInfoFromCla()
 
     def writeGiteeDownDataByFile(self, filename, indexName=None):
         with open(filename, 'r', encoding='utf-8') as f:
@@ -243,7 +242,14 @@ class GiteeEvent(object):
                 break
         print("owner(%s) repo(%s) end prev_id=%d" % (owner, repo, prev_id))
 
+    def getGiteeId2Company(self):
+        dic = self.esClient.getOrgByGiteeID()
+        self.esClient.giteeid_company_dict = dic[0]
+        self.esClient.giteeid_company_change_dict = dic[1]
+
     def run(self, from_date):
+        self.getGiteeId2Company()
+
         self.getEventFromRepo(owner='openeuler', repo='community')
 
         if self.is_from_log_files == 'true':
