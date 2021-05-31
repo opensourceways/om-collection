@@ -84,6 +84,7 @@ class Gitee(object):
         self.enterpriseUsers = []
         self.giteeid_company_dict_last = {}
         self.index_name_all = None
+        self.robot_user_logins = str(config.get('robot_user_login', 'I-am-a-robot')).split(',')
         self.once_update_num_of_pr = int(config.get('once_update_num_of_pr', 200))
         if 'index_name_all' in config:
             self.index_name_all = config.get('index_name_all').split(',')
@@ -479,7 +480,13 @@ class Gitee(object):
             else:
                 description = des.groups()
 
-            return description
+            dre = description
+            for de in description:
+                if de.__contains__('%{') and de.__contains__('}'):
+                    findVar(de, spec)
+                    dre = strsss
+
+            return dre
         data = spec.__getattribute__(var)
         resdata = ''
         if str(data).__contains__('.'):
@@ -626,15 +633,19 @@ class Gitee(object):
             firstreplyprtime = ""
             lastreplyprtime = ""
             for ec in ecomments:
-                if not firstreplyprtime:
-                    firstreplyprtime = str(ec['created_at'])
-                    lastreplyprtime = str(ec['created_at'])
+                if ec['user_login'] in self.robot_user_logins:
+                    firstreplyprtime = firstreplyprtime
+                    lastreplyprtime = lastreplyprtime
                 else:
-                    ectime = str(ec['created_at'])
-                    if ectime < firstreplyprtime:
-                        firstreplyprtime = ectime
-                    if ectime > lastreplyprtime:
-                        lastreplyprtime = ectime
+                    if not firstreplyprtime:
+                        firstreplyprtime = str(ec['created_at'])
+                        lastreplyprtime = str(ec['created_at'])
+                    else:
+                        ectime = str(ec['created_at'])
+                        if ectime < firstreplyprtime:
+                            firstreplyprtime = ectime
+                        if ectime > lastreplyprtime:
+                            lastreplyprtime = ectime
                 print(ec['pull_comment_id'])
                 if ec['user_login'] in self.skip_user:
                     continue
@@ -696,15 +707,19 @@ class Gitee(object):
             lastreplyissuetime = ""
             issue_comments = self.get_rich_issue_comments(issue_comments, issue_item)
             for ic in issue_comments:
-                if not firstreplyissuetime:
-                    firstreplyissuetime = str(ic['created_at'])
-                    lastreplyissuetime = str(ic['created_at'])
+                if ic['user_login'] in self.robot_user_logins:
+                    firstreplyissuetime = firstreplyissuetime
+                    lastreplyissuetime = lastreplyissuetime
                 else:
-                    ictime = str(ic['created_at'])
-                    if ictime < firstreplyissuetime:
-                        firstreplyissuetime = ictime
-                    if ictime > lastreplyissuetime:
-                        lastreplyissuetime = ictime
+                    if not firstreplyissuetime:
+                        firstreplyissuetime = str(ic['created_at'])
+                        lastreplyissuetime = str(ic['created_at'])
+                    else:
+                        ictime = str(ic['created_at'])
+                        if ictime < firstreplyissuetime:
+                            firstreplyissuetime = ictime
+                        if ictime > lastreplyissuetime:
+                            lastreplyissuetime = ictime
                 if ic['user_login'] in self.skip_user:
                     continue
                 print(ic['issue_comment_id'])
