@@ -110,7 +110,7 @@ class MailMan(object):
                     all_emails.append(address.email)
 
 
-        # self.esClient.safe_put_bulk(actions)
+        self.esClient.safe_put_bulk(actions)
 
         actions = ""
         for suser in client.users:
