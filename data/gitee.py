@@ -483,25 +483,17 @@ class Gitee(object):
             dre = description
             for de in description:
                 if de.__contains__('%{') and de.__contains__('}'):
-                    findVar(de, spec)
+                    self.findVar(de, spec)
                     dre = strsss
 
             return dre
         data = spec.__getattribute__(var)
         resdata = ''
-        if str(data).__contains__('.'):
-            versionArr = str(data).split('.')
-            for v in versionArr:
-                if str(v).startswith('%{') and str(v).endswith("}"):
-                    resdata += spec.macros[str(v)[2:len(str(v)) - 1]] + "."
-                else:
-                    resdata += v + "."
+        if str(data).__contains__('%{') and str(data).__contains__('}'):
+            self.findVar(data, spec)
+            resdata = strsss
         else:
-            if str(data).__contains__('%{') and str(data).__contains__('}'):
-                self.findVar(data, spec)
-                resdata = strsss
-            else:
-                resdata += data
+            resdata += data
         if resdata.endswith('.'):
             resdata = resdata[0:len(resdata) - 1]
         return resdata
