@@ -16,6 +16,8 @@
 
 import os
 import signal
+from collections import defaultdict
+
 import yaml
 
 import json
@@ -82,6 +84,7 @@ class Gitee(object):
         self.enterpriseUsers = []
         self.giteeid_company_dict_last = {}
         self.index_name_all = None
+        self.robot_user_logins = str(config.get('robot_user_login', 'I-am-a-robot')).split(',')
         self.once_update_num_of_pr = int(config.get('once_update_num_of_pr', 200))
         if 'index_name_all' in config:
             self.index_name_all = config.get('index_name_all').split(',')
@@ -101,8 +104,9 @@ class Gitee(object):
             # self.tagUsers()
             # self.tagHistoryUsers()
         else:
-            if self.esClient.is_update_tag_company == 'true' or self.esClient.is_update_tag_company_cla == 'true':
+            if self.esClient.is_update_tag_company == 'true':
                 self.tagHistoryUsers()
+                self.tagUserOrgChanged()
 
             if self.is_set_pr_issue_repo_fork == 'true':
                 self.writeData(self.writeContributeForSingleRepo, from_time)
@@ -125,19 +129,9 @@ class Gitee(object):
 
     def getGiteeId2Company(self):
         self.giteeid_company_dict_last = self.esClient.giteeid_company_dict
-        if self.esClient.is_update_tag_company_cla == 'true' and self.esClient.is_update_tag_company == 'true':
-            giteeid_company_dict_yaml = self.esClient.getUserInfoFromFile()
-            giteeid_company_dict_cla = self.esClient.getuserInfoFromCla()
-            if self.highest_priority_tag_company == 'cla':
-                giteeid_company_dict_yaml.update(giteeid_company_dict_cla)
-                self.esClient.giteeid_company_dict = giteeid_company_dict_yaml
-            else:
-                giteeid_company_dict_cla.update(giteeid_company_dict_yaml)
-                self.esClient.giteeid_company_dict = giteeid_company_dict_cla
-        elif self.esClient.is_update_tag_company == 'true':
-            self.esClient.giteeid_company_dict = self.esClient.getUserInfoFromFile()
-        elif self.esClient.is_update_tag_company_cla == 'true':
-            self.esClient.giteeid_company_dict = self.esClient.getuserInfoFromCla()
+        dic = self.esClient.getOrgByGiteeID()
+        self.esClient.giteeid_company_dict = dic[0]
+        self.esClient.giteeid_company_change_dict = dic[1]
 
     def writeData(self, func, from_time):
         threads = []
@@ -486,22 +480,20 @@ class Gitee(object):
             else:
                 description = des.groups()
 
-            return description
+            dre = description
+            for de in description:
+                if de.__contains__('%{') and de.__contains__('}'):
+                    self.findVar(de, spec)
+                    dre = strsss
+
+            return dre
         data = spec.__getattribute__(var)
         resdata = ''
-        if str(data).__contains__('.'):
-            versionArr = str(data).split('.')
-            for v in versionArr:
-                if str(v).startswith('%{') and str(v).endswith("}"):
-                    resdata += spec.macros[str(v)[2:len(str(v)) - 1]] + "."
-                else:
-                    resdata += v + "."
+        if str(data).__contains__('%{') and str(data).__contains__('}'):
+            self.findVar(data, spec)
+            resdata = strsss
         else:
-            if str(data).__contains__('%{') and str(data).__contains__('}'):
-                self.findVar(data, spec)
-                resdata = strsss
-            else:
-                resdata += data
+            resdata += data
         if resdata.endswith('.'):
             resdata = resdata[0:len(resdata) - 1]
         return resdata
@@ -618,7 +610,7 @@ class Gitee(object):
             for item in pull_code_diff:
                 if isinstance(item, dict):
                     codediffadd = int(codediffadd) + int(item['additions'])
-                    codediffdelete = int(codediffadd) + int(item['deletions'])
+                    codediffdelete = int(codediffdelete) + int(item['deletions'])
             merged_item = None
             if x['state'] == "closed":
                 if isinstance(pull_action_logs, list):
@@ -633,15 +625,19 @@ class Gitee(object):
             firstreplyprtime = ""
             lastreplyprtime = ""
             for ec in ecomments:
-                if not firstreplyprtime:
-                    firstreplyprtime = str(ec['created_at'])
-                    lastreplyprtime = str(ec['created_at'])
+                if ec['user_login'] in self.robot_user_logins:
+                    firstreplyprtime = firstreplyprtime
+                    lastreplyprtime = lastreplyprtime
                 else:
-                    ectime = str(ec['created_at'])
-                    if ectime < firstreplyprtime:
-                        firstreplyprtime = ectime
-                    if ectime > lastreplyprtime:
-                        lastreplyprtime = ectime
+                    if not firstreplyprtime:
+                        firstreplyprtime = str(ec['created_at'])
+                        lastreplyprtime = str(ec['created_at'])
+                    else:
+                        ectime = str(ec['created_at'])
+                        if ectime < firstreplyprtime:
+                            firstreplyprtime = ectime
+                        if ectime > lastreplyprtime:
+                            lastreplyprtime = ectime
                 print(ec['pull_comment_id'])
                 if ec['user_login'] in self.skip_user:
                     continue
@@ -703,15 +699,19 @@ class Gitee(object):
             lastreplyissuetime = ""
             issue_comments = self.get_rich_issue_comments(issue_comments, issue_item)
             for ic in issue_comments:
-                if not firstreplyissuetime:
-                    firstreplyissuetime = str(ic['created_at'])
-                    lastreplyissuetime = str(ic['created_at'])
+                if ic['user_login'] in self.robot_user_logins:
+                    firstreplyissuetime = firstreplyissuetime
+                    lastreplyissuetime = lastreplyissuetime
                 else:
-                    ictime = str(ic['created_at'])
-                    if ictime < firstreplyissuetime:
-                        firstreplyissuetime = ictime
-                    if ictime > lastreplyissuetime:
-                        lastreplyissuetime = ictime
+                    if not firstreplyissuetime:
+                        firstreplyissuetime = str(ic['created_at'])
+                        lastreplyissuetime = str(ic['created_at'])
+                    else:
+                        ictime = str(ic['created_at'])
+                        if ictime < firstreplyissuetime:
+                            firstreplyissuetime = ictime
+                        if ictime > lastreplyissuetime:
+                            lastreplyissuetime = ictime
                 if ic['user_login'] in self.skip_user:
                     continue
                 print(ic['issue_comment_id'])
@@ -1224,6 +1224,53 @@ class Gitee(object):
         print(users)
         print(len(users))
         return users
+
+    def tagUserOrgChanged(self):
+        if len(self.esClient.giteeid_company_change_dict) == 0:
+            return
+
+        for key, vMap in self.esClient.giteeid_company_change_dict.items():
+            vMap.keys()
+            times = sorted(vMap.keys())
+            for i in range(1, len(times)):
+                if i == 1:
+                    startTime = '1990-01-01'
+                else:
+                    startTime = times[i - 1]
+                if i == len(times):
+                    endTime = '2222-01-01'
+                else:
+                    endTime = times[i]
+                company = vMap.get(times[i - 1])
+                is_project_internal_user = 0
+                if company == self.internal_company_name:
+                    is_project_internal_user = 1
+
+                query = '''{
+                            	"script": {
+                            		"source": "ctx._source['tag_user_company']='%s';ctx._source['is_project_internal_user']=%s"
+                            	},
+                            	"query": {
+                            		"bool": {
+                            			"must": [
+                            				{
+                            					"range": {
+                            						"created_at": {
+                            							"gte": "%s",
+                            							"lt": "%s"
+                            						}
+                            					}
+                            				},
+                            				{
+                            					"term": {
+                            						"user_login.keyword": "%s"
+                            					}
+                            				}
+                            			]
+                            		}
+                            	}
+                            }''' % (company, is_project_internal_user, startTime, endTime, key)
+                self.esClient.updateByQuery(query=query)
 
     def tagHistoryUsers(self):
         if self.giteeid_company_dict_last == self.esClient.giteeid_company_dict:
