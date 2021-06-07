@@ -13,11 +13,8 @@
 # Create: 2020-05
 #
 
-import _thread
 
 import glob
-import time
-import requests
 import json
 
 EVENT_ADD_REPO = "新增了仓库"
