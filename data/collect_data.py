@@ -536,7 +536,7 @@ class CollectData(object):
             repo_path = self.sigs_dirs_path + '/' + dir
             cmdlog = 'cd %s;git log -p README.md' % repo_path
             log_popen = subprocess.Popen(cmdlog, stdout=subprocess.PIPE, shell=True)
-            log = bytes.decode(log_popen.stdout.read(), encoding="utf-8")
+            log = bytes.decode(log_popen.stdout.read(), encoding="utf-8", errors='ignore')
             loglist = log.split('\n')
             n = 0
             rs = []
