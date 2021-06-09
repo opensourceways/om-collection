@@ -80,8 +80,8 @@ class CollectData(object):
             self.get_sigs_code_all()
 
         if self.index_name_sigs and self.sig_mark:
-            self.get_sigs_original()
             self.get_sigs()
+            self.get_sigs_original()
             self.get_sig_pr_issue()
             self.get_sigs_total()
             self.get_sigs_committer_total()
