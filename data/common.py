@@ -44,6 +44,7 @@ class ESClient(object):
         self.url = config.get('es_url')
         self.from_date = config.get('from_date')
         self.index_name = config.get('index_name')
+        self.sig_index = config.get('sig_index')
         self.query_index_name = config.get('query_index_name')
         self.authorization = config.get('authorization')
         self.default_headers = {
@@ -69,6 +70,63 @@ class ESClient(object):
         self.giteeid_company_change_dict = defaultdict(dict)
         if self.authorization:
             self.default_headers['Authorization'] = self.authorization
+
+    def getRepoSigs(self):
+        dict_comb = defaultdict(dict)
+        if self.sig_index:
+            search = '''{
+  "size": 10000,
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "term": {
+            "is_sig_original": "1"
+          }
+        }
+      ]
+    }
+  }
+}'''
+            res = requests.get(self.getSearchUrl(index_name=self.sig_index), data=search,
+                               headers=self.default_headers, verify=False)
+            if res.status_code != 200:
+                print("The index not exist")
+                return dict_comb
+            data = res.json()
+            for d in data['hits']['hits']:
+                source = d['_source']
+                sig = source['sig_name']
+                repos = source['repos']
+                dt = defaultdict(dict)
+                for repo in repos:
+                    dt.update({repo: [sig]})
+                combined_keys = dict_comb.keys() | dt.keys()
+                dict_comb = {key: dict_comb.get(key, []) + dt.get(key, []) for key in combined_keys}
+        return dict_comb
+
+    def getAllGiteeRepo(self):
+        search_json = '''{
+  "size": 0,
+  "aggs": {
+    "repos": {
+      "terms": {
+        "field": "gitee_repo.keyword",
+        "size": 20000,
+        "order": {
+          "_key": "desc"
+        },
+        "min_doc_count": 0
+      }
+    }
+  }
+}'''
+        res = requests.get(self.getSearchUrl(index_name=self.index_name), data=search_json,
+                           headers=self.default_headers, verify=False)
+        if res.status_code != 200:
+            print("The index not exist")
+            return {}
+        return res.json()
 
     def getOrgByEmail(self):
         if self.index_name_org is None:
@@ -249,7 +307,7 @@ class ESClient(object):
             else:
                 userExtra["tag_user_company"] = "independent"
                 userExtra["is_project_internal_user"] = 0
-        if self.is_update_tag_company == 'true':
+        if self.is_update_tag_company == 'true' and login in self.giteeid_company_dict:
             if self.giteeid_company_dict.get(login) is None:
                 userExtra["tag_user_company"] = 'independent'
             else:

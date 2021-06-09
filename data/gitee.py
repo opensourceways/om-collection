@@ -89,6 +89,8 @@ class Gitee(object):
         if 'index_name_all' in config:
             self.index_name_all = config.get('index_name_all').split(',')
         self.repo_spec = config.get('repo_spec_mapping')
+        self.tag_repo_sigs_history = config.get('tag_repo_sigs_history', 'false')
+        self.repo_sigs_dict = self.esClient.getRepoSigs()
 
     def run(self, from_time):
         print("Collect gitee data: staring")
@@ -98,6 +100,10 @@ class Gitee(object):
         # return
         startTime = time.time()
         self.internalUsers = self.getItselfUsers(self.internal_users)
+
+        # refresh repo`s sigs history
+        if self.tag_repo_sigs_history == 'true':
+            self.tagRepoSigsHistory()
 
         if self.is_set_itself_author == 'true':
             self.tagUsers(tag_user_company=self.internal_company_name)
@@ -126,6 +132,29 @@ class Gitee(object):
         spent_time = time.strftime("%H:%M:%S",
                                    time.gmtime(endTime - startTime))
         print("Collect all gitee data finished after %s" % spent_time)
+
+    def tagRepoSigsHistory(self):
+        data = self.esClient.getAllGiteeRepo()
+        for d in data['aggregations']['repos']['buckets']:
+            gitee_repo = d['key']
+            repo = str(gitee_repo).replace("https://gitee.com/", "")
+
+            sig_names = None
+            if repo in self.repo_sigs_dict:
+                sig_names = self.repo_sigs_dict.get(repo)
+
+            query = """{
+  "script": {
+    "source": "ctx._source['sig_names']=%s"
+  },
+  "query": {
+    "term": {
+      "gitee_repo.keyword": "%s"
+    }
+  }
+}""" % (sig_names, gitee_repo)
+            self.esClient.updateByQuery(query=query)
+            print('***** %s: %s *****' % (sig_names, gitee_repo))
 
     def getGiteeId2Company(self):
         self.giteeid_company_dict_last = self.esClient.giteeid_company_dict
@@ -175,15 +204,23 @@ class Gitee(object):
     def writeContributeForSingleRepo(self, org, repo, from_time=None):
         repo_name = repo['path']
         is_public = repo['public']
-        self.writeRepoData(org, repo_name, from_time)
-        self.writePullData(org, repo_name, is_public, from_time, self.once_update_num_of_pr)
-        self.writeIssueData(org, repo_name, is_public, from_time)
-        self.writeForks(org, repo_name, from_time)
+        sig_names = None
+        if org + '/' + repo_name in self.repo_sigs_dict:
+            sig_names = self.repo_sigs_dict[org + '/' + repo_name]
+
+        self.writeRepoData(org, repo_name, from_time, sig_names)
+        self.writePullData(org, repo_name, is_public, from_time, self.once_update_num_of_pr, sig_names)
+        self.writeIssueData(org, repo_name, is_public, from_time, sig_names)
+        self.writeForks(org, repo_name, from_time, sig_names)
 
     def writeSWForSingleRepo(self, org, repo, from_time=None):
         repo_name = repo['path']
-        self.writeStars(org, repo_name)
-        self.writeWatchs(org, repo_name)
+        sig_names = None
+        if org + '/' + repo_name in self.repo_sigs_dict:
+            sig_names = self.repo_sigs_dict[org + '/' + repo_name]
+
+        self.writeStars(org, repo_name, sig_names)
+        self.writeWatchs(org, repo_name, sig_names)
 
     def checkIsCollectRepo(self, path, is_public):
         filters = self.filters.split(',')
@@ -296,7 +333,7 @@ class Gitee(object):
                     print("[update] set repository(%s) is_removed to 1" % ordata['_source']['repository'])
                     self.esClient.updateToRemoved(ordata['_id'])
 
-    def writeForks(self, owner, repo, from_date):
+    def writeForks(self, owner, repo, from_date, sig_names=None):
         startTime = datetime.datetime.now()
         # from_date = self.getFromDate(from_date, [
         #     {"name": "is_gitee_fork", "value": 1}])
@@ -312,6 +349,7 @@ class Gitee(object):
             #     continue
 
             action = {
+                "sig_names": sig_names,
                 "fork_id": fork["id"],
                 "created_at": fork["created_at"],
                 "updated_at": fork["updated_at"],
@@ -346,7 +384,7 @@ class Gitee(object):
         print("Collect repo(%s) fork request data finished, spend %s seconds"
               % (owner + "/" + repo, (endTime - startTime).seconds))
 
-    def writeStars(self, owner, repo):
+    def writeStars(self, owner, repo, sig_names=None):
         client = GiteeClient(owner, repo, self.gitee_token)
         star_data = self.getGenerator(client.stars())
         actions = ""
@@ -365,6 +403,7 @@ class Gitee(object):
             # if star['login'] in self.skip_user:
             #     continue
             action = {
+                "sig_names": sig_names,
                 "user_id": star["id"],
                 "star_id": star_id,
                 "created_at": star["star_at"],
@@ -383,7 +422,7 @@ class Gitee(object):
             actions += json.dumps(action) + '\n'
         self.esClient.safe_put_bulk(actions)
 
-    def writeWatchs(self, owner, repo):
+    def writeWatchs(self, owner, repo, sig_names=None):
         client = GiteeClient(owner, repo, self.gitee_token)
 
         watch_data = self.getGenerator(client.watchs())
@@ -404,6 +443,7 @@ class Gitee(object):
             if self.esClient.checkFieldExist(filter=[watch_id]) == True:
                 continue
             action = {
+                "sig_names": sig_names,
                 "user_id": watch["id"],
                 "watch_id": watch_id,
                 "updated_at": common.datetime_utcnow().strftime('%Y-%m-%d'),
@@ -424,7 +464,7 @@ class Gitee(object):
 
         self.esClient.safe_put_bulk(actions)
 
-    def writeRepoData(self, owner, repo, from_date=None):
+    def writeRepoData(self, owner, repo, from_date=None, sig_names=None):
         client = GiteeClient(owner, repo, self.gitee_token)
         repo_data = self.getGenerator(client.repo())
         actions = ""
@@ -454,6 +494,7 @@ class Gitee(object):
         repo_detail.update(sigcount)
         signames = self.esClient.getRepoSigNames(self.sig_index, repo_data['full_name'])
         repo_detail['signames'] = signames
+        repo_detail['sig_names'] = sig_names
         branches = self.getGenerator(client.getSingleReopBranch())
         brinfo = self.getbranchinfo(branches, client, owner, repo, repo_data['path'], self.versiontimemapping)
         branchName = ''
@@ -566,7 +607,7 @@ class Gitee(object):
             from_date = common.str_to_datetime(from_date)
         return from_date
 
-    def writePullData(self, owner, repo, public, from_date=None, once_update_num_of_pr=200):
+    def writePullData(self, owner, repo, public, from_date=None, once_update_num_of_pr=200, sig_names=None):
         startTime = datetime.datetime.now()
         from_date = self.getFromDate(from_date, [
             {"name": "is_gitee_pull_request", "value": 1}])
@@ -641,6 +682,7 @@ class Gitee(object):
                 print(ec['pull_comment_id'])
                 if ec['user_login'] in self.skip_user:
                     continue
+                ec['sig_names'] = sig_names
                 indexData = {
                     "index": {"_index": self.index_name, "_id": ec['pull_comment_id']}}
                 actions += json.dumps(indexData) + '\n'
@@ -659,6 +701,7 @@ class Gitee(object):
             eitem['prcommentscount'] = len(ecomments)
             if self.sig_index:
                 eitem['pulls_signames'] = self.esClient.getRepoSigNames(self.sig_index, owner + "/" + repo)
+                eitem['sig_names'] = sig_names
             indexData = {"index": {"_index": self.index_name, "_id": eitem['id']}}
             actions += json.dumps(indexData) + '\n'
             actions += json.dumps(eitem) + '\n'
@@ -668,7 +711,7 @@ class Gitee(object):
         print("Collect pull request data finished, spend %s seconds" % (
                 endTime - startTime).seconds)
 
-    def writeIssueData(self, owner, repo, public, from_date=None):
+    def writeIssueData(self, owner, repo, public, from_date=None, sig_names=None):
         startTime = datetime.datetime.now()
 
         client = GiteeClient(owner, repo, self.gitee_token)
@@ -714,6 +757,7 @@ class Gitee(object):
                             lastreplyissuetime = ictime
                 if ic['user_login'] in self.skip_user:
                     continue
+                ic['sig_names'] = sig_names
                 print(ic['issue_comment_id'])
                 indexData = {
                     "index": {"_index": self.index_name,
@@ -727,6 +771,7 @@ class Gitee(object):
                         issue_item['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).seconds
                     issue_item['lastreplyissuetime'] = (datetime.datetime.now() + datetime.timedelta(hours=8) - (
                         datetime.datetime.strptime(lastreplyissuetime, '%Y-%m-%dT%H:%M:%S+08:00'))).seconds
+                issue_item['sig_names'] = sig_names
                 indexData = {"index": {"_index": self.index_name, "_id": issue_item['id']}}
                 actions += json.dumps(indexData) + '\n'
                 actions += json.dumps(issue_item) + '\n'
