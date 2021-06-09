@@ -35,6 +35,7 @@ class GitCommit(object):
         self.data_yaml_path = config.get('data_yaml_path')
         self.company_yaml_url = config.get('company_yaml_url')
         self.company_yaml_path = config.get('company_yaml_path')
+        self.is_fetch_all_branches = config.get("is_fetch_all_branches")
 
     def run(self, startTime):
 
@@ -171,7 +172,12 @@ class GitCommit(object):
     def fetch_commit_log_from_repo(self, from_date, g, repourl):
         repo_commit_list = []
         repo = repourl.split("/")[-1]
-        branch_names = self.get_repo_branches(g)  # ensure branch name, then get its commits.
+
+        if self.is_fetch_all_branches == "True":
+            branch_names = self.get_repo_branches(g)  # ensure branch name, then get its commits.
+        else:
+            branch_names = [g.execute(f"git branch", shell=True)]
+
         for branch_name in branch_names:
             try:
                 g.execute(f"git checkout -f {branch_name}", shell=True)
@@ -363,6 +369,7 @@ class GitCommit(object):
             # self.company_yaml_path = "data/company.yaml"
             # datas = yaml.load_all(open(self.data_yaml_path, encoding='UTF-8'), Loader=yaml.FullLoader).__next__()
             # companies = yaml.load_all(open(self.company_yaml_path, encoding='UTF-8'), Loader=yaml.FullLoader).__next__()
+
 
             domains_company_dict = {}
             aliases_company_dict = {}
