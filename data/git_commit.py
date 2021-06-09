@@ -354,21 +354,22 @@ class GitCommit(object):
     def getInfoFromCompany(self):
         companyInfo = {}
         if self.data_yaml_url and self.company_yaml_url:
-            # cmd = 'wget -N %s' % self.data_yaml_url
-            # p = os.popen(cmd.replace('=', ''))
-            # p.read()
-            # datas = yaml.load_all(open(self.data_yaml_path, encoding='UTF-8')).__next__()
-            # cmd = 'wget -N %s' % self.company_yaml_url
-            # p = os.popen(cmd.replace('=', ''))
-            # p.read()
-            # companies = yaml.load_all(open(self.company_yaml_path, encoding='UTF-8')).__next__()
-            # p.close()
+            cmd = 'wget -N %s' % self.data_yaml_url
+            p = os.popen(cmd.replace('=', ''))
+            p.read()
+            datas = yaml.load_all(open(self.data_yaml_path, encoding='UTF-8')).__next__()
+            cmd = 'wget -N %s' % self.company_yaml_url
+            p = os.popen(cmd.replace('=', ''))
+            p.read()
+            companies = yaml.load_all(open(self.company_yaml_path, encoding='UTF-8')).__next__()
+            p.close()
 
-            ###Test in windows without wget command
-            self.data_yaml_path = "data/data.yaml"
-            self.company_yaml_path = "data/company.yaml"
-            datas = yaml.load_all(open(self.data_yaml_path, encoding='UTF-8'), Loader=yaml.FullLoader).__next__()
-            companies = yaml.load_all(open(self.company_yaml_path, encoding='UTF-8'), Loader=yaml.FullLoader).__next__()
+            # ###Test in windows without wget command
+            # self.data_yaml_path = "data/data.yaml"
+            # self.company_yaml_path = "data/company.yaml"
+            # datas = yaml.load_all(open(self.data_yaml_path, encoding='UTF-8'), Loader=yaml.FullLoader).__next__()
+            # companies = yaml.load_all(open(self.company_yaml_path, encoding='UTF-8'), Loader=yaml.FullLoader).__next__()
+
 
             domains_company_dict = {}
             aliases_company_dict = {}
