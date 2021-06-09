@@ -365,6 +365,8 @@ class GiteeEvent(object):
 
         if not self.from_date:
             self.from_date = from_date
+        else:
+            self.from_date = datetime.datetime.strftime(datetime.datetime.strptime(self.from_date,"%Y%m%d"),"%Y-%m-%d")
 
         print(f"This round collect repo log data from {self.from_date}...\n\n")
 
