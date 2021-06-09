@@ -22,7 +22,6 @@ class AccountOrg(object):
         print("Collect AccountOrg data: start")
         self.csv_data = self.getDataFromCsv()
         self.getDataFromCla()
-        # self.getDataFromYaml()
         print("Collect AccountOrg data: finished")
 
     def getDataFromCla(self):
@@ -77,30 +76,41 @@ class AccountOrg(object):
             self.esClient.safe_put_bulk(actions)
 
     def getDataFromYaml(self):
+        dic = self.esClient.getOrgByGiteeID()
+        dic1 = dic[0]
+        dic2 = dic[1]
+        dic3 = {}
         if self.data_yaml_url:
-            cmd = 'wget -N %s' % self.data_yaml_url
-            p = os.popen(cmd.replace('=', ''))
-            p.read()
+            datas = yaml.load_all(open('company.yaml', encoding='UTF-8')).__next__()
+            for data in datas['companies']:
+                key = data['company_name']
+                value = data['aliases'][0]
+                dic3.update({key: value})
+
             datas = yaml.load_all(open('data.yaml', encoding='UTF-8')).__next__()
             actions = ""
             for data in datas['users']:
                 gitee_id = data['gitee_id']
+                if gitee_id == 'Cmb_Sjz':
+                    a= 0
                 organization = data['companies'][0]['company_name']
-                if organization == '':
+                if organization == '' or gitee_id in dic1 or gitee_id in dic2:
                     continue
 
-                email = None
-                if gitee_id in self.csv_data:
-                    email = self.csv_data[gitee_id]
-                if email is None:
-                    continue
+                # email = None
+                # if gitee_id in self.csv_data:
+                #     email = self.csv_data[gitee_id]
+                # if email is None:
+                #     continue
                 action = {
-                    "email": email,
-                    "organization": organization,
+                    "email": gitee_id,
+                    "organization": dic3.get(organization),
                     "gitee_id": gitee_id,
-                    "source": "YAML"
+                    "domain": None,
+                    "created_at": '1999-01-01',
+                    "is_cla": 1
                 }
-                index_data = {"index": {"_index": self.index_name, "_id": email}}
+                index_data = {"index": {"_index": self.index_name, "_id": gitee_id}}
                 actions += json.dumps(index_data) + '\n'
                 actions += json.dumps(action) + '\n'
 

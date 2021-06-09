@@ -80,6 +80,7 @@ class CollectData(object):
             self.get_sigs_code_all()
 
         if self.index_name_sigs and self.sig_mark:
+            self.get_sigs_original()
             self.get_sigs()
             self.get_sig_pr_issue()
             self.get_sigs_total()
@@ -511,6 +512,34 @@ class CollectData(object):
             content = re.search(mark + '\s+(\d+)', data)
             num = content.group(1) if content else 0
         return int(num)
+
+    def get_sigs_original(self):
+        dirs = os.walk(self.sigs_dirs_path).__next__()[1]
+
+        data = yaml.load_all(open(self.sig_yaml_path)).__next__()['sigs']
+        sig_repos_dict = {}
+        for d in data:
+            sig_repos_dict.update({d['name']: d['repositories']})
+        actions = ''
+        for dir in dirs:
+            repositories = []
+            if dir in sig_repos_dict:
+                repos = sig_repos_dict.get(dir)
+                for repo in repos:
+                    if str(repo).startswith(self.org + '/'):
+                        repositories = repos
+                        break
+                    else:
+                        repositories.append(self.org + '/' + repo)
+            action = {
+                "sig_name": dir,
+                "repos": repositories,
+                "is_sig_original": 1,
+            }
+            indexData = {"index": {"_index": self.index_name_sigs, "_id": dir}}
+            actions += json.dumps(indexData) + '\n'
+            actions += json.dumps(action) + '\n'
+        self.safe_put_bulk(actions)
 
     def get_sigs(self):
 
