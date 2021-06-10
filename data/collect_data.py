@@ -526,7 +526,7 @@ class CollectData(object):
             if dir in sig_repos_dict:
                 repos = sig_repos_dict.get(dir)
                 for repo in repos:
-                    if str(repo).startswith(self.org + '/'):
+                    if str(repo).__contains__('/'):
                         repositories = repos
                         break
                     else:

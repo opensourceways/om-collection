@@ -1277,7 +1277,7 @@ class Gitee(object):
         for key, vMap in self.esClient.giteeid_company_change_dict.items():
             vMap.keys()
             times = sorted(vMap.keys())
-            for i in range(1, len(times)):
+            for i in range(1, len(times) + 1):
                 if i == 1:
                     startTime = '1990-01-01'
                 else:
@@ -1287,13 +1287,13 @@ class Gitee(object):
                 else:
                     endTime = times[i]
                 company = vMap.get(times[i - 1])
-                is_project_internal_user = 0
-                if company == self.internal_company_name:
-                    is_project_internal_user = 1
+                # is_project_internal_user = 0
+                # if company == self.internal_company_name:
+                #     is_project_internal_user = 1
 
                 query = '''{
                             	"script": {
-                            		"source": "ctx._source['tag_user_company']='%s';ctx._source['is_project_internal_user']=%s"
+                            		"source": "ctx._source['tag_user_company']='%s'"
                             	},
                             	"query": {
                             		"bool": {
@@ -1314,8 +1314,8 @@ class Gitee(object):
                             			]
                             		}
                             	}
-                            }''' % (company, is_project_internal_user, startTime, endTime, key)
-                self.esClient.updateByQuery(query=query)
+                            }''' % (company, startTime, endTime, key)
+                self.esClient.updateByQuery(query=query.encode('utf-8'))
 
     def tagHistoryUsers(self):
         if self.giteeid_company_dict_last == self.esClient.giteeid_company_dict:
