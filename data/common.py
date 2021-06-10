@@ -321,6 +321,8 @@ class ESClient(object):
 
             if userExtra["tag_user_company"] == self.internal_company_name:
                 userExtra["is_project_internal_user"] = 1
+            else:
+                userExtra["is_project_internal_user"] = 0
 
         return userExtra
 
