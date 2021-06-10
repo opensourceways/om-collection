@@ -112,7 +112,6 @@ class Gitee(object):
         else:
             if self.esClient.is_update_tag_company == 'true':
                 self.tagHistoryUsers()
-                self.tagUserOrgChanged()
 
             if self.is_set_pr_issue_repo_fork == 'true':
                 self.writeData(self.writeContributeForSingleRepo, from_time)
@@ -128,6 +127,7 @@ class Gitee(object):
             if self.is_set_sigs_star == 'true':
                 self.getSartUsersList()
 
+            self.tagUserOrgChanged()
         endTime = time.time()
         spent_time = time.strftime("%H:%M:%S",
                                    time.gmtime(endTime - startTime))
