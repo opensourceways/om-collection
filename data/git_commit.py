@@ -108,7 +108,13 @@ class GitCommit(object):
 
     def get_repo_branches(self, g):
         branch_names = []
-        text = g.execute("git branch -a", shell=True)
+        if self.is_fetch_all_branches == "True":
+            text = g.execute("git branch -a", shell=True)  # ensure branch name, then get its commits.
+        else:
+            text = g.execute("git branch", shell=True)
+            branch_name = self.getCurrentBranchName(text)
+            branch_names.append(branch_name)
+            return branch_names
         branch_list = text.split("\n")
 
         master_index = 0
@@ -173,10 +179,7 @@ class GitCommit(object):
         repo_commit_list = []
         repo = repourl.split("/")[-1]
 
-        if self.is_fetch_all_branches == "True":
-            branch_names = self.get_repo_branches(g)  # ensure branch name, then get its commits.
-        else:
-            branch_names = [g.execute(f"git branch", shell=True)]
+        branch_names = self.get_repo_branches(g)  # ensure branch name, then get its commits.
 
         for branch_name in branch_names:
             try:
