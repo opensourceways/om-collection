@@ -1003,7 +1003,7 @@ class ESClient(object):
             return
 
     def updateByQuery(self, query):
-        url = self.url + '/' + self.index_name + '/_update_by_query'
+        url = self.url + '/' + self.index_name + '/_update_by_query?conflicts=proceed'
         requests.post(url, headers=self.default_headers, verify=False, data=query)
 
     def getUniqueCountByDate(self, field, from_date, to_date,

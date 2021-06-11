@@ -139,7 +139,7 @@ class Gitee(object):
             gitee_repo = d['key']
             repo = str(gitee_repo).replace("https://gitee.com/", "")
 
-            sig_names = None
+            sig_names = ['No-SIG']
             if repo in self.repo_sigs_dict:
                 sig_names = self.repo_sigs_dict.get(repo)
 
@@ -155,6 +155,26 @@ class Gitee(object):
 }""" % (sig_names, gitee_repo)
             self.esClient.updateByQuery(query=query)
             print('***** %s: %s *****' % (sig_names, gitee_repo))
+
+        sig_names = ['No-SIG']
+        queryNoRepo = """{
+  "script": {
+    "source": "ctx._source['sig_names']=%s"
+  },
+  "query": {
+    "bool": {
+      "must_not": [
+        {
+          "exists": {
+            "field": "sig_names"
+          }
+        }
+      ]
+    }
+  }
+}""" % sig_names
+        self.esClient.updateByQuery(query=queryNoRepo)
+        print('***** No Repo No Sig *****')
 
     def getGiteeId2Company(self):
         self.giteeid_company_dict_last = self.esClient.giteeid_company_dict
@@ -204,7 +224,7 @@ class Gitee(object):
     def writeContributeForSingleRepo(self, org, repo, from_time=None):
         repo_name = repo['path']
         is_public = repo['public']
-        sig_names = None
+        sig_names = ['No-SIG']
         if org + '/' + repo_name in self.repo_sigs_dict:
             sig_names = self.repo_sigs_dict[org + '/' + repo_name]
 
@@ -215,7 +235,7 @@ class Gitee(object):
 
     def writeSWForSingleRepo(self, org, repo, from_time=None):
         repo_name = repo['path']
-        sig_names = None
+        sig_names = ['No-SIG']
         if org + '/' + repo_name in self.repo_sigs_dict:
             sig_names = self.repo_sigs_dict[org + '/' + repo_name]
 
