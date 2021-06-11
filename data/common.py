@@ -1487,7 +1487,7 @@ class ESClient(object):
         self.safe_put_bulk(actions)
 
     def setToltalCount(self, from_date, count_key,
-                       field=None, query=None, key_prefix=None):
+                       field=None, query=None, key_prefix=""):
         starTime = datetime.strptime(from_date, "%Y%m%d")
         fromTime = datetime.strptime(from_date, "%Y%m%d")
         to = datetime.today().strftime("%Y%m%d")
