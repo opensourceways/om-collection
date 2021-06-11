@@ -11,7 +11,7 @@ $ git clone https://gitee.com/opensourceway/om-collections
 ```
  cd om-collections
  pip3 install -r requirement.txt
- python  george.py
+ python george.py
 ```
 
 
