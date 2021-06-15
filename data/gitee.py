@@ -1207,7 +1207,7 @@ class Gitee(object):
                 userExtra["is_project_internal_user"] = 0
         else:
             if login in self.internalUsers:
-                userExtra["tag_user_company"] = "openeuler"
+                userExtra["tag_user_company"] = self.internal_company_name
                 userExtra["is_project_internal_user"] = 1
             else:
                 userExtra["tag_user_company"] = "n/a"
