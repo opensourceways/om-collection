@@ -987,7 +987,7 @@ class ESClient(object):
         }
         if is_internal == True:
             update_data["doc"]["is_project_internal_user"] = 1
-            update_data["doc"]["tag_user_company"] = "openeuler"
+            update_data["doc"]["tag_user_company"] = self.internal_company_name
         else:
             update_data["doc"]["is_project_internal_user"] = None
             update_data["doc"]["tag_user_company"] = None
@@ -1001,6 +1001,37 @@ class ESClient(object):
         if res.status_code != 200:
             print("update repo author name failed:", res.text)
             return
+
+    def reindex(self, reindex_json):
+        url = self.url + '/' + '_reindex'
+        res = requests.post(url, headers=self.default_headers, verify=False, data=reindex_json)
+        if res.status_code != 200:
+            return 0
+        data = res.json()
+        data_total = data['total']
+        return data_total
+
+    def get_sig_maintainers(self, index_name):
+        search_json = '''{
+                      "size": 0,
+                      "aggs": {
+                        "maintainers": {
+                          "terms": {
+                            "field": "maintainers.keyword",
+                            "size": 10000
+                          }
+                        }
+                      }
+                    }'''
+        maintainers = []
+        url = self.url + "/" + index_name + '/_search'
+        res = requests.post(url, headers=self.default_headers, verify=False, data=search_json)
+        if res.status_code != 200:
+            return maintainers
+        data = res.json()
+        for bucket in data["aggregations"]['maintainers']['buckets']:
+            maintainers.append(bucket['key'])
+        return maintainers
 
     def updateByQuery(self, query):
         url = self.url + '/' + self.index_name + '/_update_by_query?conflicts=proceed'
