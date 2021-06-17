@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import os
+from collections import defaultdict
+
 from bs4 import BeautifulSoup
 import re
 import git
@@ -81,7 +83,9 @@ class CollectData(object):
 
         if self.index_name_sigs and self.sig_mark:
             self.get_sigs()
-            self.get_sigs_original()
+            last_maintainers = self.esClient.get_sig_maintainers(self.index_name_sigs)
+            maintainer_sigs_dict = self.get_sigs_original()
+            self.reindex_maintainer_gitee_all(last_maintainers, maintainer_sigs_dict)
             self.get_sig_pr_issue()
             self.get_sigs_total()
             self.get_sigs_committer_total()
@@ -515,13 +519,15 @@ class CollectData(object):
 
     def get_sigs_original(self):
         dirs = os.walk(self.sigs_dirs_path).__next__()[1]
-
         data = yaml.load_all(open(self.sig_yaml_path)).__next__()['sigs']
         sig_repos_dict = {}
         for d in data:
             sig_repos_dict.update({d['name']: d['repositories']})
+
         actions = ''
+        dict_comb = defaultdict(dict)
         for dir in dirs:
+            # get repos
             repositories = []
             if dir in sig_repos_dict:
                 repos = sig_repos_dict.get(dir)
@@ -531,15 +537,103 @@ class CollectData(object):
                         break
                     else:
                         repositories.append(self.org + '/' + repo)
+            # get maintainers
+            try:
+                onwer_file = self.sigs_dirs_path + '/' + dir + '/' + 'OWNERS'
+                onwers = yaml.load_all(open(onwer_file)).__next__()
+                maintainers = onwers['maintainers']
+            except FileNotFoundError:
+                maintainers = []
+            # get maintainer sigs dict
+            dt = defaultdict(dict)
+            for maintainer in maintainers:
+                dt.update({maintainer: [dir]})
+            combined_keys = dict_comb.keys() | dt.keys()
+            dict_comb = {key: dict_comb.get(key, []) + dt.get(key, []) for key in combined_keys}
+            # sig actions
             action = {
                 "sig_name": dir,
                 "repos": repositories,
                 "is_sig_original": 1,
+                "maintainers": maintainers,
             }
             indexData = {"index": {"_index": self.index_name_sigs, "_id": dir}}
             actions += json.dumps(indexData) + '\n'
             actions += json.dumps(action) + '\n'
         self.safe_put_bulk(actions)
+        return dict_comb
+
+    def reindex_maintainer_gitee_all(self, history_maintainers, maintainer_sigs_dict):
+        dic = self.esClient.getOrgByGiteeID()
+        giteeid_company_dict = dic[0]
+
+        maintainers = self.esClient.get_sig_maintainers(self.index_name_sigs)
+        actions = ''
+        for maintainer in maintainers:
+            reindex_json = '''{
+                                  "source": {
+                                    "index": "%s",
+                                    "query": {
+                                      "term": {
+                                        "user_login.keyword": "%s"
+                                      }
+                                    }
+                                  },
+                                  "dest": {
+                                    "index": "%s"
+                                  }
+                                }''' % (self.sigs_source, maintainer, self.index_name)
+            data_num = self.esClient.reindex(reindex_json)
+            print('reindex: %s -> %d' % (maintainer, data_num))
+            if data_num == 0:
+                company = giteeid_company_dict.get(maintainer) if maintainer in giteeid_company_dict else 'independent'
+                internal_user = 1 if company == self.esClient.internal_company_name else 0
+                action = {
+                    "user_login": maintainer,
+                    "tag_user_company": company,
+                    "is_project_internal_user": internal_user,
+                    "is_no_contribute_before": 1,
+                    "created_at": "2020-03-16T20:57:20+08:00"
+                }
+                indexData = {"index": {"_index": self.index_name, "_id": maintainer}}
+                actions += json.dumps(indexData) + '\n'
+                actions += json.dumps(action) + '\n'
+        self.safe_put_bulk(actions)
+
+        # tag removed maintainers
+        removed_maintainers = set(history_maintainers).difference(set(maintainers))
+        for maintainer in removed_maintainers:
+            query = """{
+                          "script": {
+                            "source": "ctx._source['is_removed_maintainer']=1"
+                          },
+                          "query": {
+                            "term": {
+                              "user_login.keyword": "%s"
+                            }
+                          }
+                        }""" % maintainer
+            self.esClient.updateByQuery(query=query)
+        # tag maintainer`s sigs
+        for maintainer in maintainers:
+            sigs = maintainer_sigs_dict.get(maintainer)
+            query = """{
+                          "script": {
+                            "source": "ctx._source['maintainer_sigs']=params.sig",
+                            "lang": "painless",
+                            "params": {
+                              "sig": %s
+                            }
+                          },
+                          "query": {
+                            "term": {
+                              "user_login.keyword": "%s"
+                            }
+                          }
+                        }""" % (str(sigs).replace("\'", "\""), maintainer)
+
+            self.esClient.updateByQuery(query=query)
+            print('%s: %s' % (maintainer, sigs))
 
     def get_sigs(self):
 
