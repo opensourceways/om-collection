@@ -42,13 +42,14 @@ class GithubClient(object):
     :param archive: archive to store/retrieve items
     :param ssl_verify: enable/disable SSL verification
     """
+
     def __init__(self, org, repository, token,
-                 base_url=None, max_items=MAX_CATEGORY_ITEMS_PER_PAGE,):
+                 base_url=None, max_items=MAX_CATEGORY_ITEMS_PER_PAGE, ):
         self.org = org
         self.repository = repository
         self.headers = {
-                    'Content-Type': 'application/json'
-                }
+            'Content-Type': 'application/json'
+        }
         self.headers["Authorization"] = token
         self.base_url = BASE_URL
         self.session = requests.Session()
@@ -65,16 +66,15 @@ class GithubClient(object):
         data = r.json()
         return data
 
-
     def getClone(self, repository=None):
         if repository:
             repo = repository
         else:
             repo = self.repository
-        c = requests.get('https://api.github.com/repos/' + self.org + '/' + repo + '/traffic/clones', headers=self.headers)
+        c = requests.get('https://api.github.com/repos/' + self.org + '/' + repo + '/traffic/clones',
+                         headers=self.headers)
         cloneObj = c.json()
         return cloneObj
-
 
     def repo(self):
         """Get repository data"""
@@ -97,14 +97,14 @@ class GithubClient(object):
         """
         if method == 'GET':
             response = requests.get(url, headers=self.headers,
-                             verify=self.ssl_verify,
-                             stream=stream, auth=auth)
+                                    verify=self.ssl_verify,
+                                    stream=stream, auth=auth)
             # response = self.session.get(url, params=payload, headers=headers, stream=stream,
             #                             verify=self.ssl_verify, auth=auth)
         else:
             response = requests.post(url, headers=self.headers,
-                                        verify=self.ssl_verify,
-                                        stream=stream, auth=auth)
+                                     verify=self.ssl_verify,
+                                     stream=stream, auth=auth)
 
         return response
 
@@ -127,3 +127,9 @@ class GithubClient(object):
         """
         return '/'.join(map(lambda x: str(x).strip('/'), args))
 
+    def getStarUserDetails(self):
+        """Get starred users data"""
+        path = self.urijoin(self.base_url, 'repos', self.org, self.repository, "stargazers")
+        r = self.fetch(path)
+        repo = r.json()
+        return repo
