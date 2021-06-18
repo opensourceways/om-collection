@@ -27,7 +27,6 @@ from data.common import ESClient
 from collect.github import GithubClient
 
 
-
 class GitHubSWF(object):
     def __init__(self, config=None):
         self.config = config
@@ -52,6 +51,9 @@ class GitHubSWF(object):
         self.gitee_index_name = config.get('gitee_index_name')
         self.gitee_index_name_total = config.get('gitee_index_name_total')
 
+        self.is_fetch_star_details = config.get('is_fetch_star_details')
+        self.star_index_name = config.get('star_index_name')
+
     def run(self, from_date):
         startTime = time.time()
         print("Collect github star watch fork data: staring")
@@ -63,20 +65,25 @@ class GitHubSWF(object):
             actions += action
         self.esClient.safe_put_bulk(actions)
 
+        if self.is_fetch_star_details == 'True':
+            self.getSWF_Stargazers(repoNames)
+
         if self.github_index_name:
             for type in self.github_types:
                 self.getTotal(type=type, index_name=self.github_index_name, total_index=self.github_index_name_total,
-                              field=self.github_field,size=self.github_size, mark='github')
+                              field=self.github_field, size=self.github_size, mark='github')
         if self.gitee_index_name:
             for type in self.gitee_types:
                 self.getTotal(type=type, index_name=self.gitee_index_name, total_index=self.gitee_index_name_total,
-                              field=self.gitee_field,size=self.gitee_size, search=',"must": [{ "match": { "is_gitee_repo":1 }}]', mark='gitee')
+                              field=self.gitee_field, size=self.gitee_size,
+                              search=',"must": [{ "match": { "is_gitee_repo":1 }}]', mark='gitee')
 
         endTime = time.time()
         spent_time = time.strftime("%H:%M:%S", time.gmtime(endTime - startTime))
         print("Collect github star watch fork data: finished after ", spent_time)
 
-    def getTotal(self, type, index_name, total_index, url=None, date='2019-06-01', field=None, size='10', search='', mark=None):
+    def getTotal(self, type, index_name, total_index, url=None, date='2019-06-01', field=None, size='10', search='',
+                 mark=None):
         if not url:
             url = self.url + '/' + index_name + '/_search'
         if not date:
@@ -134,9 +141,10 @@ class GitHubSWF(object):
             }
           }
         }''' % (str(dateiise).split()[0], str(dateii).split()[0], search, field, size, type)
-            res = json.loads(requests.get(url=url, headers=self.headers, verify=False, data=data.encode('utf-8')).content)
+            res = json.loads(
+                requests.get(url=url, headers=self.headers, verify=False, data=data.encode('utf-8')).content)
             num = sum([int(r['3']['value']) for r in res["aggregations"]["2"]["buckets"]])
-            body = {'created_at': stime+'T00:00:00.000+0800', totalmark: 1, 'total_num': num}
+            body = {'created_at': stime + 'T00:00:00.000+0800', totalmark: 1, 'total_num': num}
             ID = totalmark + stime
             data = common.getSingleAction(total_index, ID, body)
             if num > 0:
@@ -159,12 +167,22 @@ class GitHubSWF(object):
             pass
         return s
 
-
     def getSWF(self, repo):
         client = GithubClient(self.org, repo, self.github_authorization)
         r = client.repo()
         r["swf_update_time"] = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S+08:00')
-        # r["swf_update_time"] = "2020-06-19T22:21:25+08:00"
         id = "swf_" + r["swf_update_time"] + r.get("full_name")
         action = common.getSingleAction(self.index_name, id, r)
         return action
+
+    def getSWF_Stargazers(self, repos):
+        actions = ""
+        for repo in repos:
+            client = GithubClient(self.org, repo, self.github_authorization)
+            repo_star_user_list = client.getStarUserDetails()
+            for repo_star_user in repo_star_user_list:
+                id = repo_star_user.get('id')
+                repo_star_user["repo"] = repo
+                action = common.getSingleAction(self.star_index_name, id, repo_star_user)
+                actions += action
+        self.esClient.safe_put_bulk(actions)
