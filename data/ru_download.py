@@ -29,7 +29,7 @@ class RuDownload(object):
         print(source_index_name)
 
         search = '''{
-                      "size":10,
+                      "size":10000,
                       "query": {
                         "bool": {
                           "must": [
