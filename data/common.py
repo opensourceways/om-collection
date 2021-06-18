@@ -1680,6 +1680,32 @@ class ESClient(object):
 
         self.safe_put_bulk(actions)
 
+    def scrollSearch(self, index_name, search=None, scroll_duration='1m', func=None):
+        url = self.url + '/' + index_name + '/_search?scroll=' + scroll_duration
+        res = requests.get(url=url, headers=self.default_headers, verify=False, data=search.encode('utf-8'))
+        if res.status_code != 200:
+            print('requests error')
+        res_data = res.json()
+        data = res_data['hits']['hits']
+        print(len(data))
+        func(data)
+
+        scroll_id = res_data['_scroll_id']
+        while scroll_id is not None and len(data) != 0:
+            url = self.url + '/_search/scroll'
+            search = '''{
+                          "scroll": "%s",
+                          "scroll_id": "%s"
+                        }''' % (scroll_duration, scroll_id)
+            res = requests.get(url=url, headers=self.default_headers, verify=False, data=search.encode('utf-8'))
+            if res.status_code != 200:
+                print('requests error')
+            res_data = res.json()
+            scroll_id = res_data['_scroll_id']
+            data = res_data['hits']['hits']
+            print(len(data))
+            func(data)
+        print('scroll over')
 
 def get_date(time):
     if time:

@@ -47,7 +47,8 @@ BACKEND_MAPPING = {
     'cla': 'data.cla.Cla',
     'polymerization': 'data.combine.polymerization.Polymerization',
     'account_org': 'data.account_org.AccountOrg',
-    'git': 'data.git_commit.GitCommit'
+    'git': 'data.git_commit.GitCommit',
+    'ru_download': 'data.ru_download.RuDownload'
 }
 
 
