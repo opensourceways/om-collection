@@ -313,8 +313,10 @@ class CVE(object):
             if len(branch_info) == 2:
                 if branch_info[1] == '受影响':
                     affected_branchs.append(branch_info[0])
-                else:
+                elif branch_info[1] == '不受影响':
                     unaffected_branchs.append(branch_info[0])
+                else:
+                    not_analyze_dbranchs.append(branch_info[0])
             else:
                 not_analyze_dbranchs.append(branch_info[0])
 
