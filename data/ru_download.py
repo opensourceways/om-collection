@@ -18,7 +18,6 @@ class RuDownload(object):
         self.last_run_date = None
 
     def run(self, from_time):
-        print(time.localtime())
         date_now = time.strftime("%Y.%m.%d", time.localtime())
         if self.last_run_date == date_now:
             print("has been executed today")
@@ -26,7 +25,6 @@ class RuDownload(object):
         self.last_run_date = date_now
         date_yesterday = (datetime.datetime.now() - datetime.timedelta(days=self.before_day)).strftime("%Y.%m.%d")
         source_index_name = self.source_index_name_head + '-' + date_yesterday
-        print(source_index_name)
 
         search = '''{
                       "size":10000,

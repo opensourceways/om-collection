@@ -1687,7 +1687,7 @@ class ESClient(object):
             print('requests error')
         res_data = res.json()
         data = res_data['hits']['hits']
-        print(len(data))
+        print('scroll data count: %s' % len(data))
         func(data)
 
         scroll_id = res_data['_scroll_id']
@@ -1703,7 +1703,7 @@ class ESClient(object):
             res_data = res.json()
             scroll_id = res_data['_scroll_id']
             data = res_data['hits']['hits']
-            print(len(data))
+            print('scroll data count: %s' % len(data))
             func(data)
         print('scroll over')
 
