@@ -130,6 +130,10 @@ class GithubClient(object):
     def getStarUserDetails(self):
         """Get starred users data"""
         path = self.urijoin(self.base_url, 'repos', self.org, self.repository, "stargazers")
-        r = self.fetch(path)
+
+        headers = self.headers
+        headers['Accept'] = 'application/vnd.github.v3.star+json'
+
+        r = self.session.get(url=path, headers=headers)
         repo = r.json()
         return repo

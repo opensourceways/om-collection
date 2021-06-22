@@ -58,25 +58,29 @@ class GitHubSWF(object):
         startTime = time.time()
         print("Collect github star watch fork data: staring")
         repoNames = self.getRepoNames()
-        actions = ""
-        for repo in repoNames:
-            action = self.getSWF(repo)
-            # print(action)
-            actions += action
-        self.esClient.safe_put_bulk(actions)
-
+        service_flag = 0   # set a service_switch_flag, to do different service.
         if self.is_fetch_star_details == 'True':
             self.getSWF_Stargazers(repoNames)
+            service_flag = 1
 
-        if self.github_index_name:
-            for type in self.github_types:
-                self.getTotal(type=type, index_name=self.github_index_name, total_index=self.github_index_name_total,
-                              field=self.github_field, size=self.github_size, mark='github')
-        if self.gitee_index_name:
-            for type in self.gitee_types:
-                self.getTotal(type=type, index_name=self.gitee_index_name, total_index=self.gitee_index_name_total,
-                              field=self.gitee_field, size=self.gitee_size,
-                              search=',"must": [{ "match": { "is_gitee_repo":1 }}]', mark='gitee')
+        if service_flag == 0:
+            actions = ""
+            for repo in repoNames:
+                action = self.getSWF(repo)
+                # print(action)
+                actions += action
+            self.esClient.safe_put_bulk(actions)
+
+            if self.github_index_name:
+                for type in self.github_types:
+                    self.getTotal(type=type, index_name=self.github_index_name,
+                                  total_index=self.github_index_name_total,
+                                  field=self.github_field, size=self.github_size, mark='github')
+            if self.gitee_index_name:
+                for type in self.gitee_types:
+                    self.getTotal(type=type, index_name=self.gitee_index_name, total_index=self.gitee_index_name_total,
+                                  field=self.gitee_field, size=self.gitee_size,
+                                  search=',"must": [{ "match": { "is_gitee_repo":1 }}]', mark='gitee')
 
         endTime = time.time()
         spent_time = time.strftime("%H:%M:%S", time.gmtime(endTime - startTime))
