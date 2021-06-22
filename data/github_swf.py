@@ -58,7 +58,8 @@ class GitHubSWF(object):
         startTime = time.time()
         print("Collect github star watch fork data: staring")
         repoNames = self.getRepoNames()
-        service_flag = 0   # set a service_switch_flag, to do different service.
+        # repoNames = ['blog']
+        service_flag = 0  # set a service_switch_flag, to do different service.
         if self.is_fetch_star_details == 'True':
             self.getSWF_Stargazers(repoNames)
             service_flag = 1
@@ -185,8 +186,9 @@ class GitHubSWF(object):
             client = GithubClient(self.org, repo, self.github_authorization)
             repo_star_user_list = client.getStarUserDetails()
             for repo_star_user in repo_star_user_list:
-                id = repo_star_user.get('id')
+                id = repo_star_user['user'].get('id')
                 repo_star_user["repo"] = repo
+                repo_star_user["created_at"] = repo_star_user.pop("starred_at")
                 action = common.getSingleAction(self.star_index_name, id, repo_star_user)
                 actions += action
         self.esClient.safe_put_bulk(actions)
