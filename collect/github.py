@@ -130,10 +130,22 @@ class GithubClient(object):
     def getStarUserDetails(self):
         """Get starred users data"""
         path = self.urijoin(self.base_url, 'repos', self.org, self.repository, "stargazers")
-
         headers = self.headers
         headers['Accept'] = 'application/vnd.github.v3.star+json'
 
-        r = self.session.get(url=path, headers=headers)
-        repo = r.json()
-        return repo
+        # Accquire data through paging
+        page = 1
+        per_page = 100
+
+        repos = []
+        while True:
+            url = path + f"?page={page}&per_page={per_page}"
+            r = self.session.get(url=url, headers=headers)
+            if r.text == "[]":
+                break
+
+            repo = r.json()
+            repos.extend(repo)
+            page += 1
+
+        return repos
