@@ -53,18 +53,21 @@ class GitHubSWF(object):
 
         self.is_fetch_star_details = config.get('is_fetch_star_details')
         self.star_index_name = config.get('star_index_name')
+        self.orgs = config.get('orgs')
 
     def run(self, from_date):
         startTime = time.time()
         print("Collect github star watch fork data: staring")
-        repoNames = self.getRepoNames()
 
         service_flag = 0  # set a service_switch_flag, to do different service.
         if self.is_fetch_star_details == 'True':
-            self.getSWF_Stargazers(repoNames)
+            org_list = self.orgs.split(",")
+            for org in org_list:
+                self.getSWF_Stargazers(org)
             service_flag = 1
 
         if service_flag == 0:
+            repoNames = self.getRepoNames()
             actions = ""
             for repo in repoNames:
                 action = self.getSWF(repo)
@@ -180,15 +183,41 @@ class GitHubSWF(object):
         action = common.getSingleAction(self.index_name, id, r)
         return action
 
-    def getSWF_Stargazers(self, repos):
+    def getSWF_Stargazers(self, owner):
+
+        repos = self.getOwnerRepoNames(owner)
         actions = ""
         for repo in repos:
             client = GithubClient(self.org, repo, self.github_authorization)
-            repo_star_user_list = client.getStarUserDetails()
+            repo_star_user_list = client.getStarOrIssueDetails(owner=owner, api_type="stargazers")
+            repo_issue_list = client.getStarOrIssueDetails(owner=owner, api_type="issues")
+
             for repo_star_user in repo_star_user_list:
-                id = str(repo_star_user['user'].get('id')) + "_" + repo
+                id = str(repo_star_user['user'].get('id')) + "_star_" + repo
+                repo_star_user["user_id"] = repo_star_user['user'].pop("id")
+                repo_star_user["owner"] = owner
                 repo_star_user["repo"] = repo
                 repo_star_user["created_at"] = repo_star_user.pop("starred_at")
+                repo_star_user["is_github_star"] = 1
+                repo_star_user["user_star"] = repo_star_user.pop("user")
                 action = common.getSingleAction(self.star_index_name, id, repo_star_user)
                 actions += action
+
+            for repo_issue in repo_issue_list:
+                id = str(repo_issue['id']) + "_issue_" + repo
+                repo_issue["owner"] = owner
+                repo_issue["repo"] = repo
+                repo_issue["is_github_issue"] = 1
+                repo_issue["user_issue"] = repo_issue.pop("user")
+                action = common.getSingleAction(self.star_index_name, id, repo_issue)
+                actions += action
+
         self.esClient.safe_put_bulk(actions)
+
+    def getOwnerRepoNames(self, owner):
+        gitclient = GithubClient(self.org, "", self.github_authorization)
+        repos = gitclient.getAllOwnerRepo(owner)
+        repoNames = []
+        for rep in repos:
+            repoNames.append(self.ensure_str(rep['name']))
+        return repoNames
