@@ -17,6 +17,8 @@ import datetime
 import logging
 import os
 import json
+import time
+
 import requests
 
 import dateutil.parser
@@ -62,6 +64,13 @@ class GithubClient(object):
     def getAllrepo(self):
         full_names = []
         r = requests.get('https://api.github.com/users/' + self.org + '/repos' + '?pape=1&per_page=10000',
+                         headers=self.headers)
+        data = r.json()
+        return data
+
+    def getAllOwnerRepo(self, owner):
+        full_names = []
+        r = requests.get('https://api.github.com/users/' + owner + '/repos' + '?pape=1&per_page=10000',
                          headers=self.headers)
         data = r.json()
         return data
@@ -127,13 +136,13 @@ class GithubClient(object):
         """
         return '/'.join(map(lambda x: str(x).strip('/'), args))
 
-    def getStarUserDetails(self):
+    def getStarOrIssueDetails(self, owner, api_type):
         """Get starred users data"""
-        path = self.urijoin(self.base_url, 'repos', self.org, self.repository, "stargazers")
+        path = self.urijoin(self.base_url, 'repos', owner, self.repository, api_type)
         headers = self.headers
         headers['Accept'] = 'application/vnd.github.v3.star+json'
 
-        # Accquire data through paging
+        # Accquire data through pagination
         page = 1
         per_page = 100
 
@@ -141,6 +150,14 @@ class GithubClient(object):
         while True:
             url = path + f"?page={page}&per_page={per_page}"
             r = self.session.get(url=url, headers=headers)
+
+            print("Remining API calling times: ", r.headers.get('X-RateLimit-Remaining'))
+
+            # Cause API has rate limit in a specific time, so sleep the thread before it exceed.
+            if int(r.headers.get('X-RateLimit-Used')) >= int(r.headers.get('X-RateLimit-Limit')) - 1:
+                print("Thread sleeping, cause exceed the rate limit of github...")
+                time.sleep(3600)
+
             if r.text == "[]":
                 break
 
