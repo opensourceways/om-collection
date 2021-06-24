@@ -189,27 +189,33 @@ class GitHubSWF(object):
         actions = ""
         for repo in repos:
             client = GithubClient(self.org, repo, self.github_authorization)
-            repo_star_user_list = client.getStarOrIssueDetails(owner=owner, api_type="stargazers")
-            repo_issue_list = client.getStarOrIssueDetails(owner=owner, api_type="issues")
+
+            repo_star_user_list = client.getStarDetails(owner=owner)
+            repo_issue_list = client.getIssueDetails(owner=owner)
 
             for repo_star_user in repo_star_user_list:
+                star = {}
                 id = str(repo_star_user['user'].get('id')) + "_star_" + repo
-                repo_star_user["user_id"] = repo_star_user['user'].pop("id")
-                repo_star_user["owner"] = owner
-                repo_star_user["repo"] = repo
-                repo_star_user["created_at"] = repo_star_user.pop("starred_at")
-                repo_star_user["is_github_star"] = 1
-                repo_star_user["user_star"] = repo_star_user.pop("user")
-                action = common.getSingleAction(self.star_index_name, id, repo_star_user)
+                star["created_at"] = repo_star_user.pop("starred_at")
+                star["user_login"] = repo_star_user['user']["login"]
+                star["user_id"] = repo_star_user['user']['id']
+                star["owner"] = owner
+                star["repo"] = repo
+                star["is_github_star"] = 1
+                action = common.getSingleAction(self.star_index_name, id, star)
                 actions += action
 
             for repo_issue in repo_issue_list:
+                issue = {}
                 id = str(repo_issue['id']) + "_issue_" + repo
-                repo_issue["owner"] = owner
-                repo_issue["repo"] = repo
-                repo_issue["is_github_issue"] = 1
-                repo_issue["user_issue"] = repo_issue.pop("user")
-                action = common.getSingleAction(self.star_index_name, id, repo_issue)
+                issue["created_at"] = repo_issue['created_at']
+                issue["issue_title"] = repo_issue['title']
+                issue["issue_id"] = repo_issue['id']
+                issue['user_login'] = repo_issue['user']['login']
+                issue["owner"] = owner
+                issue["repo"] = repo
+                issue["is_github_issue"] = 1
+                action = common.getSingleAction(self.star_index_name, id, issue)
                 actions += action
 
         self.esClient.safe_put_bulk(actions)
