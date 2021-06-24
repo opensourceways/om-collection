@@ -54,10 +54,16 @@ class GitHubSWF(object):
         self.is_fetch_star_details = config.get('is_fetch_star_details')
         self.star_index_name = config.get('star_index_name')
         self.orgs = config.get('orgs')
+        self.interval_sleep_time = config.get("sleep_time")
+        self.refresh_node_times = config.get("refresh_node_times")
 
     def run(self, from_date):
         startTime = time.time()
         print("Collect github star watch fork data: staring")
+        self.checkSleep()  # for run in specific point time
+        now = datetime.datetime.now()
+        now_str = datetime.datetime.strftime(now, '%Y-%m-%d  %H:%M:%S')
+        print(f"The accurate time for starting to collecting data is: {now_str}")
 
         service_flag = 0  # set a service_switch_flag, to do different service.
         if self.is_fetch_star_details == 'True':
@@ -227,3 +233,18 @@ class GitHubSWF(object):
         for rep in repos:
             repoNames.append(self.ensure_str(rep['name']))
         return repoNames
+
+    def checkSleep(self):
+        refresh_node_time_list = self.refresh_node_times.split(";")
+        now = datetime.datetime.now()
+        interval_sleep_time = int(self.interval_sleep_time)
+
+        for i in range(len(refresh_node_time_list)):
+            checkTime_str = datetime.datetime.today().strftime("%Y%m%d") + "-" + refresh_node_time_list[i]
+            checkTime = datetime.datetime.strptime(checkTime_str, '%Y%m%d-%H:%M:%S')
+            delta_sec = (checkTime - now).total_seconds()
+
+            if delta_sec > 0 and delta_sec < interval_sleep_time:
+                print(
+                    f"Remaining {delta_sec} seconds from the {str(i + 1)} node time. I must sleep for that time point")
+                time.sleep(delta_sec)
