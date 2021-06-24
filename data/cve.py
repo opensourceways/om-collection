@@ -292,10 +292,12 @@ class CVE(object):
             # TODO (openeuler_score or NVD_score)
             res['cvss_score'] = cve['openeuler_score']
             # 修复时长(天) = 补丁发布时间 - 漏洞创建时间
-            res['cve_close_duration'] = self.getDuration(res['rpm_public_time'], '%Y-%m-%d %H:%M:%S', res['created_at'],
+            rpm_public_time = str(res['rpm_public_time']).split(" ")[0] if res['rpm_public_time'] is not None else None
+            res['cve_close_duration'] = self.getDuration(rpm_public_time, '%Y-%m-%d', res['created_at'],
                                                          '%Y-%m-%dT%H:%M:%S+08:00') / 24
             res['is_slo'] = self.getSlo(res['cvss_score'], res['cve_close_duration'])
             res['issue_url'] = issue['issue_url']
+            res['rpm_public_time'] = rpm_public_time
 
             indexData = {"index": {"_index": self.index_name, "_id": res['issue_id'] + '_' + res['CVE_num']}}
             actions += json.dumps(indexData) + '\n'

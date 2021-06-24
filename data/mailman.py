@@ -80,7 +80,7 @@ class MailMan(object):
                 for address in user.addresses:
                     print("member maillist adress %s,  num= %d" % (address.email, i))
                     company = 'independent'
-                    if address.email in email_orgs_dict:
+                    if email_orgs_dict and address.email in email_orgs_dict:
                         company = email_orgs_dict[address.email]
                     body = {
                         "user_name": user.display_name,
