@@ -235,7 +235,7 @@ class GitHubSWF(object):
         morning_checkTime = datetime.datetime.strptime(morning_checkTime_str, '%Y%m%d-%H:%M:%S')
         morning_delta_sec = (morning_checkTime - now).total_seconds()
 
-        afternoon_checkTime_str = datetime.datetime.today().strftime("%Y%m%d") + "-17:29:00"
+        afternoon_checkTime_str = datetime.datetime.today().strftime("%Y%m%d") + "-17:19:00"
         afternoon_checkTime = datetime.datetime.strptime(afternoon_checkTime_str, '%Y%m%d-%H:%M:%S')
         afternoon_delta_sec = (afternoon_checkTime - now).total_seconds()
 
