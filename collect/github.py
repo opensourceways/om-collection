@@ -136,11 +136,26 @@ class GithubClient(object):
         """
         return '/'.join(map(lambda x: str(x).strip('/'), args))
 
-    def getStarOrIssueDetails(self, owner, api_type):
-        """Get starred users data"""
-        path = self.urijoin(self.base_url, 'repos', owner, self.repository, api_type)
+    def getStarDetails(self, owner):
+        # return star details
+        api_type_suffix = "stargazers"
+        path = self.urijoin(self.base_url, 'repos', owner, self.repository, api_type_suffix)
+
         headers = self.headers
         headers['Accept'] = 'application/vnd.github.v3.star+json'
+        result = self.getSpecificDetailsWithPath(path=path, headers=headers)
+        return result
+
+    def getIssueDetails(self, owner):
+        # return issue details
+        api_type_suffix = "issues"
+        path = self.urijoin(self.base_url, 'repos', owner, self.repository, api_type_suffix)
+        headers = self.headers
+        headers['Accept'] = 'application/vnd.github.v3.star+json'
+        result = self.getSpecificDetailsWithPath(path=path, headers=headers)
+        return result
+
+    def getSpecificDetailsWithPath(self, path, headers):
 
         # Accquire data through pagination
         page = 1
