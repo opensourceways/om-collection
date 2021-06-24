@@ -58,6 +58,7 @@ class GitHubSWF(object):
     def run(self, from_date):
         startTime = time.time()
         print("Collect github star watch fork data: staring")
+        self.checkSleep()  # for run in specific point time
 
         service_flag = 0  # set a service_switch_flag, to do different service.
         if self.is_fetch_star_details == 'True':
@@ -227,3 +228,23 @@ class GitHubSWF(object):
         for rep in repos:
             repoNames.append(self.ensure_str(rep['name']))
         return repoNames
+
+    def checkSleep(self):
+        now = datetime.datetime.now()
+        morning_checkTime_str = datetime.datetime.today().strftime("%Y%m%d") + "-11:19:00"
+        morning_checkTime = datetime.datetime.strptime(morning_checkTime_str, '%Y%m%d-%H:%M:%S')
+        morning_delta_sec = (morning_checkTime - now).total_seconds()
+
+        afternoon_checkTime_str = datetime.datetime.today().strftime("%Y%m%d") + "-17:29:00"
+        afternoon_checkTime = datetime.datetime.strptime(afternoon_checkTime_str, '%Y%m%d-%H:%M:%S')
+        afternoon_delta_sec = (afternoon_checkTime - now).total_seconds()
+
+        if morning_delta_sec > 0 and morning_delta_sec < 3600:
+            print(
+                f"Remaining {morning_delta_sec} seconds from {morning_checkTime_str} am. I must sleep for that time point")
+            time.sleep(morning_delta_sec)
+
+        if afternoon_delta_sec > 0 and morning_delta_sec < 3600:
+            print(
+                f"Remaining {afternoon_delta_sec} seconds from {afternoon_checkTime_str} pm. I must sleep for that time point")
+            time.sleep(afternoon_delta_sec)
