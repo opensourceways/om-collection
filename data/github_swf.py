@@ -54,11 +54,16 @@ class GitHubSWF(object):
         self.is_fetch_star_details = config.get('is_fetch_star_details')
         self.star_index_name = config.get('star_index_name')
         self.orgs = config.get('orgs')
+        self.interval_sleep_time = config.get("sleep_time")
+        self.refresh_node_times = config.get("refresh_node_times")
 
     def run(self, from_date):
         startTime = time.time()
         print("Collect github star watch fork data: staring")
         self.checkSleep()  # for run in specific point time
+        now = datetime.datetime.now()
+        now_str = datetime.datetime.strftime(now, '%Y-%m-%d  %H:%M:%S')
+        print(f"The accurate time for starting to collecting data is: {now_str}")
 
         service_flag = 0  # set a service_switch_flag, to do different service.
         if self.is_fetch_star_details == 'True':
@@ -230,21 +235,16 @@ class GitHubSWF(object):
         return repoNames
 
     def checkSleep(self):
+        refresh_node_time_list = self.refresh_node_times.split(";")
         now = datetime.datetime.now()
-        morning_checkTime_str = datetime.datetime.today().strftime("%Y%m%d") + "-11:19:00"
-        morning_checkTime = datetime.datetime.strptime(morning_checkTime_str, '%Y%m%d-%H:%M:%S')
-        morning_delta_sec = (morning_checkTime - now).total_seconds()
+        interval_sleep_time = int(self.interval_sleep_time)
 
-        afternoon_checkTime_str = datetime.datetime.today().strftime("%Y%m%d") + "-17:19:00"
-        afternoon_checkTime = datetime.datetime.strptime(afternoon_checkTime_str, '%Y%m%d-%H:%M:%S')
-        afternoon_delta_sec = (afternoon_checkTime - now).total_seconds()
+        for i in range(len(refresh_node_time_list)):
+            checkTime_str = datetime.datetime.today().strftime("%Y%m%d") + "-" + refresh_node_time_list[i]
+            checkTime = datetime.datetime.strptime(checkTime_str, '%Y%m%d-%H:%M:%S')
+            delta_sec = (checkTime - now).total_seconds()
 
-        if morning_delta_sec > 0 and morning_delta_sec < 3600:
-            print(
-                f"Remaining {morning_delta_sec} seconds from {morning_checkTime_str} am. I must sleep for that time point")
-            time.sleep(morning_delta_sec)
-
-        if afternoon_delta_sec > 0 and afternoon_delta_sec < 3600:
-            print(
-                f"Remaining {afternoon_delta_sec} seconds from {afternoon_checkTime_str} pm. I must sleep for that time point")
-            time.sleep(afternoon_delta_sec)
+            if delta_sec > 0 and delta_sec < interval_sleep_time:
+                print(
+                    f"Remaining {delta_sec} seconds from the {str(i + 1)} node time. I must sleep for that time point")
+                time.sleep(delta_sec)
