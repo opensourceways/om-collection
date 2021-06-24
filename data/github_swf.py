@@ -244,7 +244,7 @@ class GitHubSWF(object):
                 f"Remaining {morning_delta_sec} seconds from {morning_checkTime_str} am. I must sleep for that time point")
             time.sleep(morning_delta_sec)
 
-        if afternoon_delta_sec > 0 and morning_delta_sec < 3600:
+        if afternoon_delta_sec > 0 and afternoon_delta_sec < 3600:
             print(
                 f"Remaining {afternoon_delta_sec} seconds from {afternoon_checkTime_str} pm. I must sleep for that time point")
             time.sleep(afternoon_delta_sec)
