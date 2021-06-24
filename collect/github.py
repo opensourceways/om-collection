@@ -152,8 +152,30 @@ class GithubClient(object):
         path = self.urijoin(self.base_url, 'repos', owner, self.repository, api_type_suffix)
         headers = self.headers
         headers['Accept'] = 'application/vnd.github.v3.star+json'
-        result = self.getSpecificDetailsWithPath(path=path, headers=headers)
-        return result
+
+        # Accquire data through pagination
+        page = 1
+        per_page = 100
+
+        repos = []
+        while True:
+            url = path + f"?page={page}&per_page={per_page}&state=all"
+            r = self.session.get(url=url, headers=headers)
+
+            print("Remining API calling times: ", r.headers.get('X-RateLimit-Remaining'))
+
+            # Cause API has rate limit in a specific time, so sleep the thread before it exceed.
+            if int(r.headers.get('X-RateLimit-Used')) >= int(r.headers.get('X-RateLimit-Limit')) - 1:
+                print("Thread sleeping, cause exceed the rate limit of github...")
+                time.sleep(3600)
+
+            if r.text == "[]":
+                break
+
+            repo = r.json()
+            repos.extend(repo)
+            page += 1
+        return repos
 
     def getSpecificDetailsWithPath(self, path, headers):
 
