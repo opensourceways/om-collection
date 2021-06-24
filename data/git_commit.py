@@ -20,8 +20,9 @@ class GitCommit(object):
             'Content-Type': 'application/json'
         }
         self.from_date = config.get("from_data")
-        self.index_name = config.get('index_name').split(',')
-        self.sigs_code_all = config.get('sigs_code_all').split(',')
+        self.index_name = config.get('index_name')
+        if config.get('sigs_code_all'):
+            self.sigs_code_all = config.get('sigs_code_all').split(',')
         self.url = config.get('es_url')
         self.authorization = config.get('authorization')
         self.esClient = ESClient(config)
@@ -35,7 +36,10 @@ class GitCommit(object):
         self.data_yaml_path = config.get('data_yaml_path')
         self.company_yaml_url = config.get('company_yaml_url')
         self.company_yaml_path = config.get('company_yaml_path')
+
+        self.users_yaml_url = config.get('users_yaml_url')
         self.is_fetch_all_branches = config.get("is_fetch_all_branches")
+        self.is_get_users_code_all = config.get("is_get_users_code_all")
 
     def run(self, startTime):
 
@@ -45,10 +49,18 @@ class GitCommit(object):
             from_date = self.from_date
 
         print(f"*************Begin to collect commits.  From :{from_date}***********")
-        self.domain_companies = self.getInfoFromCompany()['domains_company_list']
-        self.alias_companies = self.getInfoFromCompany()['aliases_company_list']
-        self.users = self.getInfoFromCompany()["datas"]["users"]
-        self.get_sigs_code_all(from_date, self.projects_repo)
+        self.domain_companies = {}
+        self.alias_companies = {}
+        self.users = {}
+        if self.data_yaml_url and self.company_yaml_url:
+            self.domain_companies = self.getInfoFromCompany()['domains_company_list']
+            self.alias_companies = self.getInfoFromCompany()['aliases_company_list']
+            self.users = self.getInfoFromCompany()["datas"]["users"]
+
+        if self.is_get_users_code_all == "true":
+            self.get_users_code_all(from_date)
+        else:
+            self.get_sigs_code_all(from_date, self.projects_repo)
         print(f"*********************Finish Collection***************************")
 
     def git_clone(self, url, dir):
@@ -64,17 +76,41 @@ class GitCommit(object):
         action += json.dumps(body) + '\n'
         return action
 
+    def get_users_code_all(self, from_date=None):
+        if self.users_yaml_url:
+            cmd = 'wget -N %s' % self.users_yaml_url
+            p = os.popen(cmd)
+            p.read()
+            datas = yaml.load_all(open("data.yml", encoding='UTF-8')).__next__()
+            p.close()
+
+        res = datas.get("users")
+        for r in res:
+            sig = r.get("name")
+            repos = r.get('repos')
+            if repos:
+                self.is_fetch_all_branches = "False"
+                self.collect_code(from_date, self.index_name, repos, sig)
+
+            repos_all_branches = r.get('repos_all_branches')
+            if repos_all_branches:
+                self.is_fetch_all_branches = "True"
+                self.collect_code(from_date, self.index_name, repos_all_branches, sig)
+
+        now = datetime.datetime.now()
+        self.from_date = datetime.datetime(year=now.year, month=now.month, day=now.day - 1)
+
+
     def get_sigs_code_all(self, from_date=None, filename="projects"):
         project_file_path = self.getProjectFilePath(filename)
 
-        for index in range(len(self.index_name)):
-            index_name = self.index_name[index]
+        for index in range(len(self.sigs_code_all)):
             sig = self.sigs_code_all[index]
             with open(project_file_path, 'r') as f:
                 res = json.load(f)
                 repos = res[sig]['git']
 
-            self.collect_code(from_date, index_name, repos, sig)
+            self.collect_code(from_date, self.index_name, repos, sig)
 
             if index == len(self.index_name) - 1:
                 now = datetime.datetime.now()
@@ -82,8 +118,8 @@ class GitCommit(object):
 
         print(f"Collected {len(repos)} repositories for this project")
 
-    def collect_code(self, from_date, index_name, repourl_list, project=None):
 
+    def collect_code(self, from_date, index_name, repourl_list, project=None):
         path = '/home/collect-code-clone/' + project + '/'
         if not os.path.exists(path):
             os.makedirs(path)
@@ -101,6 +137,7 @@ class GitCommit(object):
                 ID = commit["commit_id"]
                 commit_str = self.getSingleAction(index_name, ID, commit)
                 action += commit_str
+
             print(f"Start to store {repo} data to ES...")
             self.esClient.safe_put_bulk(action)
 
