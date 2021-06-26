@@ -175,9 +175,11 @@ class GitCommit(object):
         self.esClient.safe_put_bulk(action)
         print(repo, " data has stored into ES")
 
-    def pull_Repo_To_Local(self, repourl, project, path):
+    def pull_Repo_To_Local(self, repourl, project=None, path):
         repo = repourl.split("/")[-1]
         website = repourl.split("/")[2]
+        if project is None:
+            project = repourl.split("/")[-2]
         username = base64.b64decode(self.username).decode()
         passwd = base64.b64decode(self.password).decode()
 
