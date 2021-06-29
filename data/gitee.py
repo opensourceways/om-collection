@@ -422,6 +422,7 @@ class Gitee(object):
                 continue
             # if star['login'] in self.skip_user:
             #     continue
+            user_details = self.getGenerator(client.user(star['login']))
             action = {
                 "sig_names": sig_names,
                 "user_id": star["id"],
@@ -433,6 +434,7 @@ class Gitee(object):
                 "gitee_repo": "https://gitee.com/" + owner + "/" + repo,
                 "org_name": owner,
                 "is_gitee_star": 1,
+                "user_created_at": user_details["created_at"]
             }
             userExtra = self.esClient.getUserInfo(action['user_login'])
             action.update(userExtra)
