@@ -402,7 +402,7 @@ class Gitee(object):
 
         endTime = datetime.datetime.now()
         print("Collect repo(%s) fork request data finished, spend %s seconds"
-              % (owner + "/" + repo, (endTime - startTime).seconds))
+              % (owner + "/" + repo, (endTime - startTime).total_seconds()))
 
     def writeStars(self, owner, repo, sig_names=None):
         client = GiteeClient(owner, repo, self.gitee_token)
@@ -420,9 +420,13 @@ class Gitee(object):
             star_id = owner + "/" + repo + "_" + "star" + str(star['id'])
             if self.esClient.checkFieldExist(filter=star_id) == True:
                 continue
-            # if star['login'] in self.skip_user:
-            #     continue
+
+            from_registerd_to_star = None
             user_details = self.getGenerator(client.user(star['login']))
+            if user_details:
+                from_registerd_to_star = ((datetime.datetime.strptime(star["star_at"], '%Y-%m-%dT%H:%M:%S+08:00')
+                                           - datetime.datetime.strptime(user_details["created_at"],
+                                                  '%Y-%m-%dT%H:%M:%S+08:00')).total_seconds())
             action = {
                 "sig_names": sig_names,
                 "user_id": star["id"],
@@ -434,7 +438,8 @@ class Gitee(object):
                 "gitee_repo": "https://gitee.com/" + owner + "/" + repo,
                 "org_name": owner,
                 "is_gitee_star": 1,
-                "user_created_at": user_details["created_at"]
+                "user_created_at": user_details["created_at"] if user_details else None,
+                "from_registerd_to_star": from_registerd_to_star
             }
             userExtra = self.esClient.getUserInfo(action['user_login'])
             action.update(userExtra)
@@ -713,9 +718,9 @@ class Gitee(object):
                 if ecomments:
                     eitem['firstreplyprtime'] = (datetime.datetime.strptime(firstreplyprtime,
                                                                             '%Y-%m-%dT%H:%M:%S+08:00') - datetime.datetime.strptime(
-                        eitem['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).seconds
+                        eitem['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).total_seconds()
                     eitem['lastreplyprtime'] = (datetime.datetime.now() + datetime.timedelta(hours=8) - (
-                        datetime.datetime.strptime(lastreplyprtime, '%Y-%m-%dT%H:%M:%S+08:00'))).seconds
+                        datetime.datetime.strptime(lastreplyprtime, '%Y-%m-%dT%H:%M:%S+08:00'))).total_seconds()
             except Exception as e:
                 print(e)
                 print(firstreplyprtime)
@@ -731,7 +736,7 @@ class Gitee(object):
 
         endTime = datetime.datetime.now()
         print("Collect pull request data finished, spend %s seconds" % (
-                endTime - startTime).seconds)
+                endTime - startTime).total_seconds())
 
     def writeIssueData(self, owner, repo, public, from_date=None, sig_names=None):
         startTime = datetime.datetime.now()
@@ -790,9 +795,9 @@ class Gitee(object):
                 if issue_comments:
                     issue_item['firstreplyissuetime'] = (datetime.datetime.strptime(firstreplyissuetime,
                                                                                     '%Y-%m-%dT%H:%M:%S+08:00') - datetime.datetime.strptime(
-                        issue_item['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).seconds
+                        issue_item['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).total_seconds()
                     issue_item['lastreplyissuetime'] = (datetime.datetime.now() + datetime.timedelta(hours=8) - (
-                        datetime.datetime.strptime(lastreplyissuetime, '%Y-%m-%dT%H:%M:%S+08:00'))).seconds
+                        datetime.datetime.strptime(lastreplyissuetime, '%Y-%m-%dT%H:%M:%S+08:00'))).total_seconds()
                 issue_item['sig_names'] = sig_names
                 indexData = {"index": {"_index": self.index_name, "_id": issue_item['id']}}
                 actions += json.dumps(indexData) + '\n'
@@ -810,7 +815,7 @@ class Gitee(object):
             }])
         endTime = datetime.datetime.now()
         print("Collect repo(%s/%s) issue data finished, spend %s seconds" % (
-            owner, repo, (endTime - startTime).seconds))
+            owner, repo, (endTime - startTime).total_seconds()))
 
     def getGenerator(self, response):
         data = []
