@@ -121,7 +121,7 @@ class MailMan(object):
                 print("maillist adress %s,  num= %d" % (
                 address.email, i))
                 company = 'independent'
-                if address.email in email_orgs_dict:
+                if email_orgs_dict and address.email in email_orgs_dict:
                     company = email_orgs_dict[address.email]
                 body = {
                      "user_name": suser.display_name,
