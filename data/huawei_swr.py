@@ -43,20 +43,19 @@ class HUAWEISWF(object):
 
     def run(self, from_date):
         startTime = time.time()
-        self.token = self.get_subject_token()
+        self.token = self.get_subject_token(endpoint="iam.cn-south-2.myhuaweicloud.com", path="/v3/auth/tokens")
         self.headers = {'Content-Type': 'application/json', 'Authorization': "Bearer " + self.token}
 
         print("Starting collect data...")
-        self.process_ListRepoDetails()
+        self.process_ListRepoDetails(endpoint='swr-api.cn-south-1.myhuaweicloud.com', path="v2/manage/repos")
 
         endTime = time.time()
         spent_time = time.strftime("%H:%M:%S", time.gmtime(endTime - startTime))
         print(f"Total cost time is: {spent_time}")
 
-    def get_subject_token(self):
-        server_url = "https://iam.cn-south-2.myhuaweicloud.com"
-        path = "/v3/auth/tokens"
-        url = self.urijoin(server_url, path)
+    def get_subject_token(self, endpoint, path):
+        base_url = 'https://' + endpoint
+        url = self.urijoin(base_url, path)
         payload = self.getPayload()
         method = "POST"
 
@@ -91,11 +90,11 @@ class HUAWEISWF(object):
         """
         return '/'.join(map(lambda x: str(x).strip('/'), args))
 
-    def getListNamespaces(self):
-        base_url = "https://swr-api.cn-south-1.myhuaweicloud.com"
-        namespaces = []
-        path = "v2/manage/namespaces"
+    def getListNamespaces(self, endpoint, path):
+        base_url = 'https://' + endpoint
         url = self.urijoin(base_url, path)
+
+        namespaces = []
         headers = self.headers
 
         response = requests.request(method="GET", url=url, headers=headers)
@@ -108,11 +107,9 @@ class HUAWEISWF(object):
             namespaces.append(np["name"])
         return namespaces
 
-    def process_ListRepoDetails(self):
-
+    def process_ListRepoDetails(self, endpoint, path):
         headers = self.headers
-        base_url = 'https://swr-api.cn-south-1.myhuaweicloud.com'
-        path = "v2/manage/repos"
+        base_url = 'https://' + endpoint
         url = self.urijoin(base_url, path)
         res = requests.request(method="GET", url=url, headers=headers)
 
