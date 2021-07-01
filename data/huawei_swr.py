@@ -28,7 +28,7 @@ from data.common import ESClient
 from collect.github import GithubClient
 
 
-class HUAWEISWF(object):
+class HUAWEISWR(object):
     def __init__(self, config=None):
         self.config = config
         self.esClient = ESClient(config)
@@ -40,21 +40,24 @@ class HUAWEISWF(object):
         self.url = config.get('es_url')
         self.from_date = config.get("from_data")
         self.esClient = ESClient(config)
+        self.token_site = config.get("token_site")
+        self.repo_site = config.get("repo_site")
 
     def run(self, from_date):
         startTime = time.time()
-        self.token = self.get_subject_token(endpoint="iam.cn-south-2.myhuaweicloud.com", path="/v3/auth/tokens")
+        self.token = self.get_subject_token(site=self.token_site)
         self.headers = {'Content-Type': 'application/json', 'Authorization': "Bearer " + self.token}
 
         print("Starting collect data...")
-        self.process_ListRepoDetails(endpoint='swr-api.cn-south-1.myhuaweicloud.com', path="v2/manage/repos")
+        self.process_ListRepoDetails(site=self.repo_site)
 
         endTime = time.time()
         spent_time = time.strftime("%H:%M:%S", time.gmtime(endTime - startTime))
         print(f"Total cost time is: {spent_time}")
 
-    def get_subject_token(self, endpoint, path):
-        base_url = 'https://' + endpoint
+    def get_subject_token(self, site):
+        path = "/v3/auth/tokens"
+        base_url = 'https://iam.' + site + ".myhuaweicloud.com"
         url = self.urijoin(base_url, path)
         payload = self.getPayload()
         method = "POST"
@@ -90,8 +93,9 @@ class HUAWEISWF(object):
         """
         return '/'.join(map(lambda x: str(x).strip('/'), args))
 
-    def getListNamespaces(self, endpoint, path):
-        base_url = 'https://' + endpoint
+    def getListNamespaces(self, site):
+        path = "v2/manage/repos/namespaces"
+        base_url = 'https://swr-api.' + site + ".myhuaweicloud.com"
         url = self.urijoin(base_url, path)
 
         namespaces = []
@@ -107,10 +111,12 @@ class HUAWEISWF(object):
             namespaces.append(np["name"])
         return namespaces
 
-    def process_ListRepoDetails(self, endpoint, path):
-        headers = self.headers
-        base_url = 'https://' + endpoint
+    def process_ListRepoDetails(self, site):
+        path = "v2/manage/repos"
+        base_url = 'https://swr-api.' + site + ".myhuaweicloud.com"
         url = self.urijoin(base_url, path)
+
+        headers = self.headers
         res = requests.request(method="GET", url=url, headers=headers)
 
         if res.status_code != 200:
