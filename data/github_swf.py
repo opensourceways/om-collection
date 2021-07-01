@@ -63,6 +63,7 @@ class GitHubSWF(object):
         self.checkSleep()  # for run in specific point time
         now = datetime.datetime.now()
         now_str = datetime.datetime.strftime(now, '%Y-%m-%d  %H:%M:%S')
+
         print(f"The accurate time for starting to collecting data is: {now_str}")
 
         service_flag = 0  # set a service_switch_flag, to do different service.

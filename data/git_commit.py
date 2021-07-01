@@ -1,455 +1,250 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+#
+# Copyright 2020 The community Authors.
+# A-Tune is licensed under the Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#     http://license.coscl.org.cn/MulanPSL2
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+# PURPOSE.
+# See the Mulan PSL v2 for more details.
+# Create: 2020-05
+#
+
 import os
-import yaml
-from data import common
-import git
-import datetime
+import sys
+
+import requests
+
 import json
+import time
+
+import datetime
+from data import common
 from data.common import ESClient
-import base64
-
-os.environ["GIT_PYTHON_REFRESH"] = "quiet"
+from collect.github import GithubClient
 
 
-class GitCommit(object):
-
+class GitHubSWF(object):
     def __init__(self, config=None):
         self.config = config
-        self.default_headers = {
-            'Content-Type': 'application/json'
-        }
-        self.from_date = config.get("from_data")
         self.index_name = config.get('index_name')
-        if config.get('sigs_code_all'):
-            self.sigs_code_all = config.get('sigs_code_all').split(',')
-        self.url = config.get('es_url')
-        self.authorization = config.get('authorization')
+        self.org = config.get('github_org')
         self.esClient = ESClient(config)
-        self.headers = {'Content-Type': 'application/json', "Authorization": config.get('authorization')}
-        self.projects_repo = config.get('projects_repo')
+        self.headers = {}
+        self.github_authorization = config.get('github_authorization')
+        self.url = config.get('es_url')
+        self.from_data = config.get("from_data")
+        self.headers = {'Content-Type': 'application/json', 'Authorization': config.get('authorization')}
+        if 'github_types' in config:
+            self.github_types = config.get('github_types').split(',')
+        self.github_size = config.get('github_size')
+        self.github_field = config.get('github_field')
+        self.github_index_name = config.get('github_index_name')
+        self.github_index_name_total = config.get('github_index_name_total')
+        if 'gitee_types' in config:
+            self.gitee_types = config.get('gitee_types').split(',')
+        self.gitee_field = config.get('gitee_field')
+        self.gitee_size = config.get('gitee_size')
+        self.gitee_index_name = config.get('gitee_index_name')
+        self.gitee_index_name_total = config.get('gitee_index_name_total')
 
-        self.username = config.get('username')
-        self.password = config.get('password')
+        self.is_fetch_star_details = config.get('is_fetch_star_details')
+        self.star_index_name = config.get('star_index_name')
+        self.orgs = config.get('orgs')
+        self.interval_sleep_time = config.get("sleep_time")
+        self.refresh_node_times = config.get("refresh_node_times")
 
-        self.data_yaml_url = config.get('data_yaml_url')
-        self.data_yaml_path = config.get('data_yaml_path')
-        self.company_yaml_url = config.get('company_yaml_url')
-        self.company_yaml_path = config.get('company_yaml_path')
+    def run(self, from_date):
+        startTime = time.time()
+        print("Collect github star watch fork data: staring")
+        self.checkSleep()  # for run in specific point time
+        now = datetime.datetime.now()
+        now_str = datetime.datetime.strftime(now, '%Y-%m-%d  %H:%M:%S')
+        print(f"The accurate time for starting to collecting data is: {now_str}")
 
-        self.users_yaml_url = config.get('users_yaml_url')
-        self.is_fetch_all_branches = config.get("is_fetch_all_branches")
-        self.is_get_users_code_all = config.get("is_get_users_code_all")
+        service_flag = 0  # set a service_switch_flag, to do different service.
+        if self.is_fetch_star_details == 'True':
+            org_list = self.orgs.split(",")
+            for org in org_list:
+                self.getSWF_Stargazers(org)
+            service_flag = 1
 
-    def run(self, startTime):
+        if service_flag == 0:
+            repoNames = self.getRepoNames()
+            actions = ""
+            for repo in repoNames:
+                action = self.getSWF(repo)
+                # print(action)
+                actions += action
+            self.esClient.safe_put_bulk(actions)
 
-        if isinstance(self.from_date, str):
-            from_date = self.getFromDate(self.from_date, [{"name": "is_git_commit", "value": 1}])
-        else:
-            from_date = self.from_date
+            if self.github_index_name:
+                for type in self.github_types:
+                    self.getTotal(type=type, index_name=self.github_index_name,
+                                  total_index=self.github_index_name_total,
+                                  field=self.github_field, size=self.github_size, mark='github')
+            if self.gitee_index_name:
+                for type in self.gitee_types:
+                    self.getTotal(type=type, index_name=self.gitee_index_name, total_index=self.gitee_index_name_total,
+                                  field=self.gitee_field, size=self.gitee_size,
+                                  search=',"must": [{ "match": { "is_gitee_repo":1 }}]', mark='gitee')
 
-        print(f"*************Begin to collect commits.  From :{from_date}***********")
-        self.domain_companies = {}
-        self.alias_companies = {}
-        self.users = {}
-        if self.data_yaml_url and self.company_yaml_url:
-            self.domain_companies = self.getInfoFromCompany()['domains_company_list']
-            self.alias_companies = self.getInfoFromCompany()['aliases_company_list']
-            self.users = self.getInfoFromCompany()["datas"]["users"]
+        endTime = time.time()
+        spent_time = time.strftime("%H:%M:%S", time.gmtime(endTime - startTime))
+        print("Collect github star watch fork data: finished after ", spent_time)
 
-        if self.is_get_users_code_all == "true":
-            self.get_users_code_all(from_date)
-        else:
-            self.get_sigs_code_all(from_date, self.projects_repo)
-        print(f"*********************Finish Collection***************************")
+    def getTotal(self, type, index_name, total_index, url=None, date='2019-06-01', field=None, size='10', search='',
+                 mark=None):
+        if not url:
+            url = self.url + '/' + index_name + '/_search'
+        if not date:
+            date = self.from_data[:4] + '-' + self.from_data[4:6] + '-' + self.from_data[6:]
+        datei = datetime.datetime.strptime(date, "%Y-%m-%d")
+        dateii = datei
+        totalmark = 'is_' + mark + '_' + type + '_total'
+        while True:
+            datenow = datetime.datetime.strptime(datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d"),
+                                                 "%Y-%m-%d")
+            if dateii == datenow + datetime.timedelta(days=1):
+                break
+            dateiise = dateii
+            dateii += datetime.timedelta(days=1)
+            stime = datetime.datetime.strftime(dateiise, "%Y-%m-%d")
+            data = '''{
+          "size": 0,
+          "query": {
+            "bool": {
+              "filter": [
+                {
+                  "range": {
+                    "created_at": {
+                        "gte":"%sT00:00:00.000+0800",
+                        "lt":"%sT00:00:00.000+0800"
+                    }
+                  }
+                },
+                {
+                  "query_string": {
+                    "analyze_wildcard": true,
+                    "query": "*"
+                  }
+                }
+              ]%s
+            }
+          },
+          "aggs": {
+            "2": {
+              "terms": {
+                "field": "%s",
+                "size": %s,
+                "order": {
+                  "_key": "desc"
+                },
+                "min_doc_count": 1
+              },
+              "aggs": {
+                "3": {
+                  "max": {
+                    "field": "%s"
+                  }
+                }
+              }
+            }
+          }
+        }''' % (str(dateiise).split()[0], str(dateii).split()[0], search, field, size, type)
+            res = json.loads(
+                requests.get(url=url, headers=self.headers, verify=False, data=data.encode('utf-8')).content)
+            num = sum([int(r['3']['value']) for r in res["aggregations"]["2"]["buckets"]])
+            body = {'created_at': stime + 'T00:00:00.000+0800', totalmark: 1, 'total_num': num}
+            ID = totalmark + stime
+            data = common.getSingleAction(total_index, ID, body)
+            if num > 0:
+                print('%s:%s' % (stime, num))
+                self.esClient.safe_put_bulk(data)
 
-    def git_clone(self, url, dir):
-        cmd = 'cd %s;git clone %s' % (dir, url)
-        res = os.popen(cmd)
-        return res.read()
+    def getRepoNames(self):
+        gitclient = GithubClient(self.org, "", self.github_authorization)
+        repos = gitclient.getAllrepo()
+        repoNames = []
+        for rep in repos:
+            repoNames.append(self.ensure_str(rep['name']))
+        return repoNames
 
-    def getSingleAction(self, index_name, id, body, act="index"):
-        action = ""
-        indexData = {
-            act: {"_index": index_name, "_id": id}}
-        action += json.dumps(indexData) + '\n'
-        action += json.dumps(body) + '\n'
+    def ensure_str(self, s):
+        try:
+            if isinstance(s, unicode):
+                s = s.encode('utf-8')
+        except:
+            pass
+        return s
+
+    def getSWF(self, repo):
+        client = GithubClient(self.org, repo, self.github_authorization)
+        r = client.repo()
+        r["swf_update_time"] = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S+08:00')
+        id = "swf_" + r["swf_update_time"] + r.get("full_name")
+        action = common.getSingleAction(self.index_name, id, r)
         return action
 
-    def get_users_code_all(self, from_date=None):
-        if self.users_yaml_url:
-            cmd = 'wget -N %s' % self.users_yaml_url
-            p = os.popen(cmd)
-            p.read()
-            datas = yaml.load_all(open("data.yml", encoding='UTF-8')).__next__()
-            p.close()
+    def getSWF_Stargazers(self, owner):
 
-        res = datas.get("users")
-        for r in res:
-            sig = r.get("name")
-            repos = r.get('repos')
-            if repos:
-                self.is_fetch_all_branches = "False"
-                self.collect_code(from_date, self.index_name, repos, sig)
+        repos = self.getOwnerRepoNames(owner)
+        actions = ""
+        for repo in repos:
+            client = GithubClient(self.org, repo, self.github_authorization)
 
-            repos_all_branches = r.get('repos_all_branches')
-            if repos_all_branches:
-                self.is_fetch_all_branches = "True"
-                self.collect_code(from_date, self.index_name, repos_all_branches, sig)
+            repo_star_user_list = client.getStarDetails(owner=owner)
+            repo_issue_list = client.getIssueDetails(owner=owner)
 
+            for repo_star_user in repo_star_user_list:
+                star = {}
+                id = str(repo_star_user['user'].get('id')) + "_star_" + repo
+                star["created_at"] = repo_star_user.pop("starred_at")
+                star["user_login"] = repo_star_user['user']["login"]
+                star["user_id"] = repo_star_user['user']['id']
+                star["owner"] = owner
+                star["repo"] = repo
+                star["is_github_star"] = 1
+                action = common.getSingleAction(self.star_index_name, id, star)
+                actions += action
+
+            for repo_issue in repo_issue_list:
+                issue = {}
+                id = str(repo_issue['id']) + "_issue_" + repo
+                issue["created_at"] = repo_issue['created_at']
+                issue["issue_title"] = repo_issue['title']
+                issue["issue_id"] = repo_issue['id']
+                issue['user_login'] = repo_issue['user']['login']
+                issue["owner"] = owner
+                issue["repo"] = repo
+                issue["is_github_issue"] = 1
+                action = common.getSingleAction(self.star_index_name, id, issue)
+                actions += action
+
+        self.esClient.safe_put_bulk(actions)
+
+    def getOwnerRepoNames(self, owner):
+        gitclient = GithubClient(self.org, "", self.github_authorization)
+        repos = gitclient.getAllOwnerRepo(owner)
+        repoNames = []
+        for rep in repos:
+            repoNames.append(self.ensure_str(rep['name']))
+        return repoNames
+
+    def checkSleep(self):
+        refresh_node_time_list = self.refresh_node_times.split(";")
         now = datetime.datetime.now()
-        self.from_date = datetime.datetime(year=now.year, month=now.month, day=now.day - 1)
+        interval_sleep_time = int(self.interval_sleep_time)
 
+        for i in range(len(refresh_node_time_list)):
+            checkTime_str = datetime.datetime.today().strftime("%Y%m%d") + "-" + refresh_node_time_list[i]
+            checkTime = datetime.datetime.strptime(checkTime_str, '%Y%m%d-%H:%M:%S')
+            delta_sec = (checkTime - now).total_seconds()
 
-    def get_sigs_code_all(self, from_date=None, filename="projects"):
-        project_file_path = self.getProjectFilePath(filename)
-
-        for index in range(len(self.sigs_code_all)):
-            sig = self.sigs_code_all[index]
-            with open(project_file_path, 'r') as f:
-                res = json.load(f)
-                repos = res[sig]['git']
-
-            self.collect_code(from_date, self.index_name, repos, sig)
-
-            if index == len(self.index_name) - 1:
-                now = datetime.datetime.now()
-                self.from_date = datetime.datetime(year=now.year, month=now.month, day=now.day - 1)
-
-        print(f"Collected {len(repos)} repositories for this project")
-
-
-    def collect_code(self, from_date, index_name, repourl_list, project=None):
-        path = '/home/collect-code-clone/' + project + '/'
-        if not os.path.exists(path):
-            os.makedirs(path)
-
-        for repourl in repourl_list:
-            repo = repourl.split("/")[-1]
-            g = self.pull_Repo_To_Local(repourl, project, path)
-
-            # Get commits for each branch
-            repo_commit_list = self.fetch_commit_log_from_repo(from_date, g, repourl)
-
-            # store a single repo data into ES
-            action = ''
-            for commit in repo_commit_list:
-                ID = commit["commit_id"]
-                commit_str = self.getSingleAction(index_name, ID, commit)
-                action += commit_str
-
-            print(f"Start to store {repo} data to ES...")
-            self.esClient.safe_put_bulk(action)
-
-            print(repo, f" has {len(repo_commit_list)} commits. All has been collected into ES.")
-
-    def get_repo_branches(self, g):
-        branch_names = []
-        if self.is_fetch_all_branches == "True":
-            text = g.execute("git branch -a", shell=True)  # ensure branch name, then get its commits.
-        else:
-            text = g.execute("git branch", shell=True)
-            branch_name = self.getCurrentBranchName(text)
-            branch_names.append(branch_name)
-            return branch_names
-        branch_list = text.split("\n")
-
-        master_index = 0
-        for i in range(len(branch_list)):
-            if branch_list[i].find("->") != -1:
-                master_index = i
-                break
-        branches = branch_list[master_index + 1:][::-1]
-
-        for branch in branches:
-            branch_name = branch.split("/")[-1]
-            branch_names.append(branch_name)
-        return branch_names
-
-    def push_repo_data_into_es(self, index_name, repo_data_list, repo):
-        action = ''
-        for commit in repo_data_list:
-            ID = commit["commit_id"]
-            commit_log = self.getSingleAction(index_name, ID, commit)
-            action += commit_log
-        self.esClient.safe_put_bulk(action)
-        print(repo, " data has stored into ES")
-
-    def pull_Repo_To_Local(self, repourl, project=None, path=None):
-        repo = repourl.split("/")[-1]
-        website = repourl.split("/")[2]
-        project = repourl.split("/")[-2]
-        username = base64.b64decode(self.username).decode()
-        passwd = base64.b64decode(self.password).decode()
-
-        clone_url = 'https://' + website + '/' + project + '/' + repo
-        if username and passwd:
-            clone_url = 'https://' + username + ':' + passwd + '@' + website + '/' + project + '/' + repo
-        gitpath = path + repo
-        gc = git.Git(path)
-        g = git.Git(gitpath)
-
-        flag = 1
-        if flag == 1:
-            conf = 'git config --global core.compression -1'
-            conf2 = 'git config --global http.postBuffer 1048576000'
-            gc.execute(conf, shell=True)
-            gc.execute(conf2, shell=True)
-            flag == 2
-
-        # clone the repos to local
-        if not os.path.exists(gitpath):
-            cmdclone = 'git clone %s.git' % clone_url
-            try:
-                gc.execute(cmdclone, shell=True)
-            except  Exception as e:
-                print(f'Occur error when clone repository: {repo}. Error Name is: ', e.__class__)
-        else:
-            cmdpull = "git pull"
-            try:
-                g.execute(cmdpull, shell=True)
-            except:
-                print(f'{repo} pull error')
-
-        return g
-
-    def fetch_commit_log_from_repo(self, from_date, g, repourl):
-        repo_commit_list = []
-        repo = repourl.split("/")[-1]
-
-        branch_names = self.get_repo_branches(g)  # ensure branch name, then get its commits.
-
-        for branch_name in branch_names:
-            try:
-                g.execute(f"git checkout -f {branch_name}", shell=True)
-                branch_text = g.execute(f"git branch", shell=True)
-                current_branch_name = self.getCurrentBranchName(branch_text)
-            except Exception as e:
-                print(repr(e))
-
-            branch_commits = []
-
-            datei = datetime.datetime.strptime(datetime.datetime.strftime(from_date, "%Y-%m-%d"), "%Y-%m-%d")
-            dateii = datei
-
-            while True:  # pull, parse, assemble commit records
-                datenow = datetime.datetime.strptime(datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d"),
-                                                     "%Y-%m-%d")
-                if dateii == datenow:
-                    break
-                dateii += datetime.timedelta(days=3)
-                if dateii > datenow:
-                    dateii = datenow
-
-                logcmd_no_merge = "git log --after=\"%s\" --before=\"%s\" --shortstat --pretty=\"%%an;%%ae;%%ad;%%H\" --no-merges " % (
-                    datei, dateii)
-                logcmd_merge = "git log --after=\"%s\" --before=\"%s\" --shortstat --pretty=\"%%an;%%ae;%%ad;%%H\" --merges " % (
-                    datei, dateii)
-
-                no_merge_log = ''
-                try:
-                    no_merge_log = g.execute(logcmd_no_merge, shell=True)
-                except:
-                    pass
-
-                merge_log = ''
-                try:
-                    merge_log = g.execute(logcmd_merge, shell=True)
-                except:
-                    pass
-
-                no_merged_commit = self.parse_commit(no_merge_log, datei, repourl, current_branch_name, False)
-                merged_commit = self.parse_commit(merge_log, datei, repourl, current_branch_name, True)
-
-                branch_commits.extend(merged_commit)
-                branch_commits.extend(no_merged_commit)
-
-                temp_dateii = datetime.datetime.strftime(dateii, "%Y-%m-%d")
-                temp_datei = datetime.datetime.strftime(datei, "%Y-%m-%d")
+            if delta_sec > 0 and delta_sec < interval_sleep_time:
                 print(
-                    f"Repository: {repo}\tBranch_name: {branch_name} \t from date: {temp_datei}  end date: {temp_dateii}  commits has been collected.")
-                datei = dateii
-            repo_commit_list.extend(branch_commits)
-
-        return repo_commit_list
-
-    def getCurrentBranchName(self, branch_text):
-        current_branch_name = ""
-        branch_list = branch_text.split("\n")
-        for each in branch_list:
-            if each.find("*") != -1:
-                current_branch_name = each.split()[-1]
-                break
-        return current_branch_name
-
-    def parse_commit(self, log, log_date, repourl, branch_name, is_merged):
-        results = []
-        if not log:
-            return results
-
-        repo = repourl.split('/')[-1]
-
-        log = log.replace("\n\n", "@@")
-        commit_logs = log.split('\n')
-
-        if is_merged:
-            for commit_log in commit_logs:
-                result = self.parse_commit_log(commit_log, log_date)
-                result['project'] = repo
-                result['repo'] = repourl
-                result['is_merged'] = 1
-
-                result['branch_name'] = branch_name
-                results.append(result)
-
-        else:
-            for commit_log in commit_logs:
-                line1 = commit_log.split('@@')[0]
-
-                result = self.parse_commit_log(line1, log_date)
-                result['project'] = repo
-                result['repo'] = repourl
-                result['project'] = repo
-                result['repo'] = repourl
-                result['is_merged'] = 0
-                result['branch_name'] = branch_name
-
-                file_changed = 0
-                lines_added = 0
-                lines_removed = 0
-
-                if len(commit_log.split('@@')) == 1:
-                    results.append(result)
-                    continue
-                line2 = commit_log.split('@@')[1]
-
-                file_pos = line2.find("file")
-                add_pos = line2.find("insertion")
-                del_pos = line2.find("deletion")
-
-                if add_pos != -1:
-                    lines_added_str = line2[int(line2.find(",") + 1):int(add_pos)]
-                    lines_added = int(lines_added_str.strip())
-                if del_pos != -1:
-                    lines_removed_str = line2[int(self.find_last(line2, ",") + 1):int(del_pos)]
-                    lines_removed = int(lines_removed_str.strip())
-                if file_pos != -1:
-                    file_changed = int(line2[:file_pos].strip())
-
-                result['file_changed'] = file_changed
-                result['add'] = lines_added
-                result['remove'] = lines_removed
-                result['total'] = lines_added + lines_removed
-
-                results.append(result)
-
-        return results
-
-    def parse_commit_log(self, commit_log, log_date):
-        split_list = commit_log.split(";")
-
-        email = split_list[1]
-        # if "yao@apache.org" in email:
-        #     print("stop")
-        author = self.get_author(split_list)
-        date_str = log_date.strftime("%Y-%m-%d")
-        time_str = split_list[2].split()[3]
-
-        # there are two dilemma in commit log: has time zone and has no time zone, such as  'Tue Jan 7 18:09:19 2020'  and 'Tue Feb 2 17:00:42 2021 +0800'. Give two solutions for them.
-        try:
-            time_zone = split_list[2].split()[5]
-        except IndexError:
-            time_zone = None
-
-        # search the company of author then write into dict
-        company_name = self.find_company(email)
-
-        if time_zone:
-            preciseness_time_str = date_str + "T" + time_str + time_zone
-        else:
-            preciseness_time_str = date_str + "T" + time_str
-        commit_id = split_list[- 1]
-
-        result = {'created_at': preciseness_time_str, "file_changed": 0, "add": 0,
-                  'remove': 0, 'total': 0, 'author': author, 'company': company_name,
-                  'email': email, 'commit_id': commit_id}
-
-        return result
-
-    def find_company(self, email):
-        company_name = ''
-        email_tag = email.split("@")[-1]
-
-        for user in self.users:
-            if email in user["emails"]:
-                company_name = self.alias_companies.get(user["companies"][0]["company_name"])
-
-        if not company_name and self.domain_companies.get(email_tag):
-            company_name = self.domain_companies.get(email_tag)
-
-        if not company_name:
-            company_name = "independent"
-
-        return company_name
-
-    def getInfoFromCompany(self):
-        companyInfo = {}
-        if self.data_yaml_url and self.company_yaml_url:
-            cmd = 'wget -N %s' % self.data_yaml_url
-            p = os.popen(cmd.replace('=', ''))
-            p.read()
-            datas = yaml.load_all(open(self.data_yaml_path, encoding='UTF-8')).__next__()
-            cmd = 'wget -N %s' % self.company_yaml_url
-            p = os.popen(cmd.replace('=', ''))
-            p.read()
-            companies = yaml.load_all(open(self.company_yaml_path, encoding='UTF-8')).__next__()
-            p.close()
-
-            # ###Test in windows without wget command
-            # self.data_yaml_path = "data/data.yaml"
-            # self.company_yaml_path = "data/company.yaml"
-            # datas = yaml.load_all(open(self.data_yaml_path, encoding='UTF-8'), Loader=yaml.FullLoader).__next__()
-            # companies = yaml.load_all(open(self.company_yaml_path, encoding='UTF-8'), Loader=yaml.FullLoader).__next__()
-
-
-            domains_company_dict = {}
-            aliases_company_dict = {}
-            for company in companies['companies']:
-                for domain in company['domains']:
-                    domains_company_dict[domain] = company['company_name']
-
-                for alias in company["aliases"]:
-                    aliases_company_dict[alias] = company['company_name']
-
-            companyInfo["domains_company_list"] = domains_company_dict
-            companyInfo["aliases_company_list"] = aliases_company_dict
-            companyInfo["datas"] = datas
-
-        return companyInfo
-
-    def get_author(self, split_list):
-        author = split_list[0]
-        email = split_list[1]
-        for user in self.users:
-            if email in user['emails']:
-                author = user['user_name']
-                break
-        return author
-
-    def find_last(self, string, str):
-        last_position = -1
-        while True:
-            position = string.find(str, last_position + 1)
-            if position == -1:
-                return last_position
-            last_position = position
-
-    def getFromDate(self, from_date, filters):
-        if from_date is None:
-            from_date = self.esClient.get_from_create_date(filters)
-        else:
-            from_date = common.str_to_datetime(from_date)
-        return from_date
-
-    def getProjectFilePath(self, filename):
-        return os.path.abspath('.') + "/" + filename + '.json'
+                    f"Remaining {delta_sec} seconds from the {str(i + 1)} node time. I must sleep for that time point")
+                time.sleep(delta_sec)
