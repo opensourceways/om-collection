@@ -53,20 +53,18 @@ class GitCommit(object):
         self.alias_companies = {}
         self.users = {}
         if self.data_yaml_url and self.company_yaml_url:
-            self.domain_companies = self.getInfoFromCompany()['domains_company_list']
-            self.alias_companies = self.getInfoFromCompany()['aliases_company_list']
-            self.users = self.getInfoFromCompany()["datas"]["users"]
+            companyInfo = self.getInfoFromCompany()
+            self.domain_companies = companyInfo['domains_company_list']
+            self.alias_companies = companyInfo['aliases_company_list']
+            self.users = companyInfo["datas"]["users"]
+        else:
+            print("Personal info and company info must be given")
 
         if self.is_get_users_code_all == "true":
             self.get_users_code_all(from_date)
         else:
             self.get_sigs_code_all(from_date, self.projects_repo)
         print(f"*********************Finish Collection***************************")
-
-    def git_clone(self, url, dir):
-        cmd = 'cd %s;git clone %s' % (dir, url)
-        res = os.popen(cmd)
-        return res.read()
 
     def getSingleAction(self, index_name, id, body, act="index"):
         action = ""
@@ -100,7 +98,6 @@ class GitCommit(object):
         now = datetime.datetime.now()
         self.from_date = datetime.datetime(year=now.year, month=now.month, day=now.day - 1)
 
-
     def get_sigs_code_all(self, from_date=None, filename="projects"):
         project_file_path = self.getProjectFilePath(filename)
 
@@ -117,7 +114,6 @@ class GitCommit(object):
                 self.from_date = datetime.datetime(year=now.year, month=now.month, day=now.day - 1)
 
         print(f"Collected {len(repos)} repositories for this project")
-
 
     def collect_code(self, from_date, index_name, repourl_list, project=None):
         path = '/home/collect-code-clone/' + project + '/'
@@ -201,7 +197,9 @@ class GitCommit(object):
         if not os.path.exists(gitpath):
             cmdclone = 'git clone %s.git' % clone_url
             try:
+                print("cloning project repository....")
                 gc.execute(cmdclone, shell=True)
+                print("Repository clone done.\n")
             except  Exception as e:
                 print(f'Occur error when clone repository: {repo}. Error Name is: ', e.__class__)
         else:
@@ -235,27 +233,26 @@ class GitCommit(object):
             while True:  # pull, parse, assemble commit records
                 datenow = datetime.datetime.strptime(datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d"),
                                                      "%Y-%m-%d")
-                if dateii == datenow:
-                    break
                 dateii += datetime.timedelta(days=3)
-                if dateii > datenow:
-                    dateii = datenow
 
-                logcmd_no_merge = "git log --after=\"%s\" --before=\"%s\" --shortstat --pretty=\"%%an;%%ae;%%ad;%%H\" --no-merges " % (
+                logcmd_base = "git log --after=\"%s\" --before=\"%s\" --shortstat --pretty=\"@@@***@@@%%an;;;%%ae;;;%%ad;;;%%H;;;%%s;;;%%b\"  " % (
                     datei, dateii)
-                logcmd_merge = "git log --after=\"%s\" --before=\"%s\" --shortstat --pretty=\"%%an;%%ae;%%ad;%%H\" --merges " % (
-                    datei, dateii)
+
+                logcmd_merge = logcmd_base + " --merges"
+                logcmd_no_merge = logcmd_base + "--no-merges"
 
                 no_merge_log = ''
                 try:
                     no_merge_log = g.execute(logcmd_no_merge, shell=True)
                 except:
+                    print("logcmd_no_merge execute failed")
                     pass
 
                 merge_log = ''
                 try:
                     merge_log = g.execute(logcmd_merge, shell=True)
                 except:
+                    print("logcmd_merge execute failed")
                     pass
 
                 no_merged_commit = self.parse_commit(no_merge_log, datei, repourl, current_branch_name, False)
@@ -269,6 +266,10 @@ class GitCommit(object):
                 print(
                     f"Repository: {repo}\tBranch_name: {branch_name} \t from date: {temp_datei}  end date: {temp_dateii}  commits has been collected.")
                 datei = dateii
+
+                if dateii > datenow:
+                    break
+
             repo_commit_list.extend(branch_commits)
 
         return repo_commit_list
@@ -289,8 +290,8 @@ class GitCommit(object):
 
         repo = repourl.split('/')[-1]
 
-        log = log.replace("\n\n", "@@")
-        commit_logs = log.split('\n')
+        commit_logs = log.split('@@@***@@@')
+        commit_logs.remove('')
 
         if is_merged:
             for commit_log in commit_logs:
@@ -304,9 +305,7 @@ class GitCommit(object):
 
         else:
             for commit_log in commit_logs:
-                line1 = commit_log.split('@@')[0]
-
-                result = self.parse_commit_log(line1, log_date)
+                result = self.parse_commit_log(commit_log, log_date)
                 result['project'] = repo
                 result['repo'] = repourl
                 result['project'] = repo
@@ -314,43 +313,19 @@ class GitCommit(object):
                 result['is_merged'] = 0
                 result['branch_name'] = branch_name
 
-                file_changed = 0
-                lines_added = 0
-                lines_removed = 0
-
-                if len(commit_log.split('@@')) == 1:
-                    results.append(result)
-                    continue
-                line2 = commit_log.split('@@')[1]
-
-                file_pos = line2.find("file")
-                add_pos = line2.find("insertion")
-                del_pos = line2.find("deletion")
-
-                if add_pos != -1:
-                    lines_added_str = line2[int(line2.find(",") + 1):int(add_pos)]
-                    lines_added = int(lines_added_str.strip())
-                if del_pos != -1:
-                    lines_removed_str = line2[int(self.find_last(line2, ",") + 1):int(del_pos)]
-                    lines_removed = int(lines_removed_str.strip())
-                if file_pos != -1:
-                    file_changed = int(line2[:file_pos].strip())
-
-                result['file_changed'] = file_changed
-                result['add'] = lines_added
-                result['remove'] = lines_removed
-                result['total'] = lines_added + lines_removed
-
                 results.append(result)
 
         return results
 
     def parse_commit_log(self, commit_log, log_date):
-        split_list = commit_log.split(";")
+        # parse commit log and assemble data
+
+        if not commit_log:
+            return None
+
+        split_list = commit_log.split(";;;")
 
         email = split_list[1]
-        # if "yao@apache.org" in email:
-        #     print("stop")
         author = self.get_author(split_list)
         date_str = log_date.strftime("%Y-%m-%d")
         time_str = split_list[2].split()[3]
@@ -368,13 +343,68 @@ class GitCommit(object):
             preciseness_time_str = date_str + "T" + time_str + time_zone
         else:
             preciseness_time_str = date_str + "T" + time_str
-        commit_id = split_list[- 1]
+        commit_id = split_list[3]
 
-        result = {'created_at': preciseness_time_str, "file_changed": 0, "add": 0,
-                  'remove': 0, 'total': 0, 'author': author, 'company': company_name,
-                  'email': email, 'commit_id': commit_id}
+        title = split_list[4]
+        commit_content = self.get_commit_content_and_modifyInfo(split_list[5])
+        commit_main_content = commit_content["commit_main_content"]
+        commit_log_modifying_info = commit_content["modifyInfo"]
+
+        commit_log_modifying_result = self.parse_modifying_info(commit_log_modifying_info)
+
+        result = {'created_at': preciseness_time_str,
+                  'author': author, 'company': company_name,
+                  'email': email, 'commit_id': commit_id,
+                  "file_changed": commit_log_modifying_result['file_changed'],
+                  "add": commit_log_modifying_result['lines_added'],
+                  'remove': commit_log_modifying_result['lines_removed'],
+                  'total': commit_log_modifying_result['total'],
+                  "tilte": title,
+                  "commit_main_content": commit_main_content
+                  }
 
         return result
+
+    def get_commit_content_and_modifyInfo(self, text):
+        result = {}
+        last_line_feed_site = text.rfind("\n\n")
+        modifyInfo = text[last_line_feed_site + 2:]
+
+        if len(modifyInfo) < 5:
+            print("There is something wrong with modifyInfo")
+            raise Exception
+        commit_main_content = text[:last_line_feed_site]
+        result["commit_main_content"] = commit_main_content
+        result["modifyInfo"] = modifyInfo
+        return result
+
+    def parse_modifying_info(self, info_line):
+        modify_info = {}
+        file_changed = 0
+        lines_added = 0
+        lines_removed = 0
+
+        info_line = info_line.strip()
+        file_pos = info_line.find("file")
+        add_pos = info_line.find("insertion")
+        del_pos = info_line.find("deletion")
+
+        if add_pos != -1:
+            lines_added_str = info_line[int(info_line.find(",") + 1):int(add_pos)]
+            lines_added = int(lines_added_str.strip())
+        if del_pos != -1:
+            lines_removed_str = info_line[int(self.find_last(info_line, ",") + 1):int(del_pos)]
+            lines_removed = int(lines_removed_str.strip())
+        if file_pos != -1:
+            try:
+                file_changed = int(info_line[:file_pos].strip())
+            except:
+                print("stop")
+        modify_info["file_changed"] = file_changed
+        modify_info["lines_added"] = lines_added
+        modify_info["lines_removed"] = lines_removed
+        modify_info['total'] = lines_added + lines_removed
+        return modify_info
 
     def find_company(self, email):
         company_name = ''
