@@ -236,13 +236,24 @@ class GitHubSWF(object):
 
     def checkSleep(self):
         refresh_node_time_list = self.refresh_node_times.split(";")
-        now = datetime.datetime.now()
+
+        # get now utc now time
+        utc_now = datetime.datetime.now(datetime.timezone.utc)
+
+        # transfrom utc now time to beijing now time
+        timedelta = datetime.timedelta(hours=+8)
+        tz = datetime.timezone(timedelta)
+        beijing_now = utc_now.astimezone(tz=tz)
+
         interval_sleep_time = int(self.interval_sleep_time)
 
         for i in range(len(refresh_node_time_list)):
             checkTime_str = datetime.datetime.today().strftime("%Y%m%d") + "-" + refresh_node_time_list[i]
+            tz_checkTime = datetime.timezone(datetime.timedelta(hours=+0))
             checkTime = datetime.datetime.strptime(checkTime_str, '%Y%m%d-%H:%M:%S')
-            delta_sec = (checkTime - now).total_seconds()
+            checkTime = checkTime.astimezone(tz_checkTime)
+
+            delta_sec = checkTime.timestamp() - beijing_now.timestamp()
 
             if delta_sec > 0 and delta_sec < interval_sleep_time:
                 print(
