@@ -139,6 +139,9 @@ class GitCommit(object):
 
             print(repo, f" has {len(repo_commit_list)} commits. All has been collected into ES.")
 
+        # delete the whole project
+        os.system(f"rm -rf {path}")
+
     def get_repo_branches(self, g):
         branch_names = []
         if self.is_fetch_all_branches == "True":
