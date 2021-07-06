@@ -348,20 +348,24 @@ class GitCommit(object):
             preciseness_time_str = date_str + "T" + time_str
         commit_id = split_list[3]
 
-        title = split_list[4]
+        try:
+            title = split_list[4]  # In case have no title
+        except:
+            title = None
+
         commit_content = self.get_commit_content_and_modifyInfo(split_list[5])
-        commit_main_content = commit_content["commit_main_content"]
-        commit_log_modifying_info = commit_content["modifyInfo"]
+        commit_main_content = commit_content.get("commit_main_content")
+        commit_log_modifying_info = commit_content.get("modifyInfo")
 
         commit_log_modifying_result = self.parse_modifying_info(commit_log_modifying_info)
 
         result = {'created_at': preciseness_time_str,
                   'author': author, 'company': company_name,
                   'email': email, 'commit_id': commit_id,
-                  "file_changed": commit_log_modifying_result['file_changed'],
-                  "add": commit_log_modifying_result['lines_added'],
-                  'remove': commit_log_modifying_result['lines_removed'],
-                  'total': commit_log_modifying_result['total'],
+                  "file_changed": commit_log_modifying_result.get('file_changed'),
+                  "add": commit_log_modifying_result.get('lines_added'),
+                  'remove': commit_log_modifying_result.get('lines_removed'),
+                  'total': commit_log_modifying_result.get('total'),
                   "tilte": title,
                   "commit_main_content": commit_main_content
                   }
@@ -373,9 +377,9 @@ class GitCommit(object):
         last_line_feed_site = text.rfind("\n\n")
         modifyInfo = text[last_line_feed_site + 2:]
 
-        if len(modifyInfo) < 5:
-            print("There is something wrong with modifyInfo")
-            raise Exception
+        if not text or len(modifyInfo) < 5:
+            print("Get no main commit content and modifyInfo")
+            return result
         commit_main_content = text[:last_line_feed_site]
         result["commit_main_content"] = commit_main_content
         result["modifyInfo"] = modifyInfo
@@ -383,6 +387,10 @@ class GitCommit(object):
 
     def parse_modifying_info(self, info_line):
         modify_info = {}
+
+        if not info_line:
+            return modify_info
+
         file_changed = 0
         lines_added = 0
         lines_removed = 0
@@ -402,7 +410,7 @@ class GitCommit(object):
             try:
                 file_changed = int(info_line[:file_pos].strip())
             except:
-                print("stop")
+                print("Cannot get file_changed number")
         modify_info["file_changed"] = file_changed
         modify_info["lines_added"] = lines_added
         modify_info["lines_removed"] = lines_removed
