@@ -275,6 +275,8 @@ class CVE(object):
         cve_data = self.getCveData()
         actions = ''
         for cve in cve_data:
+            if cve['CVE_num'] is None or cve['CVE_num'] == '':
+                continue
             issue = self.getIssueByNumber(cve['issue_id'])
             if issue is None:
                 continue

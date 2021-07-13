@@ -798,12 +798,13 @@ class Gitee(object):
                         issue_item['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).total_seconds()
                     issue_item['lastreplyissuetime'] = (datetime.datetime.now() + datetime.timedelta(hours=8) - (
                         datetime.datetime.strptime(lastreplyissuetime, '%Y-%m-%dT%H:%M:%S+08:00'))).total_seconds()
-                issue_item['sig_names'] = sig_names
-                indexData = {"index": {"_index": self.index_name, "_id": issue_item['id']}}
-                actions += json.dumps(indexData) + '\n'
-                actions += json.dumps(issue_item) + '\n'
             except Exception as e:
                 print(e)
+            issue_item['sig_names'] = sig_names
+            indexData = {"index": {"_index": self.index_name, "_id": issue_item['id']}}
+            actions += json.dumps(indexData) + '\n'
+            actions += json.dumps(issue_item) + '\n'
+
         self.esClient.safe_put_bulk(actions)
         self.updateRemovedData(issue_data, 'issue', [{
             "name": "is_gitee_issue",
