@@ -84,17 +84,18 @@ class Meetup(object):
         return result
 
     def updateDataByQuery(self):
-        query = '''{
-                      "script": {
-                        "source": "ctx._source['tag_user_company']='independent'"
-                      },
-                      "query": {
-                        "term": {
-                          "tag_user_company.keyword": "n/a"
-                        }
-                      }
-                    }'''
-        self.esClient.updateByQuery(query=query)
+        for email, gitee_id in self.csv_data.items():
+            query = '''{
+                          "script": {
+                            "source": "ctx._source['user_login']='%s'"
+                          },
+                          "query": {
+                            "term": {
+                              "email.keyword": "%s"
+                            }
+                          }
+                        }''' % (gitee_id, email)
+            self.esClient.updateByQuery(query=query)
 
     def getCellValue(self, row_index, cell_name, sheet):
         if cell_name not in self.cell_name_index_dict:
