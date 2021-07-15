@@ -16,6 +16,7 @@ class Meetings(object):
         self.esClient = ESClient(config)
         self.meetings_url = config.get('meetings_url')
         self.headers = {'Content-Type': 'application/json', 'Authorization': config.get('authorization')}
+        self.query_token = config.get('query_token')
 
     def run(self, from_time):
         self.getGiteeId2Company()
@@ -23,7 +24,8 @@ class Meetings(object):
         self.tagUserOrgChanged()
 
     def get_all_meetings(self):
-        res = requests.get(url=self.meetings_url + "allmeetings/", headers=self.headers)
+        url = self.meetings_url + "allmeetings/?token=" + self.query_token
+        res = requests.get(url=url, headers=self.headers)
         datap = ''
         for i in json.loads(res.content):
             meet_date = datetime.datetime.strptime(i.get("end"), "%H:%M") - datetime.datetime.strptime(i.get("start"), "%H:%M")
