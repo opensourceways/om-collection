@@ -1,10 +1,8 @@
 import csv
 import json
-from datetime import datetime
-
 import requests
 import xlrd
-
+from datetime import datetime
 from data.common import ESClient
 
 
@@ -13,17 +11,20 @@ class Meetup(object):
         self.config = config
         self.orgs = config.get('orgs')
         self.esClient = ESClient(config)
+        self.eamil_gitee_index = config.get('eamil_gitee_index')
         self.index_name = config.get('index_name')
         self.activities_index_name = config.get('activities_index_name')
         self.activities_url = config.get('activities_url')
         self.registrants_url = config.get('registrants_url')
         self.query_token = config.get('query_token')
         self.cell_name_index_dict = {}
+        self.email_giteeid_dict = {}
         self.csv_data = {}
 
     def run(self, from_time):
         print("Meetup data: start")
-        self.csv_data = self.getGiteeIdFromCsv()
+        email_giteeid = self.getEmailGiteeDict()
+        self.updateHistorData(email_giteeid=email_giteeid)
         self.meetupWechat()
         print("Meetup data: finished")
 
@@ -31,20 +32,20 @@ class Meetup(object):
         # 获取所有活动
         response = requests.get(self.activities_url + '?token=' + self.query_token)
         if response.status_code != 200:
-            print('get activities fail')
+            print('get activities fail, code=%d' % response.status_code)
             return
         activities = self.esClient.getGenerator(response.text)
         activity_actions = ''
         for activity in activities:
             activity_id = activity['id']
-            index_data = {"index": {"_index": self.orgs + '_' + self.activities_index_name, "_id": activity_id}}
+            index_data = {"index": {"_index": self.activities_index_name, "_id": activity_id}}
             activity_actions += json.dumps(index_data) + '\n'
             activity_actions += json.dumps(activity) + '\n'
 
             # 获取活动报名者
             response = requests.get(self.registrants_url + str(activity_id) + '/?token=' + self.query_token)
             if response.status_code != 200:
-                print("get registrants fail, activity_id is %s" % str(activity_id))
+                print("get registrants fail, code=%d, activity_id is %s" % (response.status_code, str(activity_id)))
                 continue
             registrants = self.esClient.getGenerator(response.text)
             registrant_actions = ''
@@ -52,7 +53,8 @@ class Meetup(object):
                 meetup_name = activity['title']
                 meetup_date = str(activity['date']).replace('-', '/')
                 email = registrant['email']
-                user_login = self.csv_data.get(email) if email is not None and email in self.csv_data else None
+                user_login = self.email_giteeid_dict.get(
+                    email) if email is not None and email in self.email_giteeid_dict else None
                 key = 'is_' + meetup_name + '_meetup'
 
                 action = {'user_name': registrant['name'],
@@ -65,26 +67,31 @@ class Meetup(object):
                           'user_login': user_login,
                           key: 1}
                 registrant_id = meetup_name + '_' + meetup_date + '_' + email
-                index_data = {"index": {"_index": self.orgs + '_' + self.index_name, "_id": registrant_id}}
+                index_data = {"index": {"_index": self.index_name, "_id": registrant_id}}
                 registrant_actions += json.dumps(index_data) + '\n'
                 registrant_actions += json.dumps(action) + '\n'
             self.esClient.safe_put_bulk(registrant_actions)
         self.esClient.safe_put_bulk(activity_actions)
 
-    def getGiteeIdFromCsv(self):
-        result = {}
-        csvFile = open("email_userid.csv", "r")
-        reader = csv.reader(csvFile)
-        for item in reader:
-            if reader.line_num == 1:
-                continue
-            result[item[0]] = item[1]
-        csvFile.close()
+    def getEmailGiteeDict(self):
+        search = '"must": [{"match_all": {}}]'
+        hits = self.esClient.searchEsList(index_name=self.eamil_gitee_index, search=search)
+        data = {}
+        if hits is not None and len(hits) > 0:
+            for hit in hits:
+                source = hit['_source']
+                data.update({source['email']: source['gitee_id']})
+        return data
 
-        return result
+    def updateHistorData(self, email_giteeid):
+        if self.email_giteeid_dict == email_giteeid:
+            return
+        diff = email_giteeid.items() - self.email_giteeid_dict.items()
+        self.updateDataByQuery(change_data_dict=diff)
+        self.email_giteeid_dict = email_giteeid
 
-    def updateDataByQuery(self):
-        for email, gitee_id in self.csv_data.items():
+    def updateDataByQuery(self, change_data_dict):
+        for email, gitee_id in change_data_dict:
             query = '''{
                           "script": {
                             "source": "ctx._source['user_login']='%s'"
@@ -96,6 +103,28 @@ class Meetup(object):
                           }
                         }''' % (gitee_id, email)
             self.esClient.updateByQuery(query=query)
+
+    def writeEmailGiteeToES(self):
+        result = {}
+        csvFile = open("email_userid.csv", "r")
+        reader = csv.reader(csvFile)
+        actions = ""
+        for item in reader:
+            if reader.line_num == 1:
+                continue
+            result[item[0]] = item[1]
+            action = {
+                'email': item[0],
+                'gitee_id': item[1]
+            }
+
+            index_data = {"index": {"_index": self.eamil_gitee_index, "_id": item[0]}}
+            actions += json.dumps(index_data) + '\n'
+            actions += json.dumps(action) + '\n'
+        self.esClient.safe_put_bulk(actions)
+        csvFile.close()
+
+        return result
 
     def getCellValue(self, row_index, cell_name, sheet):
         if cell_name not in self.cell_name_index_dict:
@@ -137,7 +166,7 @@ class Meetup(object):
         self.esClient.safe_put_bulk(actions)
         print(count)
 
-    def meetupFromExcel(self, orgs, sheet=None, meetup_name='', meetup_date=''):
+    def meetupFromExcel(self, sheet=None, meetup_name='', meetup_date=''):
         wb = xlrd.open_workbook("C:\\Users\\Administrator\\Desktop\\openlookeng_meetup\\626-meetup触达人群统计.xlsx")
         if sheet:
             sh = wb.sheet_by_name(sheet)
@@ -170,9 +199,8 @@ class Meetup(object):
                 id = meetup_name + '_' + meetup_date + '_' + telephone_num
             else:
                 id = meetup_name + '_' + meetup_date + '_' + user_name
-            index_data = {"index": {"_index": orgs + '_' + self.index_name, "_id": id}}
+            index_data = {"index": {"_index": self.index_name, "_id": id}}
             actions += json.dumps(index_data) + '\n'
             actions += json.dumps(action) + '\n'
 
         self.esClient.safe_put_bulk(actions)
-        print(action)

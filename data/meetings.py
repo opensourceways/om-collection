@@ -19,13 +19,18 @@ class Meetings(object):
         self.query_token = config.get('query_token')
 
     def run(self, from_time):
+        print("*** Meetings collection start ***")
         self.getGiteeId2Company()
         self.get_all_meetings()
         self.tagUserOrgChanged()
 
     def get_all_meetings(self):
+        print('get all meetings start...')
         url = self.meetings_url + "allmeetings/?token=" + self.query_token
         res = requests.get(url=url, headers=self.headers)
+        if res.status_code != 200:
+            print('request fail, code=%d' % res.status_code)
+            return
         datap = ''
         for i in json.loads(res.content):
             meet_date = datetime.datetime.strptime(i.get("end"), "%H:%M") - datetime.datetime.strptime(i.get("start"), "%H:%M")
