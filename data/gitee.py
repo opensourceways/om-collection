@@ -91,6 +91,7 @@ class Gitee(object):
         self.repo_spec = config.get('repo_spec_mapping')
         self.tag_repo_sigs_history = config.get('tag_repo_sigs_history', 'false')
         self.repo_sigs_dict = self.esClient.getRepoSigs()
+        self.threads_count = int(config.get('threads_count', 20))
 
     def run(self, from_time):
         print("Collect gitee data: staring")
@@ -195,7 +196,7 @@ class Gitee(object):
                 threads.append(t)
                 t.start()
 
-                if len(threads) % 20 == 0:
+                if len(threads) % self.threads_count == 0:
                     for t in threads:
                         t.join()
                     threads = []
