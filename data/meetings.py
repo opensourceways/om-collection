@@ -12,6 +12,8 @@ class Meetings(object):
 
     def __init__(self, config=None):
         self.config = config
+        self.target_es_url = config.get('target_es_url')
+        self.target_authorization = config.get('target_authorization')
         self.index_name = config.get('index_name')
         self.esClient = ESClient(config)
         self.meetings_url = config.get('meetings_url')
@@ -31,6 +33,7 @@ class Meetings(object):
         if res.status_code != 200:
             print('request fail, code=%d' % res.status_code)
             return
+        print('meetings data len: %d' % len(res.content))
         datap = ''
         for i in json.loads(res.content):
             meet_date = datetime.datetime.strptime(i.get("end"), "%H:%M") - datetime.datetime.strptime(i.get("start"), "%H:%M")
@@ -44,7 +47,11 @@ class Meetings(object):
             i["tag_user_company"] = company
             datar = common.getSingleAction(self.index_name, i['id'], i)
             datap += datar
-        self.esClient.safe_put_bulk(datap)
+        header = {
+            "Content-Type": 'application/x-ndjson',
+            'Authorization': self.target_authorization
+        }
+        self.esClient.safe_put_bulk(bulk_json=datap, header=header, url=self.target_es_url)
         print('get all meetings end...')
 
     def get_participants_by_meet(self, mid):
