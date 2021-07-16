@@ -114,4 +114,4 @@ class Meetings(object):
                             		}
                             	}
                             }''' % (company, startTime, endTime, key)
-                self.esClient.updateByQuery(query=query)
+                self.esClient.updateByQuery(query=query.encode(encoding='UTF-8'))
