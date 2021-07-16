@@ -23,7 +23,7 @@ class Meetings(object):
     def run(self, from_time):
         print("*** Meetings collection start ***")
         self.getGiteeId2Company()
-        # self.get_all_meetings()
+        self.get_all_meetings()
         self.tagUserOrgChanged()
 
     def get_all_meetings(self):
