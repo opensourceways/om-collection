@@ -3,6 +3,9 @@ import json
 import requests
 import xlrd
 from datetime import datetime
+
+import yaml
+
 from data.common import ESClient
 
 
@@ -17,14 +20,18 @@ class Meetup(object):
         self.activities_url = config.get('activities_url')
         self.registrants_url = config.get('registrants_url')
         self.query_token = config.get('query_token')
+        self.company_aliases_yaml = config.get('company_aliases_yaml')
         self.cell_name_index_dict = {}
         self.email_giteeid_dict = {}
+        self.aliase_company_dict = {}
         self.csv_data = {}
 
     def run(self, from_time):
         print("Meetup data: start")
         email_giteeid = self.getEmailGiteeDict()
-        self.updateHistorData(email_giteeid=email_giteeid)
+        self.updateHistorGiteeid(email_giteeid=email_giteeid)
+        aliase_company = self.getAliaseCompanyDict()
+        self.updateHistorCompany(aliase_company=aliase_company)
         self.meetupWechat()
         print("Meetup data: finished")
 
@@ -55,11 +62,20 @@ class Meetup(object):
                 email = registrant['email']
                 user_login = self.email_giteeid_dict.get(
                     email) if email is not None and email in self.email_giteeid_dict else None
+                company = registrant['company']
+                if company is None or company == '':
+                    tag_user_company = '未知企业'
+                elif company in self.aliase_company_dict:
+                    tag_user_company = self.aliase_company_dict.get(company)
+                else:
+                    tag_user_company = company
                 key = 'is_' + meetup_name + '_meetup'
 
                 action = {'user_name': registrant['name'],
                           'company': registrant['company'],
+                          'tag_user_company': tag_user_company,
                           'profession': registrant['profession'],
+                          'position': registrant['profession'],
                           'telephone_num': registrant['telephone'],
                           'email': email,
                           'meetup_name': meetup_name,
@@ -83,26 +99,43 @@ class Meetup(object):
                 data.update({source['email']: source['gitee_id']})
         return data
 
-    def updateHistorData(self, email_giteeid):
+    def getAliaseCompanyDict(self):
+        aliase_company_dict = {}
+        res = requests.get(url=self.company_aliases_yaml)
+        if res.status_code == 200:
+            data = yaml.safe_load(res.text)
+            for org in data['companies']:
+                for aliase in org['aliases']:
+                    aliase_company_dict.update({aliase: org['company_name']})
+        return aliase_company_dict
+
+    def updateHistorGiteeid(self, email_giteeid):
         if self.email_giteeid_dict == email_giteeid:
             return
         diff = email_giteeid.items() - self.email_giteeid_dict.items()
-        self.updateDataByQuery(change_data_dict=diff)
+        self.updateDataByQuery(change_data_dict=diff, update_field='user_login', query_field='email')
         self.email_giteeid_dict = email_giteeid
 
-    def updateDataByQuery(self, change_data_dict):
+    def updateHistorCompany(self, aliase_company):
+        if self.aliase_company_dict == aliase_company:
+            return
+        diff = aliase_company.items() - self.aliase_company_dict.items()
+        self.updateDataByQuery(change_data_dict=diff, update_field='tag_user_company', query_field='company')
+        self.aliase_company_dict = aliase_company
+
+    def updateDataByQuery(self, change_data_dict, update_field, query_field):
         for email, gitee_id in change_data_dict:
             query = '''{
                           "script": {
-                            "source": "ctx._source['user_login']='%s'"
+                            "source": "ctx._source['%s']='%s'"
                           },
                           "query": {
                             "term": {
-                              "email.keyword": "%s"
+                              "%s.keyword": "%s"
                             }
                           }
-                        }''' % (gitee_id, email)
-            self.esClient.updateByQuery(query=query)
+                        }''' % (update_field, gitee_id, query_field, email)
+            self.esClient.updateByQuery(query=query.encode('utf-8'))
 
     def writeEmailGiteeToES(self):
         result = {}
@@ -181,12 +214,21 @@ class Meetup(object):
         for r in range(1, sh.nrows):
             email = self.getCellValue(r, '电子邮件', sh)
             user_login = self.csv_data.get(email) if email is not None and email in self.csv_data else None
+            company = self.getCellValue(r, '单位/公司', sh)
+            if company is None or company == '':
+                tag_user_company = '未知企业'
+            elif company in self.aliase_company_dict:
+                tag_user_company = self.aliase_company_dict.get(company)
+            else:
+                tag_user_company = company
             telephone_num = self.getCellValue(r, '手机号码', sh)
             user_name = self.getCellValue(r, '姓名', sh)
             key = 'is_' + meetup_name + '_meetup'
             action = {'user_name': user_name,
-                      'company': self.getCellValue(r, '单位/公司', sh),
+                      'company': company,
+                      'tag_user_company': tag_user_company,
                       'position': self.getCellValue(r, '职位/职务', sh),
+                      'profession': self.getCellValue(r, '职位/职务', sh),
                       'telephone_num': telephone_num,
                       'email': email,
                       'meetup_name': meetup_name,
