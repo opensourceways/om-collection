@@ -90,6 +90,7 @@ class Gitee(object):
             self.index_name_all = config.get('index_name_all').split(',')
         self.repo_spec = config.get('repo_spec_mapping')
         self.tag_repo_sigs_history = config.get('tag_repo_sigs_history', 'false')
+        self.thread_pool_num = config.get('thread_pool_num', 20)
         self.repo_sigs_dict = self.esClient.getRepoSigs()
 
     def run(self, from_time):
@@ -195,7 +196,7 @@ class Gitee(object):
                 threads.append(t)
                 t.start()
 
-                if len(threads) % 20 == 0:
+                if len(threads) % self.thread_pool_num == 0:
                     for t in threads:
                         t.join()
                     threads = []
