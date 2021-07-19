@@ -33,7 +33,7 @@ class Meetings(object):
         if res.status_code != 200:
             print('request fail, code=%d' % res.status_code)
             return
-        print('meetings data len: %d' % len(res.content))
+        print('meetings data len: %d' % len(res.json()))
         datap = ''
         for i in json.loads(res.content):
             meet_date = datetime.datetime.strptime(i.get("end"), "%H:%M") - datetime.datetime.strptime(i.get("start"), "%H:%M")
@@ -55,7 +55,7 @@ class Meetings(object):
         print('get all meetings end...')
 
     def get_participants_by_meet(self, mid):
-        res = requests.get(url=self.meetings_url + "participants/" + mid + "/")
+        res = requests.get(url=self.meetings_url + "participants/" + mid + "/?token=" + self.query_token)
         if res.status_code != 200:
             if res.status_code == 404:
                 print("The meeting participants not found: ", res.status_code)
