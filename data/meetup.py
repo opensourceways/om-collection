@@ -5,6 +5,7 @@ import xlrd
 from datetime import datetime
 
 import yaml
+from geopy.geocoders import Nominatim
 from phone import Phone
 
 from data.common import ESClient
@@ -16,6 +17,7 @@ class Meetup(object):
         self.orgs = config.get('orgs')
         self.esClient = ESClient(config)
         self.eamil_gitee_index = config.get('eamil_gitee_index')
+        self.city_lon_lat_index = config.get('city_lon_lat_index')
         self.index_name = config.get('index_name')
         self.activities_index_name = config.get('activities_index_name')
         self.activities_url = config.get('activities_url')
@@ -27,10 +29,13 @@ class Meetup(object):
         self.email_giteeid_dict = {}
         self.aliase_company_dict = {}
         self.aliase_profession_dict = {}
+        self.city_lon_lat_dict = {}
         self.csv_data = {}
 
     def run(self, from_time):
         print("Meetup data collect: start")
+        self.getCityLonLatDict()
+
         email_giteeid = self.getEmailGiteeDict()
         self.updateHistorGiteeid(email_giteeid=email_giteeid)
 
@@ -100,6 +105,11 @@ class Meetup(object):
                           'user_login': user_login,
                           key: 1}
                 if geo is not None:
+                    city = geo['city']
+                    # city -> lon & lat
+                    if city in self.city_lon_lat_dict:
+                        lon_lat = str(self.city_lon_lat_dict.get(city)).split("-")
+                        action.update({'lon': lon_lat[0], 'lat': lon_lat[1]})
                     action.update(geo)
                 registrant_id = meetup_name + '_' + meetup_date + '_' + email
                 index_data = {"index": {"_index": self.index_name, "_id": registrant_id}}
@@ -138,6 +148,34 @@ class Meetup(object):
                     aliase_profession_dict.update({aliase: org['profession']})
         return aliase_profession_dict
 
+    def getCityLonLatDict(self):
+        search = '"must": [{"match_all": {}}]'
+        hits = self.esClient.searchEsList(index_name=self.city_lon_lat_index, search=search)
+        if hits is not None and len(hits) > 0:
+            for hit in hits:
+                source = hit['_source']
+                lon_lat = str(source['longitude']) + "-" + str(source['latitude'])
+                self.city_lon_lat_dict.update({source['city_short']: lon_lat})
+
+    def updateCityLonLat(self):
+        for city, lon_lat in self.city_lon_lat_dict.items():
+            ll = str(lon_lat).split("-")
+            query = '''{
+                          "script": {
+                            "source": "ctx._source['lon']=params['lon'];ctx._source['lat']=params['lat']",
+                            "params": {
+                                  "lon": "%s",
+                                  "lat": "%s"
+                                }
+                          },
+                          "query": {
+                            "term": {
+                              "city.keyword": "%s"
+                            }
+                          }
+                        }''' % (ll[0], ll[1], city)
+            self.esClient.updateByQuery(query=query.encode('utf-8'))
+
     def updateHistorGiteeid(self, email_giteeid):
         if self.email_giteeid_dict == email_giteeid:
             print('there is no changes of email/giteeid')
@@ -166,7 +204,10 @@ class Meetup(object):
         for email, gitee_id in change_data_dict:
             query = '''{
                           "script": {
-                            "source": "ctx._source['%s']='%s'"
+                            "source": "ctx._source['%s']=params['giteeid']",
+                            "params": {
+                                  "giteeid": "%s"
+                                }
                           },
                           "query": {
                             "term": {
@@ -213,7 +254,7 @@ class Meetup(object):
         return data
 
     def meetup(self):
-        csvFile = open("C:\\Users\\Administrator\\Desktop\\mindspore_meetup\\Meetup参会人员.csv", "r", encoding='utf-8')
+        csvFile = open("Meetup参会人员.csv", "r", encoding='utf-8')
         reader = csv.reader(csvFile)
         actions = ""
         count = 0
@@ -225,7 +266,7 @@ class Meetup(object):
             company = item[1] if item[1] and item[1] != '无' else '未知企业'
             email = item[2]
             meet_up_name = item[3]
-            user_login = self.csv_data.get(email) if email in self.csv_data else None
+            user_login = self.email_giteeid_dict.get(email) if email in self.email_giteeid_dict else None
             result['user_name'] = item[0]
             result['company_name'] = company
             result['email'] = email
@@ -247,7 +288,7 @@ class Meetup(object):
         print(count)
 
     def meetupFromExcel(self, sheet=None, meetup_name='', meetup_date=''):
-        wb = xlrd.open_workbook("C:\\Users\\Administrator\\Desktop\\openlookeng_meetup\\626-meetup触达人群统计.xlsx")
+        wb = xlrd.open_workbook("626-meetup触达人群统计.xlsx")
         if sheet:
             sh = wb.sheet_by_name(sheet)
         else:
@@ -260,7 +301,7 @@ class Meetup(object):
         actions = ''
         for r in range(1, sh.nrows):
             email = self.getCellValue(r, '电子邮件', sh)
-            user_login = self.csv_data.get(email) if email is not None and email in self.csv_data else None
+            user_login = self.email_giteeid_dict.get(email) if email is not None and email in self.email_giteeid_dict else None
             company = self.getCellValue(r, '单位/公司', sh)
             if company is None or company == '':
                 tag_user_company = '未知企业'
@@ -286,6 +327,11 @@ class Meetup(object):
                       'user_login': user_login,
                       key: 1}
             if geo is not None:
+                city = geo['city']
+                # city -> lon & lat
+                if city in self.city_lon_lat_dict:
+                    lon_lat = str(self.city_lon_lat_dict.get(city)).split("-")
+                    action.update({'lon': lon_lat[0], 'lat': lon_lat[1]})
                 action.update(geo)
             if email != '':
                 id = meetup_name + '_' + meetup_date + '_' + email
@@ -298,3 +344,27 @@ class Meetup(object):
             actions += json.dumps(action) + '\n'
 
         self.esClient.safe_put_bulk(actions)
+
+    def city_lon_lat(self):
+        csvFile = open("city - 副本.csv", "r", encoding='utf-8')
+        reader = csv.reader(csvFile)
+        actions = ""
+        count = 0
+        for item in reader:
+            if reader.line_num == 1:
+                continue
+            count += 1
+            result = {'province': item[0], 'province_short': item[1], 'city_short': item[2], 'city': item[3]}
+
+            gps = Nominatim(user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
+            location = gps.geocode(item[3])
+            result['longitude'] = location.longitude
+            result['latitude'] = location.latitude
+
+            indexData = {"index": {"_index": 'city_lon_lat', "_id": item[2]}}
+            actions += json.dumps(indexData) + '\n'
+            actions += json.dumps(result) + '\n'
+
+        csvFile.close()
+        self.esClient.safe_put_bulk(actions)
+        print(count)
