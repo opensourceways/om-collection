@@ -14,13 +14,16 @@ class AccountOrg(object):
         self.esClient = ESClient(config)
         self.index_name = config.get('index_name')
         self.index_name_cla = config.get('index_name_cla')
+        self.email_gitee_es = config.get('email_gitee_es')
+        self.email_gitee_authorization = config.get('email_gitee_authorization')
+        self.email_gitee_index = config.get('email_gitee_index')
         self.data_yaml_url = config.get('data_yaml_url')
         self.company_yaml_url = config.get('company_yaml_url')
         self.csv_data = {}
 
     def run(self, from_time):
         print("Collect AccountOrg data: start")
-        self.csv_data = self.getDataFromCsv()
+        self.csv_data = self.getEmailGiteeDict()
         self.getDataFromCla()
         print("Collect AccountOrg data: finished")
 
@@ -74,6 +77,20 @@ class AccountOrg(object):
                 actions += json.dumps(action) + '\n'
 
             self.esClient.safe_put_bulk(actions)
+
+    def getEmailGiteeDict(self):
+        search = '"must": [{"match_all": {}}]'
+        header = {
+            'Content-Type': 'application/json',
+            'Authorization': self.email_gitee_authorization
+        }
+        hits = self.esClient.searchEmailGitee(url=self.email_gitee_es, headers=header, index_name=self.email_gitee_index, search=search)
+        data = {}
+        if hits is not None and len(hits) > 0:
+            for hit in hits:
+                source = hit['_source']
+                data.update({source['email']: source['gitee_id']})
+        return data
 
     def getDataFromYaml(self):
         dic = self.esClient.getOrgByGiteeID()

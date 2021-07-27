@@ -667,6 +667,17 @@ class ESClient(object):
         starTime = f.strftime("%Y%m%d")
         return starTime
 
+    def searchEmailGitee(self, url, headers, index_name, search=None):
+        url = url + '/' + index_name + '/_search'
+        data = '''{"size":10000,"query": {"bool": {%s}}}''' % search
+        try:
+            res = json.loads(
+                requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
+            return res['hits']['hits']
+        except:
+            print(traceback.format_exc())
+            return None
+
     def searchEsList(self, index_name, search=None):
         url = self.url + '/' + index_name + '/_search'
         data = '''{"size":10000,"query": {"bool": {%s}}}''' % search
