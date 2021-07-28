@@ -12,3 +12,4 @@ python-rpm-spec>=0.10
 xlrd>=1.2.0
 phone>=0.4.3
 geopy>=2.2.0
+esdk-obs-python>=3.21.4
