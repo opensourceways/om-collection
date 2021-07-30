@@ -50,7 +50,8 @@ BACKEND_MAPPING = {
     'account_org': 'data.account_org.AccountOrg',
     'git': 'data.git_commit.GitCommit',
     'ru_download': 'data.ru_download.RuDownload',
-    'meetup': 'data.meetup.Meetup'
+    'meetup': 'data.meetup.Meetup',
+    'try_me': 'data.tryme.TryMe'
 }
 
 
