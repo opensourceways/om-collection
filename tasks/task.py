@@ -49,7 +49,8 @@ BACKEND_MAPPING = {
     'polymerization': 'data.combine.polymerization.Polymerization',
     'account_org': 'data.account_org.AccountOrg',
     'git': 'data.git_commit.GitCommit',
-    'ru_download': 'data.ru_download.RuDownload'
+    'ru_download': 'data.ru_download.RuDownload',
+    'googleanalytic_user': 'data.googleanalytic_user.GOOGLEANALYTICUSER'
 }
 
 
