@@ -1,4 +1,5 @@
 import json
+import random
 import time
 import types
 from json import JSONDecodeError
@@ -13,7 +14,9 @@ from data.common import ESClient
 class TryMe(object):
     def __init__(self, config=None):
         self.esClient = ESClient(config)
-        self.eamil_gitee_index = config.get('eamil_gitee_index')
+        self.email_gitee_es = config.get('email_gitee_es')
+        self.email_gitee_authorization = config.get('email_gitee_authorization')
+        self.email_gitee_index = config.get('email_gitee_index')
         self.index_name = config.get('index_name')
         self.ak = config.get("access_key_id")
         self.sk = config.get("secret_access_key")
@@ -22,11 +25,17 @@ class TryMe(object):
         self.object_key = config.get("object_key")
         self.gitee_token = config.get("gitee_token")
         self.github_token = config.get("github_token")
+        self.create_randon_time = config.get("create_randon_time", 'false')
+        self.start_time = config.get("start_time")
+        self.end_time = config.get("end_time")
+        self.time_format = config.get("time_format")
         self.obs_client = ObsClient(access_key_id=self.ak, secret_access_key=self.sk, server=self.server)
         self.gitee_client = GiteeClient(owner=None, repository=None, token=self.gitee_token)
         self.giteehub_client = GithubClient(org=None, repository=None, token=self.github_token)
+        self.exists_ids = []
 
     def run(self, startTime):
+        self.getAllIds()
         email_gitee = self.getEmailGiteeDict()
         self.userLogin(email_gitee)
 
@@ -39,10 +48,12 @@ class TryMe(object):
             return
         json_node = json.loads(chunk)
         actions = ''
-        now = time.strftime("%Y-%m-%dT%H:%M:%S+08:00", time.localtime())
+
         for _, user_info in json_node['userInfoMap'].items():
             res = user_info
             id = user_info['id']
+            if id in self.exists_ids:
+                continue
             name = user_info['name']
             email = user_info['email']
 
@@ -52,27 +63,31 @@ class TryMe(object):
                 user = self.giteehub_client.getUserByName(name)
             else:
                 continue
+            # 随机时间
+            if self.create_randon_time == 'true':
+                created_at = time.strftime("%Y-%m-%dT%H:%M:%S+08:00", time.localtime(
+                    self.randomTime(self.start_time, self.end_time, random.random(), self.time_format)))
+            else:
+                created_at = time.strftime("%Y-%m-%dT%H:%M:%S+08:00", time.localtime())
+            res['created_at'] = created_at
+            res['is_tryme'] = 1
 
             if 'login' in user:
-                ctime = user['created_at']
-                if ctime.__contains__('Z'):
-                    ctime = ctime.replace('Z', '+08:00')
-                utime = user['updated_at']
-                if utime.__contains__('Z'):
-                    utime = utime.replace('Z', '+08:00')
                 res['user_id'] = user['id']
                 res['user_login'] = user['login']
                 res['user_name'] = user['name']
                 res['user_html_url'] = user['html_url']
-                res['created_at'] = ctime
-                res['updated_at'] = utime
+                userExtra = self.esClient.getUserInfo(res['user_login'])
+                res.update(userExtra)
             elif email is not None and email in email_gitee:
                 res['user_login'] = email_gitee.get(email)
-                res['created_at'] = now
-                res['updated_at'] = now
+                userExtra = self.esClient.getUserInfo(res['user_login'])
+                res.update(userExtra)
                 print('get user_login by email success. email=%s, id=%s, name=%s' % (email, id, name))
             else:
                 print('Not Found login by name=%s, id=%s, email=%s' % (name, id, email))
+                continue  # TODO 目前先过滤掉未找到user_login的数据
+            res.__delitem__('id')
 
             index_data = {"index": {"_index": self.index_name, "_id": id}}
             actions += json.dumps(index_data) + '\n'
@@ -93,10 +108,47 @@ class TryMe(object):
 
     def getEmailGiteeDict(self):
         search = '"must": [{"match_all": {}}]'
-        hits = self.esClient.searchEsList(index_name=self.eamil_gitee_index, search=search)
+        header = {
+            'Content-Type': 'application/json',
+            'Authorization': self.email_gitee_authorization
+        }
+        hits = self.esClient.searchEmailGitee(url=self.email_gitee_es, headers=header, index_name=self.email_gitee_index, search=search)
         data = {}
         if hits is not None and len(hits) > 0:
             for hit in hits:
                 source = hit['_source']
                 data.update({source['email']: source['gitee_id']})
         return data
+
+    def allIdsFunc(self, hit):
+        for data in hit:
+            self.exists_ids.append(data['_id'])
+
+    def getAllIds(self):
+        search = '''{
+                      "size": 10000,
+                      "_source": {
+                        "includes": [
+                          "id"
+                        ]
+                      },
+                      "query": {
+                        "bool": {
+                          "must": [
+                            {
+                              "term": {
+                                "is_tryme": 1
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }'''
+        self.esClient.scrollSearch(self.index_name, search=search, func=self.allIdsFunc)
+
+    def randomTime(self, start, end, prop, frmt):
+        if start and end and frmt:
+            stime = time.mktime(time.strptime(start, frmt))
+            etime = time.mktime(time.strptime(end, frmt))
+            ptime = stime + prop * (etime - stime)
+            return int(ptime)
