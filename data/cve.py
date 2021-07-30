@@ -275,16 +275,25 @@ class CVE(object):
         cve_data = self.getCveData()
         actions = ''
         for cve in cve_data:
+            if cve['CVE_num'] is None or cve['CVE_num'] == '':
+                continue
             issue = self.getIssueByNumber(cve['issue_id'])
             if issue is None:
                 continue
             res = cve
             res.update(self.getInvolvedBranch(branch=cve['milestone']))
+            res['CVE_num'] = str(cve['CVE_num']).replace('漏洞处理', '')
             # 推送时间（issue的创建时间）
             res['created_at'] = issue['created_at']
             # 漏洞感知时长(小时) TODO 需要使用 cve['CVE_vtopic_rec_time']
-            res['cve_rec_duration'] = self.getDuration(res['created_at'], '%Y-%m-%dT%H:%M:%S+08:00',
-                                                       res['CVE_public_time'], '%Y-%m-%d')
+            rec_time = cve['CVE_vtopic_rec_time']
+            if rec_time is None or rec_time == '':
+                res['cve_rec_duration'] = self.getDuration(res['created_at'], '%Y-%m-%dT%H:%M:%S+08:00',
+                                                           res['CVE_public_time'], '%Y-%m-%d')
+            else:
+                res['cve_rec_duration'] = self.getDuration(res['created_at'], '%Y-%m-%dT%H:%M:%S+08:00',
+                                                           str(rec_time).split('.')[0], '%Y-%m-%d %H:%M:%S')
+
             res['user_login'] = issue['user_login']
             res['issue_state'] = issue['issue_state']
             # 受影响软件（仓库）

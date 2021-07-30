@@ -12,18 +12,28 @@ class Meetings(object):
 
     def __init__(self, config=None):
         self.config = config
+        self.target_es_url = config.get('target_es_url')
+        self.target_authorization = config.get('target_authorization')
         self.index_name = config.get('index_name')
         self.esClient = ESClient(config)
         self.meetings_url = config.get('meetings_url')
         self.headers = {'Content-Type': 'application/json', 'Authorization': config.get('authorization')}
+        self.query_token = config.get('query_token')
 
     def run(self, from_time):
+        print("*** Meetings collection start ***")
         self.getGiteeId2Company()
         self.get_all_meetings()
         self.tagUserOrgChanged()
 
     def get_all_meetings(self):
-        res = requests.get(url=self.meetings_url + "allmeetings/", headers=self.headers)
+        print('get all meetings start...')
+        url = self.meetings_url + "allmeetings/?token=" + self.query_token
+        res = requests.get(url=url, headers=self.headers)
+        if res.status_code != 200:
+            print('request fail, code=%d' % res.status_code)
+            return
+        print('meetings data len: %d' % len(res.json()))
         datap = ''
         for i in json.loads(res.content):
             meet_date = datetime.datetime.strptime(i.get("end"), "%H:%M") - datetime.datetime.strptime(i.get("start"), "%H:%M")
@@ -37,11 +47,15 @@ class Meetings(object):
             i["tag_user_company"] = company
             datar = common.getSingleAction(self.index_name, i['id'], i)
             datap += datar
-        self.esClient.safe_put_bulk(datap)
+        header = {
+            "Content-Type": 'application/x-ndjson',
+            'Authorization': self.target_authorization
+        }
+        self.esClient.safe_put_bulk(bulk_json=datap, header=header, url=self.target_es_url)
         print('get all meetings end...')
 
     def get_participants_by_meet(self, mid):
-        res = requests.get(url=self.meetings_url + "participants/" + mid + "/")
+        res = requests.get(url=self.meetings_url + "participants/" + mid + "/?token=" + self.query_token)
         if res.status_code != 200:
             if res.status_code == 404:
                 print("The meeting participants not found: ", res.status_code)
@@ -100,4 +114,4 @@ class Meetings(object):
                             		}
                             	}
                             }''' % (company, startTime, endTime, key)
-                self.esClient.updateByQuery(query=query)
+                self.esClient.updateByQuery(query=query.encode(encoding='UTF-8'))
