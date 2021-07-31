@@ -12,6 +12,9 @@ COPY ./om-collections/ /var/lib/om
 RUN apt-get update && \
     pip install --upgrade pip && \
     pip3 install -r requirements.txt
+    pip3 install -r apiclient.discovery
+    pip3 install -r oauth2client.service_account
+
 
 
 RUN wget https://github.com/huaweicloud/huaweicloud-sdk-python-obs/archive/v3.20.7.tar.gz && \
@@ -28,6 +31,8 @@ RUN pip3 install mailmanclient==3.1
 #RUN git clone https://gitee.com/opensourceway/mailmanclient && \
 #    cd mailmanclient && \
 #    python3 setup.py install
+
+
 
 CMD python3 -u  george.py
 
