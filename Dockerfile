@@ -12,6 +12,10 @@ COPY ./om-collections/ /var/lib/om
 RUN apt-get update && \
     pip install --upgrade pip && \
     pip3 install -r requirements.txt
+    pip3 install google-api-python-client
+    pip3 install --upgrade oauth2client
+
+
 
 
 RUN wget https://github.com/huaweicloud/huaweicloud-sdk-python-obs/archive/v3.20.7.tar.gz && \
