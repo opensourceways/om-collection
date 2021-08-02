@@ -59,8 +59,11 @@ class TryMe(object):
 
             if str(id).startswith('gitee'):
                 user = self.getGenerator(self.gitee_client.user(name))
+                res['is_gitee_account'] = 1
             elif str(id).startswith('github'):
-                user = self.giteehub_client.getUserByName(name)
+                user_id = str(id).replace('github-', '')
+                user = self.giteehub_client.getUserByID(user_id)
+                res['is_github_account'] = 1
             else:
                 continue
             # 随机时间
@@ -83,9 +86,9 @@ class TryMe(object):
                 res['user_login'] = email_gitee.get(email)
                 userExtra = self.esClient.getUserInfo(res['user_login'])
                 res.update(userExtra)
-                print('get user_login by email success. email=%s, id=%s, name=%s' % (email, id, name))
+                print('get user_login by email success. name=%s' % name)
             else:
-                print('Not Found login by name=%s, id=%s, email=%s' % (name, id, email))
+                print('Not Found login, name=%s' % name)
                 continue  # TODO 目前先过滤掉未找到user_login的数据
             res.__delitem__('id')
 

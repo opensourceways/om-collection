@@ -76,6 +76,14 @@ class GithubClient(object):
         data = r.json()
         return data
 
+    def getUserByID(self, id):
+        headers = self.headers
+        headers['Accept'] = 'application/vnd.github.v3.star+json'
+        r = requests.get('https://api.github.com/user/%s' % id,
+                         headers=self.headers)
+        data = r.json()
+        return data
+
     def getAllOwnerRepo(self, owner):
         full_names = []
         r = requests.get('https://api.github.com/users/' + owner + '/repos' + '?pape=1&per_page=10000',
