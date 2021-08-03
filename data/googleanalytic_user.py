@@ -1,7 +1,5 @@
 import json
 import math
-import traceback
-import uuid
 from datetime import datetime, timedelta
 
 from apiclient.discovery import build
@@ -20,6 +18,7 @@ class GOOGLEANALYTICUSER(object):
         self.org = config.get('org')
         self.view_id = config.get("view_id")
         self.key_file_location = config.get('key_file_location')
+        self.request_body_file_name = config.get('request_body_file_location')
         self.base_url = config.get('base_url')
 
     def initialize_analyticsreporting(self):
@@ -66,8 +65,7 @@ class GOOGLEANALYTICUSER(object):
         print(f'collecting data from {self.startDate_str} to yesterday')
 
         # Prepare query file for request method
-        file_body = "body.json"
-        with open(file_body, 'r', encoding="utf-8") as f:
+        with open(self.request_body_file_name, 'r', encoding="utf-8") as f:
             content = eval(f.read())
         content['reportRequests'][0]['viewId'] = self.view_id
         content['reportRequests'][0]['dateRanges'][0]['startDate'] = self.startDate_str
