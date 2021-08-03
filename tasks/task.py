@@ -51,6 +51,7 @@ BACKEND_MAPPING = {
     'git': 'data.git_commit.GitCommit',
     'ru_download': 'data.ru_download.RuDownload',
     'meetup': 'data.meetup.Meetup',
+    'github_pr_issue': 'data.github_pr_issue.GitHubPrIssue',
     'try_me': 'data.tryme.TryMe'
 }
 

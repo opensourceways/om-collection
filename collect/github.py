@@ -49,10 +49,8 @@ class GithubClient(object):
                  base_url=None, max_items=MAX_CATEGORY_ITEMS_PER_PAGE, ):
         self.org = org
         self.repository = repository
-        self.headers = {
-            'Content-Type': 'application/json'
-        }
-        self.headers["Authorization"] = token
+        self.headers = {'Content-Type': 'application/json;charset=UTF-8', "Authorization": token,
+                        'Accept': 'application/vnd.github.v3.star+json'}
         self.base_url = BASE_URL
         self.session = requests.Session()
         self.ssl_verify = True
@@ -219,3 +217,99 @@ class GithubClient(object):
             page += 1
 
         return repos
+
+    def get_repos(self, org):
+        url = self.urijoin(BASE_URL, 'orgs', org, 'repos')
+        params = {
+            'type': 'all',
+            'sort': 'created',
+            'direction': 'asc',
+            'per_page': MAX_CATEGORY_ITEMS_PER_PAGE
+        }
+        datas = []
+        self.get_data(url=url, params=params, current_page=1, datas=datas)
+        return datas
+
+    def get_pr(self, owner, repo):
+        url = self.urijoin(BASE_URL, 'repos', owner, repo, 'pulls')
+        params = {
+            'state': 'all',
+            'sort': 'updated',
+            'direction': 'desc',
+            'per_page': MAX_CATEGORY_ITEMS_PER_PAGE
+        }
+        datas = []
+        self.get_data(url=url, params=params, current_page=1, datas=datas)
+        return datas
+
+    def get_issue(self, owner, repo):
+        url = self.urijoin(BASE_URL, 'repos', owner, repo, 'issues')
+        params = {
+            'state': 'all',
+            'sort': 'updated',
+            'direction': 'desc',
+            'per_page': MAX_CATEGORY_ITEMS_PER_PAGE
+        }
+        datas = []
+        self.get_data(url=url, params=params, current_page=1, datas=datas)
+        return datas
+
+    def get_pr_review(self, owner, repo, pr_num):
+        url = self.urijoin(BASE_URL, 'repos', owner, repo, 'pulls', pr_num, 'reviews')
+        params = {
+            'per_page': MAX_CATEGORY_ITEMS_PER_PAGE
+        }
+        datas = []
+        self.get_data(url=url, params=params, current_page=1, datas=datas)
+        return datas
+
+    def get_pr_comment(self, owner, repo, pr_num):
+        url = self.urijoin(BASE_URL, 'repos', owner, repo, 'pulls', pr_num, 'comments')
+        params = {
+            'sort': 'updated',
+            'direction': 'desc',
+            'per_page': MAX_CATEGORY_ITEMS_PER_PAGE
+        }
+        datas = []
+        self.get_data(url=url, params=params, current_page=1, datas=datas)
+        return datas
+
+    def get_issue_comment(self, owner, repo, issue_num):
+        url = self.urijoin(BASE_URL, 'repos', owner, repo, 'issues', issue_num, 'comments')
+        params = {
+            'per_page': MAX_CATEGORY_ITEMS_PER_PAGE
+        }
+        datas = []
+        self.get_data(url=url, params=params, current_page=1, datas=datas)
+        return datas
+
+    def get_data(self, url, params, current_page, datas):
+        print('****** Data page: %i ******' % current_page)
+        req = self.http_req(url=url, params=params)
+
+        if req.status_code != 200:
+            print('Get data error, API: %s' % url)
+
+        if int(req.headers.get('X-RateLimit-Used')) >= int(req.headers.get('X-RateLimit-Limit')) - 1:
+            print("Thread sleeping, cause exceed the rate limit of github...")
+            time.sleep(3600)
+            current_page -= 1
+
+        datas.extend(req.json())
+
+        if 'next' in req.links:
+            url_next = req.links['next']['url']
+            current_page += 1
+            self.get_data(url_next, params=params, current_page=current_page, datas=datas)
+
+    def http_req(self, url, params, method='GET', headers=None, stream=False, auth=None):
+        if headers is None:
+            headers = self.headers
+
+        if method == 'GET':
+            response = self.session.get(url, params=params, headers=headers, stream=stream,
+                                        verify=True, auth=auth, timeout=60)
+        else:
+            response = self.session.post(url, data=params, headers=headers, stream=stream,
+                                         verify=True, auth=auth)
+        return response
