@@ -145,24 +145,18 @@ class GitCommit(object):
     def get_repo_branches(self, g):
         branch_names = []
         if self.is_fetch_all_branches == "True":
-            text = g.execute("git branch -a", shell=True)  # ensure branch name, then get its commits.
+            text = g.execute("git branch -r", shell=True)  # ensure branch name, then get its commits.
         else:
-            text = g.execute("git branch", shell=True)
-            branch_name = self.getCurrentBranchName(text)
+            branch_name = g.execute("git symbolic-ref --short -q HEAD", shell=True)
             branch_names.append(branch_name)
             return branch_names
         branch_list = text.split("\n")
 
-        master_index = 0
         for i in range(len(branch_list)):
-            if branch_list[i].find("->") != -1:
-                master_index = i
-                break
-        branches = branch_list[master_index + 1:][::-1]
+            if branch_list[i].find("origin") != -1:
+                branch_names.append(branch_list[i].split('/')[-1])
+        branch_names = list(set(branch_names))
 
-        for branch in branches:
-            branch_name = branch.split("/")[-1]
-            branch_names.append(branch_name)
         return branch_names
 
     def push_repo_data_into_es(self, index_name, repo_data_list, repo):
@@ -223,9 +217,9 @@ class GitCommit(object):
         for branch_name in branch_names:
             try:
                 g.execute(f"git checkout -f {branch_name}", shell=True)
-                branch_text = g.execute(f"git branch", shell=True)
-                current_branch_name = self.getCurrentBranchName(branch_text)
+                current_branch_name = g.execute(f"git symbolic-ref --short -q HEAD", shell=True)
             except Exception as e:
+                print('git execute failure in acquire current branch name\n')
                 print(repr(e))
 
             branch_commits = []
@@ -276,15 +270,6 @@ class GitCommit(object):
             repo_commit_list.extend(branch_commits)
 
         return repo_commit_list
-
-    def getCurrentBranchName(self, branch_text):
-        current_branch_name = ""
-        branch_list = branch_text.split("\n")
-        for each in branch_list:
-            if each.find("*") != -1:
-                current_branch_name = each.split()[-1]
-                break
-        return current_branch_name
 
     def parse_commit(self, log, log_date, repourl, branch_name, is_merged):
         results = []
@@ -451,7 +436,6 @@ class GitCommit(object):
             # self.company_yaml_path = "data/company.yaml"
             # datas = yaml.load_all(open(self.data_yaml_path, encoding='UTF-8'), Loader=yaml.FullLoader).__next__()
             # companies = yaml.load_all(open(self.company_yaml_path, encoding='UTF-8'), Loader=yaml.FullLoader).__next__()
-
 
             domains_company_dict = {}
             aliases_company_dict = {}
