@@ -64,6 +64,7 @@ class Gitee(object):
         self.is_update_repo_author = config.get('is_update_repo_author')
         self.is_set_itself_author = config.get('is_set_itself_author')
         self.is_set_pr_issue_repo_fork = config.get('is_set_pr_issue_repo_fork')
+        self.is_set_issue = config.get('is_set_issue')
         self.is_set_first_contribute = config.get('is_set_first_contribute')
         self.is_set_star_watch = config.get('is_set_star_watch')
         self.is_set_sigs_star = config.get('is_set_sigs_star')
@@ -116,6 +117,8 @@ class Gitee(object):
 
             if self.is_set_pr_issue_repo_fork == 'true':
                 self.writeData(self.writeContributeForSingleRepo, from_time)
+            elif self.is_set_issue == 'true':
+                self.writeData(self.writeIssueSingleRepo, from_time)
 
             self.externalUpdateRepo()
             if self.is_set_first_contribute == 'true':
@@ -233,6 +236,15 @@ class Gitee(object):
         self.writePullData(org, repo_name, is_public, from_time, self.once_update_num_of_pr, sig_names)
         self.writeIssueData(org, repo_name, is_public, from_time, sig_names)
         self.writeForks(org, repo_name, from_time, sig_names)
+
+    def writeIssueSingleRepo(self, org, repo, from_time=None):
+        repo_name = repo['path']
+        is_public = repo['public']
+        sig_names = ['No-SIG']
+        if org + '/' + repo_name in self.repo_sigs_dict:
+            sig_names = self.repo_sigs_dict[org + '/' + repo_name]
+
+        self.writeIssueData(org, repo_name, is_public, from_time, sig_names)
 
     def writeSWForSingleRepo(self, org, repo, from_time=None):
         repo_name = repo['path']
