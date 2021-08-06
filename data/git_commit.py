@@ -139,8 +139,9 @@ class GitCommit(object):
 
             print(repo, f" has {len(repo_commit_list)} commits. All has been collected into ES.")
 
-        # delete the whole project
-        os.system(f"rm -rf {path}")
+            # delete current repository
+            os.system(f"rm -rf {path + '/' + repo}")  # Execute on Linux
+            print(f'Repository: {repo} has been removed.\n')
 
     def get_repo_branches(self, g):
         branch_names = []
@@ -156,6 +157,7 @@ class GitCommit(object):
             if branch_list[i].find("origin") != -1:
                 branch_names.append(branch_list[i].split('/')[-1])
         branch_names = list(set(branch_names))
+        print('Get branch names successfully.')
 
         return branch_names
 
@@ -194,7 +196,7 @@ class GitCommit(object):
         if not os.path.exists(gitpath):
             cmdclone = 'git clone %s.git' % clone_url
             try:
-                print("cloning project repository....")
+                print(f"Starting to clone repository: {repo}  ....")
                 gc.execute(cmdclone, shell=True)
                 print("Repository clone done.\n")
             except  Exception as e:
@@ -217,6 +219,11 @@ class GitCommit(object):
         for branch_name in branch_names:
             try:
                 g.execute(f"git checkout -f {branch_name}", shell=True)
+            except:
+                print('Failed to switch branch \n')
+                print(repr(e))
+
+            try:
                 current_branch_name = g.execute(f"git symbolic-ref --short -q HEAD", shell=True)
             except Exception as e:
                 print('git execute failure in acquire current branch name\n')
