@@ -383,7 +383,6 @@ class GiteeClient():
         url = self.urijoin("orgs", org, "followers")
         return self.fetch_items(url, payload)
 
-
     @globalExceptionHandler
     def fetch(self, url, payload=None, headers=None, method="GET", stream=False, auth=None):
         """Fetch the data from a given URL.
@@ -402,30 +401,15 @@ class GiteeClient():
             payload["access_token"] = self.access_token
 
             # response = super().fetch(url, payload, headers, method, stream, auth)
-            try:
-                if method == 'GET':
-                    response = self.session.get(url, params=payload, headers=headers, stream=stream,
-                                                verify=self.ssl_verify, auth=auth, timeout=60)
-                else:
-                    response = self.session.post(url, data=payload, headers=headers, stream=stream,
-                                                verify=self.ssl_verify, auth=auth)
-            except requests.exceptions.HTTPError as error:
-                # 404 not found is wrongly received sometimes
-                if error.response.status_code == 404:
-                    logger.error("Can't get gitee login orgs: %s", error)
-                else:
-                    raise error
-
-            if response is None:
-                raise ValueError("Gitee api get none")
-
-            if response.status_code != 200 and response.status_code != 404:
-                print("Gitee api get error: ", response.text)
-                raise Exception("Gitee api get error: ", response.text)
+            if method == 'GET':
+                response = self.session.get(url, params=payload, headers=headers, stream=stream,
+                                            verify=self.ssl_verify, auth=auth, timeout=60)
+            else:
+                response = self.session.post(url, data=payload, headers=headers, stream=stream,
+                                             verify=self.ssl_verify, auth=auth)
 
             return response
 
-    
     def fetch_items(self, path, payload):
         """Return the items from gitee API using links pagination"""
         page = 0  # current page
