@@ -91,6 +91,7 @@ class Gitee(object):
             self.index_name_all = config.get('index_name_all').split(',')
         self.repo_spec = config.get('repo_spec_mapping')
         self.tag_repo_sigs_history = config.get('tag_repo_sigs_history', 'false')
+        self.is_update_removed_data = config.get('tag_repo_sigs_history', 'false')
         self.thread_pool_num = int(config.get('thread_pool_num', 20))
         self.repo_sigs_dict = self.esClient.getRepoSigs()
 
@@ -310,6 +311,8 @@ class Gitee(object):
                 self.esClient.updateToRemoved(fork['_id'])
 
     def updateRemovedData(self, newdata, type, matches):
+        if self.is_update_removed_data != "true":
+            return
         # 获取gitee中指定仓库的所有issue
         '''matches = [{
             "name": "is_gitee_issue",
