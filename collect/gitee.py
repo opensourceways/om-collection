@@ -202,7 +202,6 @@ class GiteeClient():
         path = self.urijoin("events")
         return self.fetch_items(path, payload)
 
-
     def repo(self):
         """Get repository data"""
 
@@ -431,7 +430,7 @@ class GiteeClient():
         total_page = response.headers.get('total_page')
 
         if total_page:
-            total_page = int(total_page[0])
+            total_page = int(total_page)
             print("Page: %i/%i" % (page, total_page))
 
         while items:
