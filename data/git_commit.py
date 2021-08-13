@@ -53,6 +53,7 @@ class GitCommit(object):
             from_date = self.from_date
         self.failed_clone_repos = []
         self.success_parsed_repo_count = 0
+        self.total_commit_count = 0
 
         print(f"*************Begin to collect commits.  From :{from_date}***********")
         self.domain_companies = {}
@@ -119,13 +120,14 @@ class GitCommit(object):
             github_repo_list = self.getGithubRepos()
             repos.extend(github_repo_list)
 
-        print(f'There are {len(repos)} repos to be collected in total for this opensource community.\n')
+        print(f'There are {len(repos)} repos  for this opensource community totally.\n')
         self.collect_code(from_date, self.index_name, repos)
 
         today = datetime.datetime.today()
         self.from_date = today + datetime.timedelta(days=-1)
 
-        print(f"Collected {self.success_parsed_repo_count} repositories for this opensource community\n")
+        print(
+            f"Collected {self.success_parsed_repo_count} repos, {self.total_commit_count} commits for this opensource community\n")
         if self.failed_clone_repos:
             print(f'Failed to collect commits repos list is:')
             for repo in self.failed_clone_repos:
@@ -137,6 +139,7 @@ class GitCommit(object):
             os.makedirs(path)
 
         for repourl in repourl_list:
+            print(f'Progress: processing the {repourl_list.index(repourl) + 1} of {len(repourl_list)} repos.\n')
             repo = repourl.split("/")[-1]
             g = self.pull_Repo_To_Local(repourl, path)
 
@@ -144,9 +147,10 @@ class GitCommit(object):
             repo_commit_list = self.fetch_commit_log_from_repo(from_date, g, repourl)
             if repo_commit_list is None:
                 print(f'\nEEEEError!!! {repo} get nothing. Because failed to git clone the repo to local.\n\n')
-                return
+                continue
+            self.total_commit_count += len(repo_commit_list)
 
-                # store a single repo data into ES
+            # store a single repo data into ES
             action = ''
             for commit in repo_commit_list:
                 ID = commit["commit_id"]
@@ -456,15 +460,21 @@ class GitCommit(object):
     def getInfoFromCompany(self):
         companyInfo = {}
         if self.data_yaml_url and self.company_yaml_url:
-            cmd = 'wget -N %s' % self.data_yaml_url
-            p = os.popen(cmd.replace('=', ''))
-            p.read()
-            datas = yaml.load_all(open(self.data_yaml_path, encoding='UTF-8')).__next__()
-            cmd = 'wget -N %s' % self.company_yaml_url
-            p = os.popen(cmd.replace('=', ''))
-            p.read()
-            companies = yaml.load_all(open(self.company_yaml_path, encoding='UTF-8')).__next__()
-            p.close()
+
+            # Get data.yaml and company.yaml from Gitee in linuix.
+            try:
+                cmd = 'wget -N %s' % self.data_yaml_url
+                p = os.popen(cmd.replace('=', ''))
+                p.read()
+                datas = yaml.load_all(open(self.data_yaml_path, encoding='UTF-8')).__next__()
+                cmd = 'wget -N %s' % self.company_yaml_url
+                p = os.popen(cmd.replace('=', ''))
+                p.read()
+                companies = yaml.load_all(open(self.company_yaml_path, encoding='UTF-8')).__next__()
+                p.close()
+            except NameError:
+                print(f'Failed to fetch data.yaml or company.yaml. then return the empty companyInfo dict.')
+                return companyInfo
 
             # ###Test in windows without wget command
             # self.data_yaml_path = "data.yaml"
@@ -520,7 +530,7 @@ class GitCommit(object):
                 res = json.load(f)
             repos = res.get(self.org).get('git')
             repo_list.extend(repos)
-            print(f'Collected {len(repo_list)} from json file.')
+            print(f'Collected {len(repo_list)} repos from json file.')
         except:
             print("Failed to get repos from json file, then empty list\n")
             pass
@@ -529,30 +539,34 @@ class GitCommit(object):
     def getGiteeRepos(self):
         repo_url_list = []
         gitee_base_url = "http://www.gitee.com/"
-        try:
-            for org in self.orgs.split(','):
+        orgs = self.orgs.split(',')
+
+        for org in orgs:
+            try:
                 client = GiteeClient(owner=org, repository=None, token=self.token_v5)
                 gitee_items = common.getGenerator(client.org())
-                for item in gitee_items:
-                    repo_url = gitee_base_url + item.get('full_name')
-                    repo_url_list.append(repo_url)
-            print(f'Collected {len(repo_url_list)} from Gitee.')
-        except:
-            print("Failed to get repos from Github, then return empty list.\n")
-            pass
+                print(f'Get {len(gitee_items)} repos from {org} of Gitee.\n')
+            except:
+                print(f'Failed to get repos from {org} of Gitee.\n')
+                continue
+            for item in gitee_items:
+                repo_url = gitee_base_url + item.get('full_name')
+                repo_url_list.append(repo_url)
+        print(f'Collected {len(repo_url_list)} repos from Gitee totally.')
         return repo_url_list
 
     def getGithubRepos(self):
         repo_url_list = []
         github_base_url = "https://github.com/"
-        try:
-            for org in self.orgs.split(','):
+        orgs = self.orgs.split(',')
+        for org in orgs:
+            try:
                 github_items = self.gitHubDown.getFullNames(org=org, from_date=None)
-                for item in github_items:
-                    repo_url = github_base_url + item
-                    repo_url_list.append(repo_url)
-            print(f'Collected {len(repo_url_list)} from Github.')
-        except:
-            print("Failed to get repos from Github, then return empty list\n")
-            pass
+                print(f'Get {len(github_items)} repos from {org} of Github.\n')
+            except:
+                print(f'Failed to get repos from {org} of Github.\n')
+            for item in github_items:
+                repo_url = github_base_url + item
+                repo_url_list.append(repo_url)
+        print(f'Collected {len(repo_url_list)} repos from Github totally.\n')
         return repo_url_list
