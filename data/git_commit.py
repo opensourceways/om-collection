@@ -2,12 +2,14 @@
 # -*- coding: utf-8 -*-
 import os
 import yaml
+from collect.gitee import GiteeClient
 from data import common
 import git
 import datetime
 import json
 from data.common import ESClient
 import base64
+from data.github_down import GitHubDown
 
 os.environ["GIT_PYTHON_REFRESH"] = "quiet"
 
@@ -27,11 +29,13 @@ class GitCommit(object):
         self.authorization = config.get('authorization')
         self.esClient = ESClient(config)
         self.headers = {'Content-Type': 'application/json', "Authorization": config.get('authorization')}
-        self.projects_repo = config.get('projects_repo')
-
+        self.repo_file_name = config.get('repo_json_file_name')
+        self.orgs = config.get('orgs')
+        self.repo_sources = config.get('repo_sources')
+        self.token_v5 = config.get('gitee_token_v5')
         self.username = config.get('username')
         self.password = config.get('password')
-
+        self.gitHubDown = GitHubDown(config)
         self.data_yaml_url = config.get('data_yaml_url')
         self.data_yaml_path = config.get('data_yaml_path')
         self.company_yaml_url = config.get('company_yaml_url')
@@ -47,6 +51,8 @@ class GitCommit(object):
             from_date = self.getFromDate(self.from_date, [{"name": "is_git_commit", "value": 1}])
         else:
             from_date = self.from_date
+        self.failed_clone_repos = []
+        self.success_parsed_repo_count = 0
 
         print(f"*************Begin to collect commits.  From :{from_date}***********")
         self.domain_companies = {}
@@ -63,7 +69,7 @@ class GitCommit(object):
         if self.is_get_users_code_all == "true":
             self.get_users_code_all(from_date)
         else:
-            self.get_sigs_code_all(from_date, self.projects_repo)
+            self.get_sigs_code_all(from_date)
         print(f"*********************Finish Collection***************************")
 
     def getSingleAction(self, index_name, id, body, act="index"):
@@ -98,36 +104,49 @@ class GitCommit(object):
         now = datetime.datetime.now()
         self.from_date = datetime.datetime(year=now.year, month=now.month, day=now.day - 1)
 
-    def get_sigs_code_all(self, from_date=None, filename="projects"):
-        project_file_path = self.getProjectFilePath(filename)
+    def get_sigs_code_all(self, from_date=None):
+        repos = []
+        repo_sources = [element.strip().lower() for element in self.repo_sources.split(',')]
 
-        for index in range(len(self.sigs_code_all)):
-            sig = self.sigs_code_all[index]
-            with open(project_file_path, 'r') as f:
-                res = json.load(f)
-                repos = res[sig]['git']
+        # append all reppos from various source
+        if 'json_file' in repo_sources:
+            file_repo_list = self.getRepoFromFile()
+            repos.extend(file_repo_list)
+        if 'gitee' in repo_sources:
+            gitee_repo_list = self.getGiteeRepos()
+            repos.extend(gitee_repo_list)
+        if 'github' in repo_sources:
+            github_repo_list = self.getGithubRepos()
+            repos.extend(github_repo_list)
 
-            self.collect_code(from_date, self.index_name, repos, sig)
+        print(f'There are {len(repos)} repos to be collected in total for this opensource community.\n')
+        self.collect_code(from_date, self.index_name, repos)
 
-            if index == len(self.index_name) - 1:
-                now = datetime.datetime.now()
-                self.from_date = datetime.datetime(year=now.year, month=now.month, day=now.day - 1)
+        today = datetime.datetime.today()
+        self.from_date = today + datetime.timedelta(days=-1)
 
-        print(f"Collected {len(repos)} repositories for this project")
+        print(f"Collected {self.success_parsed_repo_count} repositories for this opensource community\n")
+        if self.failed_clone_repos:
+            print(f'Failed to collect commits repos list is:')
+            for repo in self.failed_clone_repos:
+                print(f'{repo}\n')
 
-    def collect_code(self, from_date, index_name, repourl_list, project=None):
-        path = '/home/collect-code-clone/' + project + '/'
+    def collect_code(self, from_date, index_name, repourl_list):
+        path = '/home/collect-code-clone/local_repo/'
         if not os.path.exists(path):
             os.makedirs(path)
 
         for repourl in repourl_list:
             repo = repourl.split("/")[-1]
-            g = self.pull_Repo_To_Local(repourl, project, path)
+            g = self.pull_Repo_To_Local(repourl, path)
 
             # Get commits for each branch
             repo_commit_list = self.fetch_commit_log_from_repo(from_date, g, repourl)
+            if repo_commit_list is None:
+                print(f'\nEEEEError!!! {repo} get nothing. Because failed to git clone the repo to local.\n\n')
+                return
 
-            # store a single repo data into ES
+                # store a single repo data into ES
             action = ''
             for commit in repo_commit_list:
                 ID = commit["commit_id"]
@@ -139,7 +158,7 @@ class GitCommit(object):
 
             print(repo, f" has {len(repo_commit_list)} commits. All has been collected into ES.")
 
-            # delete current repository
+            ## delete current repository
             os.system(f"rm -rf {path + '/' + repo}")  # Execute on Linux
             print(f'Repository: {repo} has been removed.\n')
 
@@ -170,7 +189,7 @@ class GitCommit(object):
         self.esClient.safe_put_bulk(action)
         print(repo, " data has stored into ES")
 
-    def pull_Repo_To_Local(self, repourl, project=None, path=None):
+    def pull_Repo_To_Local(self, repourl, path=None):
         repo = repourl.split("/")[-1]
         website = repourl.split("/")[2]
         project = repourl.split("/")[-2]
@@ -198,9 +217,11 @@ class GitCommit(object):
             try:
                 print(f"Starting to clone repository: {repo}  ....")
                 gc.execute(cmdclone, shell=True)
-                print("Repository clone done.\n")
+                print(f"Repository: {repo} clone done.\n")
             except  Exception as e:
                 print(f'Occur error when clone repository: {repo}. Error Name is: ', e.__class__)
+                self.failed_clone_repos.append(repo)
+                return None
         else:
             cmdpull = "git pull"
             try:
@@ -211,6 +232,11 @@ class GitCommit(object):
         return g
 
     def fetch_commit_log_from_repo(self, from_date, g, repourl):
+
+        # Return None if has not fetch repo to local, namely g is None
+        if g is None:
+            return None
+
         repo_commit_list = []
         repo = repourl.split("/")[-1]
 
@@ -235,8 +261,9 @@ class GitCommit(object):
             dateii = datei
 
             while True:  # pull, parse, assemble commit records
-                datenow = datetime.datetime.strptime(datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d"),
-                                                     "%Y-%m-%d")
+                datenow = datetime.datetime.strptime(
+                    datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d"),
+                    "%Y-%m-%d")
                 dateii += datetime.timedelta(days=3)
 
                 logcmd_base = "git log --after=\"%s\" --before=\"%s\" --shortstat --pretty=\"@@@***@@@%%an;;;%%ae;;;%%ad;;;%%H;;;%%s;;;%%b\"  " % (
@@ -275,7 +302,7 @@ class GitCommit(object):
                     break
 
             repo_commit_list.extend(branch_commits)
-
+        self.success_parsed_repo_count += 1
         return repo_commit_list
 
     def parse_commit(self, log, log_date, repourl, branch_name, is_merged):
@@ -328,6 +355,7 @@ class GitCommit(object):
         # there are two dilemma in commit log: has time zone and has no time zone, such as  'Tue Jan 7 18:09:19 2020'  and 'Tue Feb 2 17:00:42 2021 +0800'. Give two solutions for them.
         try:
             time_zone = split_list[2].split()[5]
+            time_zone = time_zone[:-2] + ':' + time_zone[-2:]
         except IndexError:
             time_zone = None
 
@@ -439,10 +467,11 @@ class GitCommit(object):
             p.close()
 
             # ###Test in windows without wget command
-            # self.data_yaml_path = "data/data.yaml"
-            # self.company_yaml_path = "data/company.yaml"
+            # self.data_yaml_path = "data.yaml"
+            # self.company_yaml_path = "company.yaml"
             # datas = yaml.load_all(open(self.data_yaml_path, encoding='UTF-8'), Loader=yaml.FullLoader).__next__()
-            # companies = yaml.load_all(open(self.company_yaml_path, encoding='UTF-8'), Loader=yaml.FullLoader).__next__()
+            # companies = yaml.load_all(open(self.company_yaml_path, encoding='UTF-8'),
+            #                           Loader=yaml.FullLoader).__next__()
 
             domains_company_dict = {}
             aliases_company_dict = {}
@@ -483,5 +512,47 @@ class GitCommit(object):
             from_date = common.str_to_datetime(from_date)
         return from_date
 
-    def getProjectFilePath(self, filename):
-        return os.path.abspath('.') + "/" + filename + '.json'
+    def getRepoFromFile(self):
+        repo_list = []
+        try:
+            file_path = os.path.abspath('.') + "/" + self.repo_file_name
+            with open(file_path, 'r') as f:
+                res = json.load(f)
+            repos = res.get(self.org).get('git')
+            repo_list.extend(repos)
+            print(f'Collected {len(repo_list)} from json file.')
+        except:
+            print("Failed to get repos from json file, then empty list\n")
+            pass
+        return repo_list
+
+    def getGiteeRepos(self):
+        repo_url_list = []
+        gitee_base_url = "http://www.gitee.com/"
+        try:
+            for org in self.orgs.split(','):
+                client = GiteeClient(owner=org, repository=None, token=self.token_v5)
+                gitee_items = common.getGenerator(client.org())
+                for item in gitee_items:
+                    repo_url = gitee_base_url + item.get('full_name')
+                    repo_url_list.append(repo_url)
+            print(f'Collected {len(repo_url_list)} from Gitee.')
+        except:
+            print("Failed to get repos from Github, then return empty list.\n")
+            pass
+        return repo_url_list
+
+    def getGithubRepos(self):
+        repo_url_list = []
+        github_base_url = "https://github.com/"
+        try:
+            for org in self.orgs.split(','):
+                github_items = self.gitHubDown.getFullNames(org=org, from_date=None)
+                for item in github_items:
+                    repo_url = github_base_url + item
+                    repo_url_list.append(repo_url)
+            print(f'Collected {len(repo_url_list)} from Github.')
+        except:
+            print("Failed to get repos from Github, then return empty list\n")
+            pass
+        return repo_url_list
