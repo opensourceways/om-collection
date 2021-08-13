@@ -49,8 +49,10 @@ class GithubClient(object):
                  base_url=None, max_items=MAX_CATEGORY_ITEMS_PER_PAGE, ):
         self.org = org
         self.repository = repository
-        self.headers = {'Content-Type': 'application/json;charset=UTF-8', "Authorization": token,
-                        'Accept': 'application/vnd.github.v3.star+json'}
+        self.headers = {
+            'Content-Type': 'application/json'
+        }
+        self.headers["Authorization"] = token
         self.base_url = BASE_URL
         self.session = requests.Session()
         self.ssl_verify = True
@@ -305,6 +307,7 @@ class GithubClient(object):
     def http_req(self, url, params, method='GET', headers=None, stream=False, auth=None):
         if headers is None:
             headers = self.headers
+        headers['Accept'] = 'application/vnd.github.v3.star+json'
 
         if method == 'GET':
             response = self.session.get(url, params=params, headers=headers, stream=stream,
