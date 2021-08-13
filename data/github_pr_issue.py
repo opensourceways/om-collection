@@ -84,6 +84,7 @@ class GitHubPrIssue(object):
                     submitted_at = pr['created_at']
                 review_times.append(self.format_time_z(submitted_at))
                 reviews_data = {
+                    'pr_id': pr['id'],
                     'pr_number': pr_num,
                     'pr_review_id': review['id'],
                     'user_id': review['user']['id'],
@@ -111,8 +112,9 @@ class GitHubPrIssue(object):
             for comment in comments:
                 comment_times.append(self.format_time_z(comment['created_at']))
                 comments_data = {
+                    'pr_id': pr['id'],
                     'pr_number': pr_num,
-                    'pr_comment_id': comment['id'],
+                    'id': comment['id'],
                     'user_id': comment['user']['id'],
                     'user_login': comment['user']['login'],
                     'html_url': comment['html_url'],
@@ -121,6 +123,7 @@ class GitHubPrIssue(object):
                     'updated_at': self.format_time_z(comment['updated_at']),
                     'github_repo': self.org + '/' + repo,
                     'is_github_pr_comment': 1,
+                    'is_github_comment': 1,
                 }
                 index_id = 'pr_comment_' + str(pr_num) + '_' + str(comment['id'])
                 index_data = {"index": {"_index": self.index_name, "_id": index_id}}
@@ -176,8 +179,9 @@ class GitHubPrIssue(object):
             for comment in comments:
                 comment_times.append(self.format_time_z(comment['created_at']))
                 comments_data = {
+                    'issue_id': issue['id'],
                     'issue_number': issue_num,
-                    'issue_comment_id': comment['id'],
+                    'id': comment['id'],
                     'user_id': comment['user']['id'],
                     'user_login': comment['user']['login'],
                     'html_url': comment['html_url'],
@@ -186,6 +190,7 @@ class GitHubPrIssue(object):
                     'updated_at': self.format_time_z(comment['updated_at']),
                     'github_repo': self.org + '/' + repo,
                     'is_github_issue_comment': 1,
+                    'is_github_comment': 1,
                 }
                 index_id = 'issue_comment_' + str(issue_num) + '_' + str(comment['id'])
                 index_data = {"index": {"_index": self.index_name, "_id": index_id}}
