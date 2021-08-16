@@ -120,6 +120,9 @@ class GitCommit(object):
             github_repo_list = self.getGithubRepos()
             repos.extend(github_repo_list)
 
+        # remove duplicate repos in case.
+        repos = list(set(repos))
+
         print(f'There are {len(repos)} repos  for this opensource community totally.\n')
         self.collect_code(from_date, self.index_name, repos)
 
@@ -461,7 +464,7 @@ class GitCommit(object):
         companyInfo = {}
         if self.data_yaml_url and self.company_yaml_url:
 
-            # Get data.yaml and company.yaml from Gitee in linuix.
+            ## Get data.yaml and company.yaml from Gitee in linux.
             try:
                 cmd = 'wget -N %s' % self.data_yaml_url
                 p = os.popen(cmd.replace('=', ''))
@@ -524,16 +527,18 @@ class GitCommit(object):
 
     def getRepoFromFile(self):
         repo_list = []
-        try:
-            file_path = os.path.abspath('.') + "/" + self.repo_file_name
-            with open(file_path, 'r') as f:
-                res = json.load(f)
-            repos = res.get(self.org).get('git')
-            repo_list.extend(repos)
-            print(f'Collected {len(repo_list)} repos from json file.')
-        except:
-            print("Failed to get repos from json file, then empty list\n")
-            pass
+        orgs = self.orgs.split(',')
+        for org in orgs:
+            try:
+                with open(self.repo_file_name, 'r') as f:
+                    res = json.load(f)
+                repos = res.get(org).get('git')
+                repo_list.extend(repos)
+                print(f'Collected {len(repo_list)} repos from {org} json file.')
+            except:
+                print(f"Failed to get repos from {org} json file.\n")
+                continue
+            print(f'Collected {len(repo_list)} repos from json file totally.')
         return repo_list
 
     def getGiteeRepos(self):
