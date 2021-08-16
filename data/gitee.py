@@ -886,8 +886,10 @@ class Gitee(object):
             ecomment['org_name'] = owner
 
             # Copy data from the raw comment
-            ecomment['url'] = comment['html_url']
+            ecomment['url'] = comment['url']
             ecomment['comment_url'] = comment['html_url']
+            ecomment['body'] = comment['body']
+            ecomment['html_url'] = comment['html_url']
 
             user = comment.get('user', None)
             if user is not None and user:
@@ -898,6 +900,7 @@ class Gitee(object):
             # extract reactions and add it to enriched item
             # ecomment.update(self.__get_reactions(comment))
 
+            ecomment['body'] = comment['body']
             ecomment['created_at'] = comment['created_at']
             ecomment['updated_at'] = comment['updated_at']
             ecomment['comment_updated_at'] = comment['updated_at']
@@ -1193,6 +1196,7 @@ class Gitee(object):
                 ecomment['author_name'] = user['name']
                 ecomment['user_login'] = user['login']
                 ecomment["user_domain"] = None
+
 
             ecomment['created_at'] = comment['created_at']
             ecomment['updated_at'] = comment['updated_at']
