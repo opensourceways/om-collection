@@ -899,7 +899,6 @@ class Gitee(object):
             # extract reactions and add it to enriched item
             # ecomment.update(self.__get_reactions(comment))
 
-            ecomment['body'] = comment['body']
             ecomment['created_at'] = comment['created_at']
             ecomment['updated_at'] = comment['updated_at']
             ecomment['comment_updated_at'] = comment['updated_at']
