@@ -960,6 +960,7 @@ class Gitee(object):
             rich_pr["merge_author_domain"] = None
 
         rich_pr['id'] = pull_request['id']
+        rich_pr['body'] = pull_request['body']
         rich_pr['pull_id'] = pull_request['id']
         rich_pr['pull_id_in_repo'] = pull_request['html_url'].split("/")[-1]
         rich_pr['issue_id_in_repo'] = pull_request['html_url'].split("/")[-1]
