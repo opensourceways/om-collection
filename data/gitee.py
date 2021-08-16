@@ -891,6 +891,7 @@ class Gitee(object):
             # Copy data from the raw comment
             ecomment['url'] = comment['html_url']
             ecomment['comment_url'] = comment['html_url']
+            ecomment['body'] = comment['body']
 
             user = comment.get('user', None)
             if user is not None and user:
@@ -1197,6 +1198,7 @@ class Gitee(object):
                 ecomment['user_login'] = user['login']
                 ecomment["user_domain"] = None
 
+            ecomment['body'] = comment['body']
             ecomment['created_at'] = comment['created_at']
             ecomment['updated_at'] = comment['updated_at']
             ecomment['issue_comment_updated_at'] = comment['updated_at']
