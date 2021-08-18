@@ -64,6 +64,7 @@ class Gitee(object):
         self.is_update_repo_author = config.get('is_update_repo_author')
         self.is_set_itself_author = config.get('is_set_itself_author')
         self.is_set_pr_issue_repo_fork = config.get('is_set_pr_issue_repo_fork')
+        self.is_set_issue = config.get('is_set_issue')
         self.is_set_first_contribute = config.get('is_set_first_contribute')
         self.is_set_star_watch = config.get('is_set_star_watch')
         self.is_set_sigs_star = config.get('is_set_sigs_star')
@@ -90,6 +91,7 @@ class Gitee(object):
             self.index_name_all = config.get('index_name_all').split(',')
         self.repo_spec = config.get('repo_spec_mapping')
         self.tag_repo_sigs_history = config.get('tag_repo_sigs_history', 'false')
+        self.is_update_removed_data = config.get('is_update_removed_data', 'true')
         self.thread_pool_num = int(config.get('thread_pool_num', 20))
         self.repo_sigs_dict = self.esClient.getRepoSigs()
 
@@ -116,6 +118,8 @@ class Gitee(object):
 
             if self.is_set_pr_issue_repo_fork == 'true':
                 self.writeData(self.writeContributeForSingleRepo, from_time)
+            elif self.is_set_issue == 'true':
+                self.writeData(self.writeIssueSingleRepo, from_time)
 
             self.externalUpdateRepo()
             if self.is_set_first_contribute == 'true':
@@ -234,6 +238,15 @@ class Gitee(object):
         self.writeIssueData(org, repo_name, is_public, from_time, sig_names)
         self.writeForks(org, repo_name, from_time, sig_names)
 
+    def writeIssueSingleRepo(self, org, repo, from_time=None):
+        repo_name = repo['path']
+        is_public = repo['public']
+        sig_names = ['No-SIG']
+        if org + '/' + repo_name in self.repo_sigs_dict:
+            sig_names = self.repo_sigs_dict[org + '/' + repo_name]
+
+        self.writeIssueData(org, repo_name, is_public, from_time, sig_names)
+
     def writeSWForSingleRepo(self, org, repo, from_time=None):
         repo_name = repo['path']
         sig_names = ['No-SIG']
@@ -298,6 +311,8 @@ class Gitee(object):
                 self.esClient.updateToRemoved(fork['_id'])
 
     def updateRemovedData(self, newdata, type, matches):
+        if self.is_update_removed_data != "true":
+            return
         # 获取gitee中指定仓库的所有issue
         '''matches = [{
             "name": "is_gitee_issue",
@@ -876,6 +891,7 @@ class Gitee(object):
             # Copy data from the raw comment
             ecomment['url'] = comment['html_url']
             ecomment['comment_url'] = comment['html_url']
+            ecomment['body'] = comment['body']
 
             user = comment.get('user', None)
             if user is not None and user:
@@ -944,6 +960,7 @@ class Gitee(object):
             rich_pr["merge_author_domain"] = None
 
         rich_pr['id'] = pull_request['id']
+        rich_pr['body'] = pull_request['body']
         rich_pr['pull_id'] = pull_request['id']
         rich_pr['pull_id_in_repo'] = pull_request['html_url'].split("/")[-1]
         rich_pr['issue_id_in_repo'] = pull_request['html_url'].split("/")[-1]
@@ -1182,6 +1199,7 @@ class Gitee(object):
                 ecomment['user_login'] = user['login']
                 ecomment["user_domain"] = None
 
+            ecomment['body'] = comment['body']
             ecomment['created_at'] = comment['created_at']
             ecomment['updated_at'] = comment['updated_at']
             ecomment['issue_comment_updated_at'] = comment['updated_at']
