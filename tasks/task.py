@@ -53,6 +53,7 @@ BACKEND_MAPPING = {
     'meetup': 'data.meetup.Meetup',
     'github_pr_issue': 'data.github_pr_issue.GitHubPrIssue',
     'try_me': 'data.tryme.TryMe',
+    'blue_zone_user': 'data.blue_zone_user.BlueZoneUser',
     'googleanalytic_user': 'data.googleanalytic_user.GOOGLEANALYTICUSER'
 }
 
