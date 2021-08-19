@@ -89,13 +89,24 @@ def globalExceptionHandler(func):
                         warp(*args, **kwargs)
                 finally:
                     pass
+        except Exception as e:
+            print("globalExceptionHandler Exception: fetch error :" + str(e) + "retry:" + threading.currentThread().getName() + str(func.__name__) + ":" + str(
+                            globa_threadinfo.num) + " Count")
+            raise e
         else:
+            print("globalExceptionHandler else: check response instance." + "retry:" + threading.currentThread().getName() + str(func.__name__) + ":" + str(
+                            globa_threadinfo.num) + "次")
             if isinstance(response, requests.models.Response):
                 if response.status_code == 401 or response.status_code == 403:
                     print({"状态码": response.status_code})
+                else:
+                    print("globalExceptionHandler else: response.status_code is not 401 and 403.")
+            else:
+                print("globalExceptionHandler else: response is not requests.models.Response.")
             # 重试成功，修改状态
             globa_threadinfo.retrystate = 1
             globa_threadinfo.num = 0
+            print("globalExceptionHandler else: retry success globa_threadinfo.retrystate set to 1.")
             return response
 
     return warp
@@ -394,6 +405,7 @@ class GiteeClient():
         :returns a response object
         """
         # Add the access_token to the payload
+        print("fetch threading num start: " + threading.currentThread().getName())
         if self.access_token:
             if not payload:
                 payload = {}
@@ -408,6 +420,7 @@ class GiteeClient():
                                              verify=self.ssl_verify, auth=auth)
 
             return response
+        print("fetch threading num end: " + threading.currentThread().getName())
 
     def fetch_items(self, path, payload):
         """Return the items from gitee API using links pagination"""
