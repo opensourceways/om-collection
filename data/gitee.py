@@ -233,10 +233,13 @@ class Gitee(object):
         if org + '/' + repo_name in self.repo_sigs_dict:
             sig_names = self.repo_sigs_dict[org + '/' + repo_name]
 
+        print('*****writeContributeForSingleRepo start: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
         self.writeRepoData(org, repo_name, from_time, sig_names)
         self.writePullData(org, repo_name, is_public, from_time, self.once_update_num_of_pr, sig_names)
         self.writeIssueData(org, repo_name, is_public, from_time, sig_names)
         self.writeForks(org, repo_name, from_time, sig_names)
+        print('*****writeContributeForSingleRepo end: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
+
 
     def writeIssueSingleRepo(self, org, repo, from_time=None):
         repo_name = repo['path']
@@ -245,7 +248,9 @@ class Gitee(object):
         if org + '/' + repo_name in self.repo_sigs_dict:
             sig_names = self.repo_sigs_dict[org + '/' + repo_name]
 
+        print('*****writeIssueSingleRepo start: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
         self.writeIssueData(org, repo_name, is_public, from_time, sig_names)
+        print('*****writeIssueSingleRepo end: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
 
     def writeSWForSingleRepo(self, org, repo, from_time=None):
         repo_name = repo['path']
