@@ -195,12 +195,13 @@ class Gitee(object):
             reposName = []
             for r in repos:
                 reposName.append(r['full_name'])
-                with self.thread_max_num:
-                    t = threading.Thread(
-                        target=func,
-                        args=(org, r, from_time))
+                func(org, r, from_time)
+                # with self.thread_max_num:
+                #     t = threading.Thread(
+                #         target=func,
+                #         args=(org, r, from_time))
                 # threads.append(t)
-                    t.start()
+                    # t.start()
 
                 # if len(threads) % self.thread_pool_num == 0:
                 #     for t in threads:
