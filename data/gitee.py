@@ -19,7 +19,6 @@ import signal
 from collections import defaultdict
 
 import yaml
-
 import json
 import requests
 import logging
