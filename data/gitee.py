@@ -93,6 +93,7 @@ class Gitee(object):
         self.tag_repo_sigs_history = config.get('tag_repo_sigs_history', 'false')
         self.is_update_removed_data = config.get('is_update_removed_data', 'true')
         self.thread_pool_num = int(config.get('thread_pool_num', 20))
+        self.thread_max_num = threading.Semaphore(self.thread_pool_num)
         self.repo_sigs_dict = self.esClient.getRepoSigs()
 
     def run(self, from_time):
@@ -188,30 +189,31 @@ class Gitee(object):
         self.esClient.giteeid_company_change_dict = dic[1]
 
     def writeData(self, func, from_time):
-        threads = []
+        # threads = []
         for org in self.orgs:
             repos = self.get_repos(org)
             reposName = []
             for r in repos:
                 reposName.append(r['full_name'])
-                t = threading.Thread(
-                    target=func,
-                    args=(org, r, from_time))
-                threads.append(t)
-                t.start()
+                with self.thread_max_num:
+                    t = threading.Thread(
+                        target=func,
+                        args=(org, r, from_time))
+                # threads.append(t)
+                    t.start()
 
-                if len(threads) % self.thread_pool_num == 0:
-                    for t in threads:
-                        t.join()
-                    threads = []
+                # if len(threads) % self.thread_pool_num == 0:
+                #     for t in threads:
+                #         t.join()
+                #     threads = []
             if reposName is not None and len(reposName) > 0:
                 self.updateRemovedData(reposName, 'repo', [{
                     "name": "is_gitee_repo",
                     "value": 1,
                 }])
-            for t in threads:
-                t.join()
-            threads = []
+            # for t in threads:
+            #     t.join()
+            # threads = []
 
     def externalUpdateRepo(self):
         if self.is_update_repo_author == 'true':
