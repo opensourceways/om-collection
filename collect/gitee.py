@@ -72,7 +72,6 @@ def globalExceptionHandler(func):
                 if i != 'retry':
                     newarg.append(i)
             response = func(*newarg, **kwargs)
-            return response
         except requests.exceptions.RequestException as ex:
             while globa_threadinfo.num < retry_time and globa_threadinfo.retrystate == 0:
                 try:
@@ -85,9 +84,10 @@ def globalExceptionHandler(func):
                     time.sleep(retry_sleep_time)
                     # 防止重复添加标识
                     if 'retry' not in args:
-                        warp(*args, "retry", **kwargs)
+                        response = warp(*args, "retry", **kwargs)
                     else:
-                        warp(*args, **kwargs)
+                        response = warp(*args, **kwargs)
+                    return response
                 finally:
                     pass
         except Exception as e:
