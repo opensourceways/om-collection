@@ -142,7 +142,7 @@ class GiteeClient():
         if self._set_extra_headers():
             self.session.headers.update(self._set_extra_headers())
         # refresh the access token
-        self._refresh_access_token()
+        # self._refresh_access_token()
 
     def issue_comments(self, issue_number, from_date=None):
         """Get the issue comments """
