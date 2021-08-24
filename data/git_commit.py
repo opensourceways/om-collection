@@ -460,7 +460,11 @@ class GitCommit(object):
     def get_author(self, split_list):
         author = split_list[0]
         email = split_list[1]
-        users = self.companyInfo.get('users').get('users')
+        try:
+            users = self.companyInfo.get('users').get('users')
+        except:
+            print(f'Has not got users from self.companyInfo.')
+            return author
 
         for user in users:
             if email in user['emails']:
