@@ -394,6 +394,13 @@ class GiteeClient():
         url = self.urijoin("orgs", org, "followers")
         return self.fetch_items(url, payload)
 
+    def getIssueDetailsByPRUrl(self, url):
+        res = self.fetch(url)
+        if res.status_code != 200:
+            print("The issue url not get issue")
+            return {}
+        return res.json()
+
     @globalExceptionHandler
     def fetch(self, url, payload=None, headers=None, method="GET", stream=False, auth=None):
         """Fetch the data from a given URL.
