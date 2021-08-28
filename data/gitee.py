@@ -100,7 +100,6 @@ class Gitee(object):
         self.getGiteeId2Company()
 
         self.getEnterpriseUser()
-        # return
         startTime = time.time()
         self.internalUsers = self.getItselfUsers(self.internal_users)
 
@@ -115,7 +114,6 @@ class Gitee(object):
         else:
             if self.esClient.is_update_tag_company == 'true':
                 self.tagHistoryUsers()
-
             if self.is_set_pr_issue_repo_fork == 'true':
                 self.writeData(self.writeContributeForSingleRepo, from_time)
             elif self.is_set_issue == 'true':
@@ -973,10 +971,28 @@ class Gitee(object):
         rich_pr['body'] = pull_request['body']
         rich_pr['pull_id'] = pull_request['id']
         rich_pr['pull_id_in_repo'] = pull_request['html_url'].split("/")[-1]
-        rich_pr['issue_id_in_repo'] = pull_request['html_url'].split("/")[-1]
+        #rich_pr['issue_id_in_repo'] = pull_request['html_url'].split("/")[-1]
         rich_pr['repository'] = pull_request['url']
-        rich_pr['issue_title'] = pull_request['title']
-        rich_pr['issue_title_analyzed'] = pull_request['title']
+
+        client = GiteeClient("", "", self.gitee_token)
+        issue_data = client.getIssueDetailsByPRUrl(pull_request['issue_url'])
+        if len(issue_data) == 0:
+            rich_pr['is_pr_associate_issue'] = 0
+            rich_pr['issue_url'] = None
+            rich_pr['issue_id_in_repo'] = None
+            rich_pr['issue_title'] = None
+            rich_pr['issue_title_analyzed'] = None
+            rich_pr['issue_body'] = None
+        else:
+            rich_pr['issue_url'] = issue_data[0]['url']
+            rich_pr['issue_id_in_repo'] = issue_data[0]['url'].split("/")[-1]
+            rich_pr['issue_title'] = issue_data[0]['title']
+            rich_pr['issue_title_analyzed'] = issue_data[0]['title']
+            rich_pr['issue_body'] = issue_data[0]['body']
+            rich_pr['is_pr_associate_issue'] = 1
+
+        #rich_pr['issue_title'] = pull_request['title']
+        #rich_pr['issue_title_analyzed'] = pull_request['title']
         rich_pr['pull_state'] = pull_request['state']
         if (rich_pr['pull_state'] == 'open'):
             rich_pr["is_pull_state_open"] = 1
@@ -996,7 +1012,7 @@ class Gitee(object):
             rich_pr['pull_closed_at'] = pull_request['closed_at']
         rich_pr['url'] = pull_request['html_url']
         rich_pr['pull_url'] = pull_request['html_url']
-        rich_pr['issue_url'] = pull_request['html_url']
+        #rich_pr['issue_url'] = pull_request['html_url']
 
         labels = []
         [labels.append(label['name']) for label in pull_request['labels'] if 'labels' in pull_request]
