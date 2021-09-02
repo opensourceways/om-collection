@@ -71,6 +71,89 @@ class ESClient(object):
         if self.authorization:
             self.default_headers['Authorization'] = self.authorization
 
+    def getObsAllPackageName(self):
+        search_json = '''{
+         "size": 0,
+         "aggs": {
+           "each_project": {
+             "terms": {
+               "size": 10000,
+               "field": "package.keyword",
+               "order": {
+                 "_term": "asc"
+               }
+             }
+           }
+         }
+       }'''
+        res = requests.get(self.getSearchUrl(index_name=self.index_name), data=search_json,
+                           headers=self.default_headers, verify=False)
+        if res.status_code != 200:
+            print("The index not exist")
+            return {}
+        return res.json()
+
+    def getObsSumAndCount(self, packagename):
+        search_json = '''{
+                 "size": 0,
+                 "query": {
+                   "bool": {
+                     "must": [
+                       {
+       				  "term": {
+       					"success": "1"
+       				  }
+       				},
+                       {
+                         "match": {
+                           "package.keyword": "%s"
+                         }
+                       }
+                     ]
+                   }
+                 },
+                 "aggs": {
+                   "each_month": {
+                     "date_histogram": {
+                       "field": "created_at",
+                       "interval": "month",
+                       "format": "yyyy-MM-dd"
+                     },
+                     "aggs": {
+                       "each_project": {
+                         "terms": {
+                           "size": 50,
+                           "field": "project.keyword",
+                           "order": {
+                             "_term": "asc"
+                           }
+                         },
+                         "aggs": {
+                           "each_hostarch": {
+                             "terms": {
+                               "field": "hostarch.keyword"
+                             },
+                             "aggs": {
+                               "avg_duration": {
+                                 "avg": {
+                                   "field": "duration"
+                                 }
+                               }
+                             }
+                           }
+                         }
+                       }
+                     }
+                   }
+                 }
+               }''' % (packagename)
+        res = requests.get(self.getSearchUrl(index_name=self.index_name), data=search_json,
+                           headers=self.default_headers, verify=False)
+        if res.status_code != 200:
+            print("The index not exist")
+            return {}
+        return res.json()
+
     def getRepoSigs(self):
         dict_comb = defaultdict(dict)
         if self.sig_index:

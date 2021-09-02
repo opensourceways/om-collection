@@ -19,7 +19,6 @@ import signal
 from collections import defaultdict
 
 import yaml
-
 import json
 import requests
 import logging
@@ -93,6 +92,7 @@ class Gitee(object):
         self.tag_repo_sigs_history = config.get('tag_repo_sigs_history', 'false')
         self.is_update_removed_data = config.get('is_update_removed_data', 'true')
         self.thread_pool_num = int(config.get('thread_pool_num', 20))
+        self.thread_max_num = threading.Semaphore(self.thread_pool_num)
         self.repo_sigs_dict = self.esClient.getRepoSigs()
 
     def run(self, from_time):
@@ -100,7 +100,6 @@ class Gitee(object):
         self.getGiteeId2Company()
 
         self.getEnterpriseUser()
-        # return
         startTime = time.time()
         self.internalUsers = self.getItselfUsers(self.internal_users)
 
@@ -115,7 +114,6 @@ class Gitee(object):
         else:
             if self.esClient.is_update_tag_company == 'true':
                 self.tagHistoryUsers()
-
             if self.is_set_pr_issue_repo_fork == 'true':
                 self.writeData(self.writeContributeForSingleRepo, from_time)
             elif self.is_set_issue == 'true':
@@ -188,30 +186,32 @@ class Gitee(object):
         self.esClient.giteeid_company_change_dict = dic[1]
 
     def writeData(self, func, from_time):
-        threads = []
+        # threads = []
         for org in self.orgs:
             repos = self.get_repos(org)
             reposName = []
             for r in repos:
                 reposName.append(r['full_name'])
-                t = threading.Thread(
-                    target=func,
-                    args=(org, r, from_time))
-                threads.append(t)
-                t.start()
+                func(org, r, from_time)
+                # with self.thread_max_num:
+                #     t = threading.Thread(
+                #         target=func,
+                #         args=(org, r, from_time))
+                # threads.append(t)
+                    # t.start()
 
-                if len(threads) % self.thread_pool_num == 0:
-                    for t in threads:
-                        t.join()
-                    threads = []
+                # if len(threads) % self.thread_pool_num == 0:
+                #     for t in threads:
+                #         t.join()
+                #     threads = []
             if reposName is not None and len(reposName) > 0:
                 self.updateRemovedData(reposName, 'repo', [{
                     "name": "is_gitee_repo",
                     "value": 1,
                 }])
-            for t in threads:
-                t.join()
-            threads = []
+            # for t in threads:
+            #     t.join()
+            # threads = []
 
     def externalUpdateRepo(self):
         if self.is_update_repo_author == 'true':
@@ -233,10 +233,14 @@ class Gitee(object):
         if org + '/' + repo_name in self.repo_sigs_dict:
             sig_names = self.repo_sigs_dict[org + '/' + repo_name]
 
+        print('*****writeContributeForSingleRepo start: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
+        print('*****writeContributeForSingleRepo start, there are', threading.activeCount(), 'threads running')
         self.writeRepoData(org, repo_name, from_time, sig_names)
         self.writePullData(org, repo_name, is_public, from_time, self.once_update_num_of_pr, sig_names)
         self.writeIssueData(org, repo_name, is_public, from_time, sig_names)
         self.writeForks(org, repo_name, from_time, sig_names)
+        print('*****writeContributeForSingleRepo end: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
+        print('*****writeContributeForSingleRepo end, there are', threading.activeCount(), 'threads running')
 
     def writeIssueSingleRepo(self, org, repo, from_time=None):
         repo_name = repo['path']
@@ -245,7 +249,11 @@ class Gitee(object):
         if org + '/' + repo_name in self.repo_sigs_dict:
             sig_names = self.repo_sigs_dict[org + '/' + repo_name]
 
+        print('*****writeIssueSingleRepo start: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
+        print('*****writeIssueSingleRepo start, there are', threading.activeCount(), 'threads running')
         self.writeIssueData(org, repo_name, is_public, from_time, sig_names)
+        print('*****writeIssueSingleRepo end: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
+        print('*****writeIssueSingleRepo end, there are', threading.activeCount(), 'threads running')
 
     def writeSWForSingleRepo(self, org, repo, from_time=None):
         repo_name = repo['path']
@@ -963,10 +971,28 @@ class Gitee(object):
         rich_pr['body'] = pull_request['body']
         rich_pr['pull_id'] = pull_request['id']
         rich_pr['pull_id_in_repo'] = pull_request['html_url'].split("/")[-1]
-        rich_pr['issue_id_in_repo'] = pull_request['html_url'].split("/")[-1]
+        #rich_pr['issue_id_in_repo'] = pull_request['html_url'].split("/")[-1]
         rich_pr['repository'] = pull_request['url']
-        rich_pr['issue_title'] = pull_request['title']
-        rich_pr['issue_title_analyzed'] = pull_request['title']
+
+        client = GiteeClient("", "", self.gitee_token)
+        issue_data = client.getIssueDetailsByPRUrl(pull_request['issue_url'])
+        if len(issue_data) == 0:
+            rich_pr['is_pr_associate_issue'] = 0
+            rich_pr['issue_url'] = None
+            rich_pr['issue_id_in_repo'] = None
+            rich_pr['issue_title'] = None
+            rich_pr['issue_title_analyzed'] = None
+            rich_pr['issue_body'] = None
+        else:
+            rich_pr['issue_url'] = issue_data[0]['url']
+            rich_pr['issue_id_in_repo'] = issue_data[0]['url'].split("/")[-1]
+            rich_pr['issue_title'] = issue_data[0]['title']
+            rich_pr['issue_title_analyzed'] = issue_data[0]['title']
+            rich_pr['issue_body'] = issue_data[0]['body']
+            rich_pr['is_pr_associate_issue'] = 1
+
+        #rich_pr['issue_title'] = pull_request['title']
+        #rich_pr['issue_title_analyzed'] = pull_request['title']
         rich_pr['pull_state'] = pull_request['state']
         if (rich_pr['pull_state'] == 'open'):
             rich_pr["is_pull_state_open"] = 1
@@ -986,7 +1012,7 @@ class Gitee(object):
             rich_pr['pull_closed_at'] = pull_request['closed_at']
         rich_pr['url'] = pull_request['html_url']
         rich_pr['pull_url'] = pull_request['html_url']
-        rich_pr['issue_url'] = pull_request['html_url']
+        #rich_pr['issue_url'] = pull_request['html_url']
 
         labels = []
         [labels.append(label['name']) for label in pull_request['labels'] if 'labels' in pull_request]

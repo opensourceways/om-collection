@@ -84,18 +84,30 @@ def globalExceptionHandler(func):
                     time.sleep(retry_sleep_time)
                     # 防止重复添加标识
                     if 'retry' not in args:
-                        warp(*args, "retry", **kwargs)
+                        response = warp(*args, "retry", **kwargs)
                     else:
-                        warp(*args, **kwargs)
+                        response = warp(*args, **kwargs)
+                    return response
                 finally:
                     pass
+        except Exception as e:
+            print("globalExceptionHandler Exception: fetch error :" + str(e) + "retry:" + threading.currentThread().getName() + str(func.__name__) + ":" + str(
+                            globa_threadinfo.num) + " Count")
+            raise e
         else:
+            print("globalExceptionHandler else: check response instance." + "retry:" + threading.currentThread().getName() + str(func.__name__) + ":" + str(
+                            globa_threadinfo.num) + "次")
             if isinstance(response, requests.models.Response):
                 if response.status_code == 401 or response.status_code == 403:
                     print({"状态码": response.status_code})
+                else:
+                    print("globalExceptionHandler else: response.status_code is not 401 and 403.")
+            else:
+                print("globalExceptionHandler else: response is not requests.models.Response.")
             # 重试成功，修改状态
             globa_threadinfo.retrystate = 1
             globa_threadinfo.num = 0
+            print("globalExceptionHandler else: retry success globa_threadinfo.retrystate set to 1.")
             return response
 
     return warp
@@ -130,7 +142,7 @@ class GiteeClient():
         if self._set_extra_headers():
             self.session.headers.update(self._set_extra_headers())
         # refresh the access token
-        self._refresh_access_token()
+        # self._refresh_access_token()
 
     def issue_comments(self, issue_number, from_date=None):
         """Get the issue comments """
@@ -382,6 +394,13 @@ class GiteeClient():
         url = self.urijoin("orgs", org, "followers")
         return self.fetch_items(url, payload)
 
+    def getIssueDetailsByPRUrl(self, url):
+        res = self.fetch(url)
+        if res.status_code != 200:
+            print("The issue url not get issue")
+            return {}
+        return res.json()
+
     @globalExceptionHandler
     def fetch(self, url, payload=None, headers=None, method="GET", stream=False, auth=None):
         """Fetch the data from a given URL.
@@ -394,6 +413,7 @@ class GiteeClient():
         :returns a response object
         """
         # Add the access_token to the payload
+        print("fetch threading num start: " + threading.currentThread().getName())
         if self.access_token:
             if not payload:
                 payload = {}
@@ -408,6 +428,7 @@ class GiteeClient():
                                              verify=self.ssl_verify, auth=auth)
 
             return response
+        print("fetch threading num end: " + threading.currentThread().getName())
 
     def fetch_items(self, path, payload):
         """Return the items from gitee API using links pagination"""
@@ -423,6 +444,7 @@ class GiteeClient():
 
         if response.status_code != 200:
             print("Gitee api get error: ", response.text)
+            return response.text
 
         items = response.text
 
