@@ -1718,6 +1718,17 @@ class ESClient(object):
             func(data)
         print('scroll over')
 
+    def esSearch(self, index_name, search=None, method='_search'):
+        if search is None:
+            return None
+        url = self.url + '/' + index_name + '/' + method
+        req = requests.post(url=url, headers=self.default_headers, verify=False, data=search.encode('utf-8'))
+        if req.status_code != 200:
+            print('requests error')
+            return None
+        return json.loads(req.content)
+
+
 def get_date(time):
     if time:
         return time.split("+")[0]
