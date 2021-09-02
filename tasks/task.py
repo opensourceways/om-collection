@@ -55,6 +55,7 @@ BACKEND_MAPPING = {
     'try_me': 'data.tryme.TryMe',
     'blue_zone_user': 'data.blue_zone_user.BlueZoneUser',
     'googleanalytic_user': 'data.googleanalytic_user.GOOGLEANALYTICUSER',
+    'up_down_ratio': 'data.combine.up_down_ratio.UpDownRatio'
     'obs': 'data.build_obs.OBS'
 }
 
