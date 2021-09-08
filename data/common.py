@@ -494,7 +494,7 @@ class ESClient(object):
                 bulk_json_temp += data + '\n'
                 if bulk_json_temp.count('\n') >= 10000:
                     try:
-                        res = requests.post(_url + "/_bulk", data=bulk_json_temp,
+                        res = requests.post(_url + "/_bulk", data=bulk_json_temp.encode('utf-8'),
                                             headers=_header, verify=False)
                         print(res)
                         bulk_json_temp = ""
@@ -503,11 +503,11 @@ class ESClient(object):
                         # Related to body.encode('iso-8859-1'). mbox data
                         logger.warning("Encondig error ... converting bulk to iso-8859-1")
                         bulk_json = bulk_json.encode('iso-8859-1', 'ignore')
-                        res = requests.put(url, data=bulk_json_temp, headers=headers)
+                        res = requests.put(url, data=bulk_json_temp.encode('utf-8'), headers=_header)
                         res.raise_for_status()
             if bulk_json_temp is not None and bulk_json_temp != '\n' and len(bulk_json_temp) > 0:
                 try:
-                    res = requests.post(_url + "/_bulk", data=bulk_json_temp,
+                    res = requests.post(_url + "/_bulk", data=bulk_json_temp.encode('utf-8'),
                                         headers=_header, verify=False)
                     print(res)
                     bulk_json_temp = ""
@@ -515,12 +515,11 @@ class ESClient(object):
                 except UnicodeEncodeError:
                     # Related to body.encode('iso-8859-1'). mbox data
                     logger.warning("Encondig error ... converting bulk to iso-8859-1")
-                    bulk_json = bulk_json.encode('iso-8859-1', 'ignore')
-                    res = requests.put(url, data=bulk_json_temp, headers=headers)
+                    res = requests.put(url, data=bulk_json_temp, headers=_header)
                     res.raise_for_status()
         else:
             try:
-                res = requests.post(_url + "/_bulk", data=bulk_json,
+                res = requests.post(_url + "/_bulk", data=bulk_json.encode('utf-8'),
                                     headers=_header, verify=False)
                 res.raise_for_status()
                 print(res)
@@ -528,7 +527,7 @@ class ESClient(object):
                 # Related to body.encode('iso-8859-1'). mbox data
                 logger.warning("Encondig error ... converting bulk to iso-8859-1")
                 bulk_json = bulk_json.encode('iso-8859-1', 'ignore')
-                res = requests.put(url, data=bulk_json, headers=headers)
+                res = requests.put(url, data=bulk_json, headers=_header)
                 res.raise_for_status()
 
     def searchEsList(self, index_name, search=None):
@@ -1611,8 +1610,7 @@ class ESClient(object):
             actions += action
         self.safe_put_bulk(actions)
 
-    def setToltalCount(self, from_date, count_key,
-                       field=None, query=None, key_prefix=""):
+    def setToltalCount(self, from_date, count_key, field=None, query=None, key_prefix=""):
         starTime = datetime.strptime(from_date, "%Y%m%d")
         fromTime = datetime.strptime(from_date, "%Y%m%d")
         to = datetime.today().strftime("%Y%m%d")
