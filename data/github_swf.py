@@ -84,6 +84,10 @@ class GitHubSWF(object):
                 if not action:  # if get None from self.getSWF(repo)
                     continue
                 actions += action
+            print(f'There are {len(self.failed_process_repos)} repos cannot be fetched. They are:\n')
+            for repo in self.failed_process_repos:
+                print(repo)
+
             self.esClient.safe_put_bulk(actions)
 
             if self.github_index_name:
@@ -190,7 +194,6 @@ class GitHubSWF(object):
         return s
 
     def getSWF(self, repo):
-        global r
         print(f'Processing repo: {repo}.')
         client = GithubClient(self.org, repo, self.github_authorization)
         r = client.repo()
