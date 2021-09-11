@@ -86,6 +86,7 @@ class GitCommit(object):
 
         # remove duplicate repos in case.
         repos = list(set(repos))
+
         print(f'There are {len(repos)} repos  for  {self.community_name} community totally.\n')
         self.collect_code(from_date, self.index_name, repos)
 
@@ -195,8 +196,8 @@ class GitCommit(object):
         for branch_name in branch_names:
             try:
                 repo.git.execute(f"git checkout -f {branch_name}", shell=True)
-            except:
-                print(f'Failed to checkout to branch name: {branch_name}. Error is: {repr(e)}\n')
+            except Exception as ex:
+                print(f'Failed to checkout to branch name: {branch_name}. Error is: {repr(ex)}\n')
                 continue
             try:
                 current_branch_name = repo.git.execute(f"git symbolic-ref --short -q HEAD", shell=True)
