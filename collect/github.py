@@ -106,6 +106,9 @@ class GithubClient(object):
         path = self.urijoin(self.base_url, 'repos', self.org, self.repository)
 
         r = self.fetch(path)
+        if r.status_code != 200:
+            print(f'Failed get data from {self.repository}.')
+            return
         repo = r.json()
 
         return repo
