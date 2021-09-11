@@ -514,7 +514,7 @@ class GitCommit(object):
 
     def getRepoFromGitee(self, gitee_org_list):
         repo_url_list = []
-        gitee_base_url = "https://www.gitee.com/"
+        gitee_base_url = "https://gitee.com/"
 
         for org in gitee_org_list:
             try:
