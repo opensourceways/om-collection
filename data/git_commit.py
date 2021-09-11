@@ -124,7 +124,7 @@ class GitCommit(object):
         branch_names = []
         if self.is_fetch_all_branches == "True":
             try:
-                text = repo.git.execute('git branch -r')
+                text = repo.git.execute('git branch -r', shell=True)
             except:
                 print(f'Failed to get {repo_name} branches.')
                 pass
