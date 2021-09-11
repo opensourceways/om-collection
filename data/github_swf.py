@@ -58,9 +58,13 @@ class GitHubSWF(object):
         self.refresh_node_times = config.get("refresh_node_times")
 
     def run(self, from_date):
+        self.failed_process_repos = []  # Store the failed fetch data repos
         startTime = time.time()
         print("Collect github star watch fork data: staring")
-        self.checkSleep()  # for run in specific point time
+
+        if self.refresh_node_times:  # for run in specific point time
+            self.checkSleep()
+
         now = datetime.datetime.now()
         now_str = datetime.datetime.strftime(now, '%Y-%m-%d  %H:%M:%S')
         print(f"The accurate time for starting to collecting data is: {now_str}")
@@ -75,10 +79,15 @@ class GitHubSWF(object):
         if service_flag == 0:
             repoNames = self.getRepoNames()
             actions = ""
-            for repo in repoNames:
-                action = self.getSWF(repo)
-                # print(action)
+            for repoName in repoNames:
+                action = self.getSWF(repoName)
+                if not action:  # if get None from self.getSWF(repo)
+                    continue
                 actions += action
+            print(f'There are {len(self.failed_process_repos)} repos cannot be fetched. They are:\n')
+            for repo in self.failed_process_repos:
+                print(repo)
+
             self.esClient.safe_put_bulk(actions)
 
             if self.github_index_name:
@@ -166,26 +175,36 @@ class GitHubSWF(object):
                 self.esClient.safe_put_bulk(data)
 
     def getRepoNames(self):
+        print(f'Starting to fetch all repos...')
         gitclient = GithubClient(self.org, "", self.github_authorization)
         repos = gitclient.getAllrepo()
         repoNames = []
-        for rep in repos:
-            repoNames.append(self.ensure_str(rep['name']))
+        for repo in repos:
+            if repo.get('name'):
+                repoNames.append(repo.get('name'))
+        print(f'Completed to fetch all repos, {len(repoNames)} are collected in all.')
         return repoNames
 
     def ensure_str(self, s):
         try:
-            if isinstance(s, unicode):
+            if isinstance(s, str):
                 s = s.encode('utf-8')
         except:
             pass
         return s
 
     def getSWF(self, repo):
+        print(f'Processing repo: {repo}.')
         client = GithubClient(self.org, repo, self.github_authorization)
         r = client.repo()
+
+        if not r:
+            print(f'Processing Repo: {repo} failed.\n')
+            self.failed_process_repos.append(repo)
+            return
+
         r["swf_update_time"] = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S+08:00')
-        id = "swf_" + r["swf_update_time"] + r.get("full_name")
+        id = "swf_" + r["swf_update_time"] + "_" + r.get("full_name")
         action = common.getSingleAction(self.index_name, id, r)
         return action
 
