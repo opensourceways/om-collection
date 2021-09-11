@@ -26,7 +26,6 @@ from data import common
 from data.common import ESClient
 
 
-
 class GitHubDown(object):
     def __init__(self, config=None):
         self.config = config
@@ -36,7 +35,6 @@ class GitHubDown(object):
         self.headers = {}
         self.headers[
             "Authorization"] = config.get('github_authorization')
-
 
     def run(self, from_date):
         startTime = time.time()
@@ -52,7 +50,6 @@ class GitHubDown(object):
         print("Collect github download clone view data: finished after ",
               spent_time)
 
-
     def setFromFile(self, filename):
         f = open(filename, 'r')
 
@@ -67,10 +64,10 @@ class GitHubDown(object):
             view_uniques = self.getNumber(sLine[5])
 
             actions += self.setCloneDate(date, self.org,
-                                    full_name, clone_count, clone_uniques)
+                                         full_name, clone_count, clone_uniques)
 
             actions += self.setViewDate(date, self.org,
-                                    full_name, view_count, view_uniques)
+                                        full_name, view_count, view_uniques)
         self.esClient.safe_put_bulk(actions)
 
     def getFormat(self, str):
@@ -87,7 +84,6 @@ class GitHubDown(object):
         num = int(n)
         return num
 
-
     def setCloneDate(self, date, org, full_name, clone_count, clone_uniques):
         body = {
             "clone_count": clone_count,
@@ -102,7 +98,6 @@ class GitHubDown(object):
         action = common.getSingleAction(
             self.index_name, "clone_" + date + body["path"], body)
         return action
-
 
     def setViewDate(self, date, org, full_name, view_count, view_uniques):
         body = {
@@ -119,17 +114,15 @@ class GitHubDown(object):
             self.index_name, "view_" + date + body["path"], body)
         return action
 
-
     def getAllrepo(self, org):
         full_names = []
-        r = requests.get('https://api.github.com/users/' + org + '/repos',
+        r = requests.get('https://api.github.com/users/' + org + '/repos' + '?pape=1&per_page=10000',
                          headers=self.headers)
         data = r.json()
 
         for rep in data:
             full_names.append(self.ensure_str(rep['full_name']))
         return full_names
-
 
     def ensure_str(self, s):
         try:
@@ -138,7 +131,6 @@ class GitHubDown(object):
         except:
             pass
         return s
-
 
     def getFullNames(self, org, from_date):
         full_names = self.getAllrepo(org)
@@ -161,21 +153,20 @@ class GitHubDown(object):
 
                 date = p['timestamp']
                 body = {
-                      "clone_count": p['count'],
-                      "clone_uniques": p['uniques'],
-                      "path": "https://github.com/" + org + "/" + full_name,
-                      "project": org,
-                      "full_name": full_name,
-                      "created_at": date,
-                      "updated_at": date,
-                      "is_github_clone": 1
+                    "clone_count": p['count'],
+                    "clone_uniques": p['uniques'],
+                    "path": "https://github.com/" + org + "/" + full_name,
+                    "project": org,
+                    "full_name": full_name,
+                    "created_at": date,
+                    "updated_at": date,
+                    "is_github_clone": 1
                 }
                 action = common.getSingleAction(
                     self.index_name, "clone_" + date + body["path"], body)
                 actions += action
 
             self.esClient.safe_put_bulk(actions)
-
 
     def getView(self, full_names, org):
         actions = ""
