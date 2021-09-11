@@ -201,7 +201,7 @@ class GitHubSWF(object):
             return
 
         r["swf_update_time"] = datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S+08:00')
-        id = "swf_" + r["swf_update_time"] + r.get("full_name")
+        id = "swf_" + r["swf_update_time"] + "_" + r.get("full_name")
         action = common.getSingleAction(self.index_name, id, r)
         return action
 

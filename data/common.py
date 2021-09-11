@@ -30,6 +30,8 @@ from json import JSONDecodeError
 from urllib.parse import quote
 from datetime import timedelta, datetime
 import urllib3
+from logging import Logger as logger
+
 from collect.gitee import GiteeClient
 
 urllib3.disable_warnings()
@@ -515,7 +517,7 @@ class ESClient(object):
                 except UnicodeEncodeError:
                     # Related to body.encode('iso-8859-1'). mbox data
                     logger.warning("Encondig error ... converting bulk to iso-8859-1")
-                    res = requests.put(url, data=bulk_json_temp, headers=_header)
+                    res = requests.put(url, data=bulk_json_temp.encode('utf-8'), headers=_header)
                     res.raise_for_status()
         else:
             try:
