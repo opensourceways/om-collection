@@ -344,6 +344,8 @@ class GitCommit(object):
     def get_commit_content_and_modifyInfo(self, text):
         result = {}
         last_line_feed_site = text.rfind("\n\n")
+        if last_line_feed_site == -1:
+            return result
         modifyInfo = text[last_line_feed_site + 2:]
 
         if not text or len(modifyInfo) < 5:
