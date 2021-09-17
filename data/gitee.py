@@ -119,8 +119,8 @@ class Gitee(object):
                 self.tagHistoryUsers()
             if self.is_set_pr_issue_repo_fork == 'true':
                 # self.writeData(self.writeContributeForSingleRepo, from_time)
-                self.writeData(self.writeIssueSingleRepo, from_time)
                 self.writeData(self.writePullSingleRepo, from_time)
+                self.writeData(self.writeIssueSingleRepo, from_time)
                 self.writeData(self.writeRepoSingleRepo, from_time)
                 self.writeData(self.writeForkSingleRepo, from_time)
             elif self.is_set_issue == 'true':
@@ -285,7 +285,7 @@ class Gitee(object):
             sig_names = self.repo_sigs_dict[org + '/' + repo_name]
 
         print('*****writePullSingleRepo start: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
-        self.writePullData(org, repo_name, is_public, from_time, sig_names)
+        self.writePullData(org, repo_name, is_public, from_time, self.once_update_num_of_pr, sig_names)
         print('*****writePullSingleRepo end: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
 
     def writeIssueSingleRepo(self, org, repo, from_time=None):
