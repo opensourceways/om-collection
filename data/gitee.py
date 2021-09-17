@@ -397,8 +397,9 @@ class Gitee(object):
                 "fork_id": fork["id"],
                 "created_at": fork["created_at"],
                 "updated_at": fork["updated_at"],
-                "author_name": fork['namespace']['name'],
-                "user_login": fork['namespace']['path'],
+                "author_name": fork['owner']['name'],
+                "user_id": fork['owner']['id'],
+                "user_login": fork['owner']['login'],
                 "repository": fork["full_name"],
                 "org_name": owner,
                 "gitee_repo": "https://gitee.com/" + owner + "/" + repo,
@@ -529,6 +530,7 @@ class Gitee(object):
             "author_name": repo_data['owner']['name'],
             "owner_name": repo_data['owner']['name'],
             "owner_login": repo_data['owner']['login'],
+            "user_id": repo_data['owner']['id'],
             "user_login": repo_data['owner']['login'],
             "repository": repo_data["full_name"],
             "public": repo_data["public"],
@@ -906,6 +908,7 @@ class Gitee(object):
                 ecomment['user_name'] = user['name']
                 ecomment['author_name'] = user['name']
                 ecomment['user_login'] = user['login']
+                ecomment['user_id'] = user['id']
                 ecomment["user_domain"] = None
             # extract reactions and add it to enriched item
             # ecomment.update(self.__get_reactions(comment))
@@ -950,12 +953,14 @@ class Gitee(object):
         if user is not None and user:
             rich_pr['user_name'] = user['name']
             rich_pr['author_name'] = user['name']
+            rich_pr['user_id'] = user['id']
             # rich_pr["user_domain"] = self.get_email_domain(user['email']) if user['email'] else None
             rich_pr["user_domain"] = None
         else:
             rich_pr['user_name'] = None
             rich_pr["user_domain"] = None
             rich_pr['author_name'] = None
+            rich_pr['user_id'] = None
 
         if merged_item is not None and 'user' in merged_item:
             rich_pr['merge_author_login'] = merged_item['user']['login']
@@ -1094,6 +1099,15 @@ class Gitee(object):
             rich_issue['milestone_open_issues'] = milestone['open_issues']
             rich_issue['milestone_closed_issues'] = milestone['closed_issues']
             rich_issue['milestone_due_on'] = milestone['due_on']
+        else:
+            rich_issue['milestone_url'] = None
+            rich_issue['milestone_html_url'] = None
+            rich_issue['milestone_id'] = None
+            rich_issue['milestone_number'] = None
+            rich_issue['milestone_repository_id'] = None
+            rich_issue['milestone_state'] = None
+            rich_issue['milestone_title'] = 'NA'
+            rich_issue['milestone_description'] = None
 
         assignee = issue.get('assignee', None)
         if assignee and assignee is not None:
@@ -1220,6 +1234,7 @@ class Gitee(object):
             # ecomment.update(self.__get_reactions(comment))
             user = comment.get('user', None)
             if user is not None and user:
+                ecomment['user_id'] = user['id']
                 ecomment['user_name'] = user['name']
                 ecomment['author_name'] = user['name']
                 ecomment['user_login'] = user['login']
