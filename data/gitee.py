@@ -63,6 +63,9 @@ class Gitee(object):
         self.is_update_repo_author = config.get('is_update_repo_author')
         self.is_set_itself_author = config.get('is_set_itself_author')
         self.is_set_pr_issue_repo_fork = config.get('is_set_pr_issue_repo_fork')
+        self.is_set_pr = config.get('is_set_pr')
+        self.is_set_repo = config.get('is_set_repo')
+        self.is_set_fork = config.get('is_set_fork')
         self.is_set_issue = config.get('is_set_issue')
         self.is_set_first_contribute = config.get('is_set_first_contribute')
         self.is_set_star_watch = config.get('is_set_star_watch')
@@ -115,9 +118,19 @@ class Gitee(object):
             if self.esClient.is_update_tag_company == 'true':
                 self.tagHistoryUsers()
             if self.is_set_pr_issue_repo_fork == 'true':
-                self.writeData(self.writeContributeForSingleRepo, from_time)
+                # self.writeData(self.writeContributeForSingleRepo, from_time)
+                self.writeData(self.writeIssueSingleRepo, from_time)
+                self.writeData(self.writePullSingleRepo, from_time)
+                self.writeData(self.writeRepoSingleRepo, from_time)
+                self.writeData(self.writeForkSingleRepo, from_time)
             elif self.is_set_issue == 'true':
                 self.writeData(self.writeIssueSingleRepo, from_time)
+            elif self.is_set_pr == 'true':
+                self.writeData(self.writePullSingleRepo, from_time)
+            elif self.is_set_repo == 'true':
+                self.writeData(self.writeRepoSingleRepo, from_time)
+            elif self.is_set_fork == 'true':
+                self.writeData(self.writeForkSingleRepo, from_time)
 
             self.externalUpdateRepo()
             if self.is_set_first_contribute == 'true':
@@ -241,6 +254,39 @@ class Gitee(object):
         self.writeForks(org, repo_name, from_time, sig_names)
         print('*****writeContributeForSingleRepo end: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
         print('*****writeContributeForSingleRepo end, there are', threading.activeCount(), 'threads running')
+
+    def writeForkSingleRepo(self, org, repo, from_time=None):
+        repo_name = repo['path']
+        is_public = repo['public']
+        sig_names = ['No-SIG']
+        if org + '/' + repo_name in self.repo_sigs_dict:
+            sig_names = self.repo_sigs_dict[org + '/' + repo_name]
+
+        print('*****writeForkSingleRepo start: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
+        self.writeForks(org, repo_name, is_public, from_time, sig_names)
+        print('*****writeForkSingleRepo end: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
+
+    def writeRepoSingleRepo(self, org, repo, from_time=None):
+        repo_name = repo['path']
+        is_public = repo['public']
+        sig_names = ['No-SIG']
+        if org + '/' + repo_name in self.repo_sigs_dict:
+            sig_names = self.repo_sigs_dict[org + '/' + repo_name]
+
+        print('*****writeRepoData start: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
+        self.writeRepoData(org, repo_name, is_public, from_time, sig_names)
+        print('*****writeRepoData end: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
+
+    def writePullSingleRepo(self, org, repo, from_time=None):
+        repo_name = repo['path']
+        is_public = repo['public']
+        sig_names = ['No-SIG']
+        if org + '/' + repo_name in self.repo_sigs_dict:
+            sig_names = self.repo_sigs_dict[org + '/' + repo_name]
+
+        print('*****writePullSingleRepo start: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
+        self.writePullData(org, repo_name, is_public, from_time, sig_names)
+        print('*****writePullSingleRepo end: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
 
     def writeIssueSingleRepo(self, org, repo, from_time=None):
         repo_name = repo['path']
