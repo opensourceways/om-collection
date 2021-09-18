@@ -1,24 +1,29 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import base64
 import errno
+import json
 import os
 import platform
+import re
 import shutil
 import stat
+import subprocess
+import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 
+import git
 import requests
 import yaml
-from collect.gitee import GiteeClient
-from data import common
-import git
-import datetime
-import json
-from data.common import ESClient
-import base64
-from data.github_down import GitHubDown
 
-os.environ["GIT_PYTHON_REFRESH"] = "quiet"
+from collect.gitee import GiteeClient
+from collect.github import GithubClient
+from data import common
+from data.common import ESClient
+
+
+# os.environ["GIT_PYTHON_REFRESH"] = "quiet"
 
 
 class GitCommit(object):
@@ -29,7 +34,6 @@ class GitCommit(object):
         self.default_headers = {
             'Content-Type': 'application/json'
         }
-        self.from_date = config.get("from_data")
         self.index_name = config.get('index_name')
         self.url = config.get('es_url')
         self.authorization = config.get('authorization')
@@ -38,26 +42,34 @@ class GitCommit(object):
         self.community_name = config.get('community_name')
         self.repo_source_dict = config.get('repo_source_dict')
         self.token_v5 = config.get('gitee_token_v5')
-        self.gitHubDown = GitHubDown(config)
+        # self.gitHubDown = GitHubDown(config)
+
         self.username = config.get('username')
         self.password = config.get('password')
         self.user_yaml_url = config.get('user_yaml_url')
         self.company_yaml_url = config.get('company_yaml_url')
         self.is_fetch_all_branches = config.get("is_fetch_all_branches")
-        self.companyInfo = self.getInfoFromCompany()
+        self.companyInfo = self.get_info_from_company()
 
     def run(self, startTime):
 
-        if isinstance(self.from_date, str):  # jude program run first time or not
-            from_date = self.getFromDate(self.from_date, [{"name": "is_git_commit", "value": 1}])
-        else:
-            from_date = self.from_date
+        start_date = datetime.strptime(startTime, "%Y%m%d")
+        try:
+            self.from_date
+        except AttributeError:
+            self.from_date = start_date
 
+        self.from_date_str = self.from_date.strftime("%Y-%m-%d")
+
+        self.total_repo_count = 0
         self.failed_clone_repos = []
         self.success_parsed_repo_count = 0
+
         self.total_commit_count = 0
-        print(f"*************Begin to collect commits.  From :{from_date}***********")
-        self.get_sigs_code_all(from_date)  # collect repo commit entrance
+        print(f"*************Begin to collect commits.  From :{self.from_date_str}***********")
+        self.main_process(self.from_date)  # collect repo commit entrance
+
+        self.success_parsed_repo_count = self.total_repo_count - len(self.failed_clone_repos)
         print(
             f'Collect {self.success_parsed_repo_count} repos sucessfully, {self.total_commit_count} commits for  {self.community_name} totally.\n')
         if self.failed_clone_repos:
@@ -66,83 +78,86 @@ class GitCommit(object):
                 print(repo)
         print(f"*********************Finish Collection*******************************")
 
-    def get_sigs_code_all(self, from_date=None):
+    def main_process(self, from_date):
 
+        ## accquire repo_url_list first
+        repo_url_list = self.get_repos_from_sources(self.repo_source_dict)
+
+        ## print basic repo_url_list info into log
+        self.total_repo_count = len(repo_url_list)
+        print(f'There are {self.total_repo_count} repo_url_list  for  {self.community_name} community totally.\n')
+
+        ## process the repo_url_list
+        self.process_repos(from_date, self.index_name, repo_url_list)
+
+    def get_repos_from_sources(self, repo_source_dict):
         # collect all reppos from various source
-        repos = []
-        repo_source_dict = eval(self.repo_source_dict)  ## Transform repo_dict to dict
-        if repo_source_dict.get('json_file'):
-            file_repo_list = self.getRepoFromFile(repo_source_dict.get('json_file'))
-            repos.extend(file_repo_list)
-        if repo_source_dict.get('yaml_url_list'):
-            yaml_repo_list = self.getRepoFromYamlOnline(repo_source_dict.get('yaml_url_list'))
-            repos.extend(yaml_repo_list)
-        if repo_source_dict.get('gitee_org_list'):
-            gitee_repo_list = self.getRepoFromGitee(repo_source_dict.get('gitee_org_list'))
-            repos.extend(gitee_repo_list)
-        if repo_source_dict.get('github_org_list'):
-            gitee_repo_list = self.getRepoFromGithub(repo_source_dict.get('github_org_list'))
-            repos.extend(gitee_repo_list)
+        try:
+            repos = []
+            repo_source_dict = eval(repo_source_dict)  ## Transform repo_dict to dict
+            if repo_source_dict.get('json_file'):
+                file_repo_list = self.get_repo_list_from_json_file(repo_source_dict.get('json_file'))
+                repos.extend(file_repo_list)
+            if repo_source_dict.get('yaml_url_list'):
+                yaml_repo_list = self.get_repo_from_online_yaml_file(repo_source_dict.get('yaml_url_list'))
+                repos.extend(yaml_repo_list)
+            if repo_source_dict.get('gitee_org_list'):
+                gitee_repo_list = self.get_repo_list_from_Gitee(repo_source_dict.get('gitee_org_list'))
+                repos.extend(gitee_repo_list)
+            if repo_source_dict.get('github_org_list'):
+                gitee_repo_list = self.get_repo_list_from_GitHub(repo_source_dict.get('github_org_list'))
+                repos.extend(gitee_repo_list)
+            repos = list(set(repos))
+            return repos
+        except Exception as e:
+            print(f'Occur error at function: {sys._getframe().f_code.co_name}')
+            raise e
 
-        # remove duplicate repos in case.
-        repos = list(set(repos))
+    def process_repos(self, from_date, index_name, repo_url_list):
+        ## process the all repos by traversal
 
-        print(f'There are {len(repos)} repos  for  {self.community_name} community totally.\n')
-        self.collect_code(from_date, self.index_name, repos)
+        repos_local_path = '/home/repo_clone/local_repo/'
+        if not os.path.exists(repos_local_path):
+            os.makedirs(repos_local_path)
 
-    def collect_code(self, from_date, index_name, repourl_list):
-        path = '/home/collect-code-clone/local_repo/'
-        if not os.path.exists(path):
-            os.makedirs(path)
-
-        for repourl in repourl_list:
-            repo_name = repourl.split("/")[-1]
+        for repo_url in repo_url_list:
+            repo_name = repo_url.split("/")[-1]
             print(
-                f'Progress: processing the {repo_name}, it is the {repourl_list.index(repourl) + 1} of {len(repourl_list)} repos.\n')
-            repo = self.pull_Repo_To_Local(repourl, path)  # Clone repo to local
-
-            repo_commit_list = self.fetch_commit_log_from_repo(from_date, repo, repourl)  # Get commits from each branch
-            self.removeLocalRepo(path + repo_name)  # Remove local repo immediately
-            if repo_commit_list is None:
-                print(f'\nEEEEError!!! {repo_name} get nothing. Because failed to git clone the repo to local.\n\n')
+                f'Progress: processing the {repo_name}, it is the {repo_url_list.index(repo_url) + 1} of {len(repo_url_list)} repos.\n')
+            repo = self.clone_repo_from_remote_to_local(repo_url, repos_local_path)  # Clone repo to local
+            if not repo:
                 continue
-            self.total_commit_count += len(repo_commit_list)
+
+            repo_commit_list = self.get_commit_from_each_repo(from_date, repo)  # Get commits from each branch
+
+            ### Delete local repo after get its commit to reserve enough space for other repo
+            self.remove_local_repo(os.path.join(repos_local_path, repo_name))
+
+            self.total_commit_count += len(repo_commit_list)  ## the total count from all repos
 
             # store a single repo data into ES
             action = ''
             for commit in repo_commit_list:
-                ID = commit["commit_id"]
+                ID = self.generate_record_id(commit)  ## generate id based all fields from commit
                 commit_str = self.getSingleAction(index_name, ID, commit)
                 action += commit_str
 
             print(f"Start to store {repo_name} data to ES...")
             self.esClient.safe_put_bulk(action)
-            print(repo_name, f" has {len(repo_commit_list)} commits. All has been collected into ES.")
+            print(f'Completed process repo:{repo_name}\n\n\n')
 
     def get_repo_branch_names(self, repo):
-        repo_name = repo.working_dir.split(os.sep)[-1]
-        branch_names = []
-        if self.is_fetch_all_branches == "True":
-            try:
-                text = repo.git.execute('git branch -r', shell=True)
-            except:
-                print(f'Failed to get {repo_name} branches.')
-                pass
-        else:
-            try:
-                branch_name = repo.git.execute("git symbolic-ref --short -q HEAD", shell=True)
-            except:
-                print(f'{repo_name} failed to get current branch name.')
-                pass
-            branch_names.append(branch_name)
-            return branch_names
-        branch_list = text.split("\n")
 
-        for i in range(len(branch_list)):
-            if branch_list[i].find("origin") != -1:
-                branch_names.append(branch_list[i].split('/')[-1])
-        branch_names = list(set(branch_names))
-        print('Get branch names successfully.')
+        repo_name = repo.working_dir.split(os.sep)[-1]
+
+        if self.is_fetch_all_branches == "True":  ## Accquire all remote branch names
+            remote_branch_names = [branch_name.remote_head for branch_name in repo.remote().refs]
+            remote_branch_names.remove('HEAD')
+            branch_names = remote_branch_names
+            print(f'Get {len(branch_names)} branch names of repo:  {repo_name} .')
+        else:
+            branch_names = [repo.head.reference.name]  ## Accquire current branch names
+            print(f'Get the current branch of {repo_name}')
 
         return branch_names
 
@@ -155,191 +170,201 @@ class GitCommit(object):
         self.esClient.safe_put_bulk(action)
         print(repo, " data has stored into ES")
 
-    def pull_Repo_To_Local(self, repourl, path=None):
-        repo_name = repourl.split("/")[-1]
-        website = repourl.split("/")[2]
-        project = repourl.split("/")[-2]
+    def clone_repo_from_remote_to_local(self, repo_url, path):
+        repo_name = repo_url.split("/")[-1]
+        website = repo_url.split("/")[2]
+        project = repo_url.split("/")[-2]
         username = base64.b64decode(self.username).decode()
         passwd = base64.b64decode(self.password).decode()
         local_repo_path = os.path.join(path, repo_name)
         repo_dir = Path(local_repo_path)
 
         if not username or not passwd:
-            print(f'Have not fetch username and passwd from config.ini.\n')
+            print(f'Have not fetch username or passwd from config.ini.\n')
             return None
         clone_url = 'https://' + username + ':' + passwd + '@' + website + '/' + project + '/' + repo_name
 
-        if repo_dir.exists():  # Delete it if exits before clone
-            removeResult = self.removeLocalRepo(local_repo_path)
-            if not removeResult:
-                print(f'Failed to remove {repo_name} repo before clone it.')
-        try:
-            print(f'Start to clone {repo_name} repo...')
-            local_repo = git.Repo().clone_from(clone_url, local_repo_path)
-            print(f'Clone {repo_name} repo successfully.')
-        except Exception as cloneEx:
-            print(repr(cloneEx))
-            print(f'Failed to clone {repo_name}')
-            self.failed_clone_repos.append(repo_name)
-            return None
+        if repo_dir.exists():
+            local_repo = git.Repo(local_repo_path)
+            check_repo = self.is_dir_git_repo(local_repo_path)
+            if check_repo:
+                local_repo.remote().pull()
+                print(f'Pulled the repo: {repo_name}, since it has existed')
+            else:
+                print(f'{local_repo_path} is not repo.')
+        else:
+            try:
+                print(f'Start to clone {repo_name} repo...')
+                local_repo = git.Repo().clone_from(clone_url, local_repo_path)
+                print(f'Clone {repo_name} repo successfully.')
+            except git.GitCommandError as gitError:
+                print(gitError.stderr)
+
+                # openEuler/kernel can be cloned successfully, but still caught a exception
+                if self.is_dir_git_repo(local_repo_path):
+                    local_repo = git.Repo(local_repo_path)
+
+                    # Recover the repo which delete a batch file by exception
+                    local_repo.git.execute(f'git restore --source=HEAD :/', shell=True)
+                else:
+                    f'Repo {repo_name} is a private repo, it is invisible to public. Failed to clone it'
+                    self.failed_clone_repos.append(repo_name)
+                    return None
+            except Exception as cloneEx:
+                print(
+                    f'Occurs unexpected error besides GitCommmandError while clone repo: {repo_name}. \nThe Error is:{repr(cloneEx)}')
+                self.failed_clone_repos.append(repo_name)
+                return None
         return local_repo
 
-    def fetch_commit_log_from_repo(self, from_date, repo, repourl):
+    def get_commit_from_each_repo(self, from_date, repo):
         # Return None if has not fetch repo to local, namely g is None
         if repo is None:
             return None
         repo_name = repo.working_dir.split(os.sep)[-1]
         repo_commit_list = []
+        repo_url = self.get_url_from_loca_repo(repo)
 
         branch_names = self.get_repo_branch_names(repo)  # ensure branch name, then get its commits.
 
         for branch_name in branch_names:
-            try:
+            try:  ## traverse all branches fetch data
+                self.remove_git_index_lock_file(repo)  ## Should remove index.lock before checkout branch
                 repo.git.execute(f"git checkout -f {branch_name}", shell=True)
-            except Exception as ex:
-                print(f'Failed to checkout to branch name: {branch_name}. Error is: {repr(ex)}\n')
-                continue
-            try:
-                current_branch_name = repo.git.execute(f"git symbolic-ref --short -q HEAD", shell=True)
-            except Exception as e:
-                print(f'Failed to acquire current branch name. Error is: {repr(e)}.\n')
-                continue
+            except git.GitCommandError as gitCheckoutError:
+                if branch_name != repo.head.reference.name:
+                    print(
+                        f'Failed to checkout to branch name: {branch_name}. Error is: {repr(gitCheckoutError.status)}\n')
+                    continue
+                print(f'Although occur some error in checkout process, checkout to {branch_name} successfully at last.')
+
+            start_fetch_date = from_date
+            today = datetime.today()
             branch_commits = []
-
-            datei = datetime.datetime.strptime(datetime.datetime.strftime(from_date, "%Y-%m-%d"), "%Y-%m-%d")
-            dateii = datei
-
             while True:  # pull, parse, assemble commit records
-                datenow = datetime.datetime.strptime(
-                    datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d"),
-                    "%Y-%m-%d")
-                dateii += datetime.timedelta(days=3)
+                start_fetch_date_str = start_fetch_date.strftime('%Y-%m-%d')
+                end_fetch_date = start_fetch_date + timedelta(days=3)
+                end_fetch_date_str = end_fetch_date.strftime('%Y-%m-%d')
 
-                logcmd_base = "git log --after=\"%s\" --before=\"%s\" --shortstat --pretty=\"@@@***@@@%%an;;;%%ae;;;%%ad;;;%%H;;;%%s;;;%%b\"  " % (
-                    datei, dateii)
+                commit_log_dict = self.get_period_commit_log(repo, end_fetch_date_str, start_fetch_date_str)
+                branch_period_commits = self.process_commit_log_dict(commit_log_dict, repo)
 
-                logcmd_merge = logcmd_base + " --merges"
-                logcmd_no_merge = logcmd_base + "--no-merges"
+                branch_commits.extend(branch_period_commits)
 
-                no_merge_log = ''
-                try:
-                    no_merge_log = repo.git.execute(logcmd_no_merge, shell=True)
-                except:
-                    print("logcmd_no_merge execute failed")
-                    pass
+                print(f"Repository: {repo_name};\tBranch_name: {branch_name};\tfrom date: {start_fetch_date_str};"
+                      f"\tend date: {end_fetch_date_str}.\t {len(branch_period_commits)} commits has been collected. "
+                      f"\tRepo_url: {repo_url}")
 
-                merge_log = ''
-                try:
-                    merge_log = repo.git.execute(logcmd_merge, shell=True)
-                except:
-                    print("logcmd_merge execute failed")
-                    pass
+                start_fetch_date = end_fetch_date
 
-                no_merged_commit = self.parse_commit(no_merge_log, datei, repourl, current_branch_name, False)
-                merged_commit = self.parse_commit(merge_log, datei, repourl, current_branch_name, True)
-
-                branch_commits.extend(merged_commit)
-                branch_commits.extend(no_merged_commit)
-
-                temp_dateii = datetime.datetime.strftime(dateii, "%Y-%m-%d")
-                temp_datei = datetime.datetime.strftime(datei, "%Y-%m-%d")
-                print(
-                    f"Repository: {repo_name}\tBranch_name: {branch_name} \t from date: {temp_datei}  end date: {temp_dateii}.\t {len(no_merged_commit) + len(merged_commit)} commits has been collected.")
-                datei = dateii
-
-                if dateii > datenow:
+                if end_fetch_date > today:
                     break
-
+            print(f"\nRepository: {repo_name};\tBranch_name: {branch_name};"
+                  f"\t{len(branch_commits)} commits has been collected.")
             repo_commit_list.extend(branch_commits)
-        self.success_parsed_repo_count += 1
+
+        print(f"\nRepository: {repo_name}; \t\t{len(repo_commit_list)} commits has been collected.")
+
         return repo_commit_list
 
-    def parse_commit(self, log, log_date, repourl, branch_name, is_merged):
-        results = []
-        if not log:
-            return results
+    def get_period_commit_log(self, repo, start_date_str, end_date_str):
+        log_dict = {}
+        logcmd_base = f'git log --after={end_date_str} --before={start_date_str} --shortstat --pretty=format:"@@@***@@@%n%an;;;%n%ae;;;%n%cd;;;%n%H;;;%n%s;;;%n%b;;;%n%N"' \
+                      f' --date=format:"%Y-%m-%dT%H:%M:%S%z"'
+        logcmd_merge = logcmd_base + " --merges"
+        logcmd_no_merge = logcmd_base + " --no-merges"
 
-        repo = repourl.split('/')[-1]
+        no_merge_log = ''
+        try:
+            no_merge_log = repo.git.execute(logcmd_no_merge, shell=True)
+        except Exception as ex:
+            print(ex.__repr__())
+            print("logcmd_no_merge execute failed")
+        merge_log = ''
+        try:
+            merge_log = repo.git.execute(logcmd_merge, shell=True)
+        except Exception as ex:
+            print(ex.__repr__())
+            print("logcmd_merge execute failed")
 
-        commit_logs = log.split('@@@***@@@')
-        commit_logs.remove('')
+        log_dict['merge_log'] = merge_log
+        log_dict['no_merge_log'] = no_merge_log
 
-        if is_merged:
-            for commit_log in commit_logs:
-                result = self.parse_commit_log(commit_log, log_date)
-                result['project'] = repo
-                result['repo'] = repourl
-                result['is_merged'] = 1
+        return log_dict
 
-                result['branch_name'] = branch_name
-                results.append(result)
+    def process_commit_log_dict(self, commit_log_dict, repo):
+        result = []
 
-        else:
-            for commit_log in commit_logs:
-                result = self.parse_commit_log(commit_log, log_date)
-                result['project'] = repo
-                result['repo'] = repourl
-                result['project'] = repo
-                result['repo'] = repourl
-                result['is_merged'] = 0
-                result['branch_name'] = branch_name
+        merge_log = commit_log_dict.get('merge_log')
+        no_merge_log = commit_log_dict.get('no_merge_log')
 
-                results.append(result)
+        if merge_log:
+            merge_commit_list = merge_log.split('@@@***@@@')
+            merge_commit_list.remove('')
+            for merge_commit in merge_commit_list:
+                commit_result = self.parse_each_commit_log(repo, merge_commit, 1)
+                result.append(commit_result)
 
-        return results
+        if no_merge_log:
+            no_merge_log_list = no_merge_log.split('@@@***@@@')
+            no_merge_log_list.remove('')
+            for no_merge_commit in no_merge_log_list:
+                commit_result = self.parse_each_commit_log(repo, no_merge_commit, 0)
+                result.append(commit_result)
 
-    def parse_commit_log(self, commit_log, log_date):
-        # parse commit log and assemble data
+        return result
+
+    def parse_each_commit_log(self, repo, commit_log, is_merged):  # parse commit log and assemble data
 
         if not commit_log:
             return None
-
+        commit_log = commit_log.strip()
+        branch_name = repo.head.reference.name
+        repo_name = repo.working_tree_dir.split(os.sep)[-1]
         split_list = commit_log.split(";;;")
 
-        email = split_list[1]
-        author = self.get_author(split_list)
-        date_str = log_date.strftime("%Y-%m-%d")
-        time_str = split_list[2].split()[3]
+        author = self.get_author(split_list).strip()
+        email = split_list[1].strip()
 
-        # there are two dilemma in commit log: has time zone and has no time zone, such as  'Tue Jan 7 18:09:19 2020'  and 'Tue Feb 2 17:00:42 2021 +0800'. Give two solutions for them.
-        try:
-            time_zone = split_list[2].split()[5]
-            time_zone = time_zone[:-2] + ':' + time_zone[-2:]
-        except IndexError:
-            time_zone = None
+        commit_datetime_str = split_list[2].strip()
 
-        # search the company of author then write into dict
+        # search the company for the author then write into dict
         company_name = self.find_company(email)
+        commit_id = split_list[3].strip()
+        title = split_list[4].strip()
+        commit_content = split_list[5].strip()
+        commit_log_modifying_info = split_list[6].strip()
+        commit_log_modifying_dict = self.parse_modifying_info(commit_log_modifying_info)
 
-        if time_zone:
-            preciseness_time_str = date_str + "T" + time_str + time_zone
-        else:
-            preciseness_time_str = date_str + "T" + time_str
-        commit_id = split_list[3]
-
-        try:
-            title = split_list[4]  # In case have no title
-        except:
-            title = None
-
-        commit_content = self.get_commit_content_and_modifyInfo(split_list[5])
-        commit_main_content = commit_content.get("commit_main_content")
-        commit_log_modifying_info = commit_content.get("modifyInfo")
-
-        commit_log_modifying_result = self.parse_modifying_info(commit_log_modifying_info)
-
-        result = {'created_at': preciseness_time_str,
+        ## find out contributor & reviewer
+        commit_contributors = self.get_role_from_commit_main_content(commit_content,
+                                                                     role_keyword='openEuler_contributor')
+        commit_reviewers = self.get_role_from_commit_main_content(commit_content,
+                                                                  role_keyword='openEuler_reviewer')
+        repo_url = self.get_url_from_loca_repo(repo)
+        result = {'created_at': commit_datetime_str,
                   'author': author, 'company': company_name,
                   'email': email, 'commit_id': commit_id,
-                  "file_changed": commit_log_modifying_result.get('file_changed'),
-                  "add": commit_log_modifying_result.get('lines_added'),
-                  'remove': commit_log_modifying_result.get('lines_removed'),
-                  'total': commit_log_modifying_result.get('total'),
-                  "tilte": title,
-                  "commit_main_content": commit_main_content
+                  'file_changed': commit_log_modifying_dict.get('file_changed'),
+                  'add': commit_log_modifying_dict.get('lines_added'),
+                  'remove': commit_log_modifying_dict.get('lines_removed'),
+                  'total': commit_log_modifying_dict.get('total'),
+                  "title": title, 'is_merged': is_merged,
+                  'branch_name': branch_name, 'repo_name': repo_name,
+                  'repo_url': repo_url
                   }
+        if commit_contributors:
+            result['commit_contributors'] = commit_contributors
+        if commit_reviewers:
+            result['commit_contributors'] = commit_reviewers
 
         return result
+
+    def get_url_from_loca_repo(self, repo):
+        remote_urls = repo.remote().urls.__next__()
+        address = remote_urls.split('@')[-1]
+        common_url = 'https://' + address
+        return common_url
 
     def get_commit_content_and_modifyInfo(self, text):
         result = {}
@@ -410,14 +435,14 @@ class GitCommit(object):
 
         return company_name
 
-    def getInfoFromCompany(self):
+    def get_info_from_company(self):
         companyInfo = {}
 
         if not self.user_yaml_url or not self.company_yaml_url:
             return companyInfo
         try:
-            user_filename = self.getYamlFilenameFromUrl(self.user_yaml_url)
-            company_filename = self.getYamlFilenameFromUrl(self.company_yaml_url)
+            user_filename = self.get_yaml_file_name_from_url(self.user_yaml_url)
+            company_filename = self.get_yaml_file_name_from_url(self.company_yaml_url)
             if self.platform_name == 'linux':  ## Get data.yaml and company.yaml from Gitee in linux.
                 cmd = 'wget -N %s' % self.user_yaml_url
                 p = os.popen(cmd.replace('=', ''))
@@ -481,14 +506,14 @@ class GitCommit(object):
                 return last_position
             last_position = position
 
-    def getFromDate(self, from_date, filters):
+    def get_from_date(self, from_date, filters):
         if from_date is None:
             from_date = self.esClient.get_from_create_date(filters)
         else:
             from_date = common.str_to_datetime(from_date)
         return from_date
 
-    def getRepoFromFile(self, file_path_dict):
+    def get_repo_list_from_json_file(self, file_path_dict):
         repo_list = []
         try:
             file_name = file_path_dict.get('file_name')
@@ -513,7 +538,7 @@ class GitCommit(object):
 
         return repo_list
 
-    def getRepoFromGitee(self, gitee_org_list):
+    def get_repo_list_from_Gitee(self, gitee_org_list):
         repo_url_list = []
         gitee_base_url = "https://gitee.com/"
 
@@ -534,22 +559,24 @@ class GitCommit(object):
         print(f'Collected {len(repo_url_list)} repos from Gitee totally.')
         return repo_url_list
 
-    def getRepoFromGithub(self, github_org_list):
+    def get_repo_list_from_GitHub(self, github_org_list):
         repo_url_list = []
         github_base_url = "https://github.com/"
         for org in github_org_list:
+            githubClient = GithubClient(org=org, repository=None, token=None)
             try:
-                github_items = self.gitHubDown.getFullNames(org=org, from_date=None)
-                print(f'Get {len(github_items)} repos from {org} of Github.\n')
+                # github_items = self.gitHubDown.getFullNames(org=org, from_date=None)
+                repo_detail_list = githubClient.getAllRepoDetail()
+                print(f'Get {len(repo_detail_list)} repos from {org} of Github.\n')
             except:
                 print(f'Failed to get repos from {org} of Github.\n')
-            for item in github_items:
-                repo_url = github_base_url + item
+            for item in repo_detail_list:
+                repo_url = github_base_url + item.get('full_name')
                 repo_url_list.append(repo_url)
         print(f'Collected {len(repo_url_list)} repos from Github totally.\n')
         return repo_url_list
 
-    def getRepoFromYamlOnline(self, yaml_url_list=None):
+    def get_repo_from_online_yaml_file(self, yaml_url_list=None):
         repos = []
 
         if not yaml_url_list:
@@ -591,7 +618,7 @@ class GitCommit(object):
         action += json.dumps(body) + '\n'
         return action
 
-    def getYamlFilenameFromUrl(self, url):
+    def get_yaml_file_name_from_url(self, url):
         segment_list = url.split('/')
         return segment_list[-1]
 
@@ -603,7 +630,7 @@ class GitCommit(object):
         else:
             raise
 
-    def removeLocalRepo(self, path):
+    def remove_local_repo(self, path):
         repo_name = path.split('/')[-1]
         # Delete local repo directory after collecting over
         try:
@@ -618,3 +645,69 @@ class GitCommit(object):
             print(f'Error!!!  Failed to remove local repo directory.\n')
             return False
         return True
+
+    def get_role_from_commit_main_content(self, content, role_keyword):
+
+        try:
+            if not content:
+                return None
+            role_email_list = []
+            content_lines = content.split('\n')
+
+            for line in content_lines:
+                line = line.strip()
+                if role_keyword.lower() in line.lower():
+                    contributor_email = re.compile(r'<.*@\w*.\w*>').findall(line)[0]
+                    role_email_list.append(contributor_email[1:-1])
+
+            return ';\n'.join(role_email_list)
+        except Exception as e:
+            print(f'Occur error at function: {sys._getframe().f_code.co_name}')
+            raise e
+
+    def remove_git_index_lock_file(self, repo):
+        try:
+            repo_dir = repo.common_dir
+
+            index_lock_file_path = os.path.join(repo_dir, 'index.lock')
+            index_file_path = os.path.join(repo_dir, 'index')
+
+            if self.platform_name == 'linux':
+                if os.path.exists(index_lock_file_path):
+                    os.system(f'rm -f {index_lock_file_path}')
+                elif os.path.exists(index_file_path):
+                    os.system(f'rm -f {index_file_path}')
+
+            if self.platform_name == 'windows':
+                if os.path.exists(index_lock_file_path):
+                    os.remove(index_lock_file_path)
+                elif os.path.exists(index_file_path):
+                    os.remove((index_file_path))
+        except Exception as ex:
+            print(f'Occur a error in function: remove_git_index_lock_file. The error is:\n {repr(ex)}')
+            raise FileNotFoundError
+
+    def generate_record_id(self, commit):
+        try:
+            id_str = ''
+            for field in commit:
+                id_str += str(commit.get(field))
+            id = hash(id_str)
+            return id
+        except:
+            print('Occur error in function: generate_record_id')
+            return None
+
+    def is_dir_git_repo(self, path):
+        ## justify the path is whether a git repo or not
+
+        if not os.path.exists:
+            return False
+        check_command = 'git rev-parse --is-inside-work-tree'
+        process = subprocess.Popen(check_command, stdout=subprocess.PIPE, cwd=path, universal_newlines=True, shell=True)
+        process_output = process.communicate()
+        is_git_repo = process_output[0].strip()
+        if is_git_repo == 'true':
+            return True
+
+        return False
