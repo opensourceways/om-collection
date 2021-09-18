@@ -263,7 +263,7 @@ class Gitee(object):
             sig_names = self.repo_sigs_dict[org + '/' + repo_name]
 
         print('*****writeForkSingleRepo start: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
-        self.writeForks(org, repo_name, is_public, from_time, sig_names)
+        self.writeForks(org, repo_name, from_time, sig_names)
         print('*****writeForkSingleRepo end: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
 
     def writeRepoSingleRepo(self, org, repo, from_time=None):
@@ -274,7 +274,7 @@ class Gitee(object):
             sig_names = self.repo_sigs_dict[org + '/' + repo_name]
 
         print('*****writeRepoData start: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
-        self.writeRepoData(org, repo_name, is_public, from_time, sig_names)
+        self.writeRepoData(org, repo_name, from_time, sig_names)
         print('*****writeRepoData end: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
 
     def writePullSingleRepo(self, org, repo, from_time=None):
