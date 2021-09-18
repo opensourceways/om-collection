@@ -902,6 +902,8 @@ class Gitee(object):
                         data += json.loads(res_data.decode('utf-8'))
                 else:
                     data = json.loads(response)
+                    if isinstance(data, dict):
+                        data = []
                     break
         except StopIteration:
             return data
