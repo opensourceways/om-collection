@@ -377,7 +377,7 @@ class Gitee(object):
                 "value": gitee_repo,
             }
         ]'''
-        if newdata is None or len(newdata) == 0:
+        if newdata is None or len(newdata) == 0 or not isinstance(newdata, list):
             return
         data = self.esClient.getItemsByMatchs(matches)
         newdataids = []
