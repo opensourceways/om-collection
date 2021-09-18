@@ -61,12 +61,20 @@ class GithubClient(object):
         # refresh the access token
         # self._refresh_access_token()
 
-    def getAllrepo(self):
-        full_names = []
-        r = requests.get('https://api.github.com/users/' + self.org + '/repos' + '?pape=1&per_page=10000',
-                         headers=self.headers)
-        data = r.json()
-        return data
+    def getAllRepoDetail(self):
+        repo_detail_list = []
+
+        current_page = 1
+        while True:
+            url = f'https://api.github.com/orgs/{self.org}/repos?page={current_page}&per_page=100'
+            res = requests.get(url, headers=self.headers)
+            data = res.json()
+            if not data:  ## if data is a empty list, break loop
+                break
+            repo_detail_list.extend(data)
+            current_page += 1
+
+        return repo_detail_list
 
     def getUserByName(self, name):
         headers = self.headers
