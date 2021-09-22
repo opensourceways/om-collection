@@ -158,7 +158,7 @@ class UpDownRatio(object):
                                         "1": {
                                           "terms": {
                                             "field": "ip.keyword",
-                                            "size": 20000
+                                            "size": 30000
                                           },
                                           "aggs": {
                                             "2": {
@@ -219,8 +219,6 @@ class UpDownRatio(object):
         keys = self.user_count_key.split(";")
         for i in range(len(keys)):
             for item, days in self.item_days.items():
-                if keys[i] != 'download_ip_count':
-                    continue
                 key = keys[i] + '_' + item
                 self.user_count_up_down_ratio(key=key, before_days=days, query_str=querys[i])
 
