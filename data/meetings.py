@@ -12,7 +12,7 @@ class Meetings(object):
 
     def __init__(self, config=None):
         self.config = config
-        self.org = config.get('org')
+        self.org = config.get('org', '')
         self.target_es_url = config.get('target_es_url')
         self.target_authorization = config.get('target_authorization')
         self.index_name = config.get('index_name')
@@ -30,6 +30,8 @@ class Meetings(object):
     def get_all_meetings(self):
         print('get all meetings start...')
         url = self.meetings_url + "allmeetings/?token=" + self.query_token
+        if self.org == 'mindspore':
+            url = self.meetings_url + "meetingslist/?token=" + self.query_token
         res = requests.get(url=url, headers=self.headers)
         if res.status_code != 200:
             print('request fail, code=%d' % res.status_code)
