@@ -12,6 +12,7 @@ class Meetings(object):
 
     def __init__(self, config=None):
         self.config = config
+        self.org = config.get('org', '')
         self.target_es_url = config.get('target_es_url')
         self.target_authorization = config.get('target_authorization')
         self.index_name = config.get('index_name')
@@ -29,6 +30,8 @@ class Meetings(object):
     def get_all_meetings(self):
         print('get all meetings start...')
         url = self.meetings_url + "allmeetings/?token=" + self.query_token
+        if self.org == 'mindspore':
+            url = self.meetings_url + "meetingslist/?token=" + self.query_token
         res = requests.get(url=url, headers=self.headers)
         if res.status_code != 200:
             print('request fail, code=%d' % res.status_code)
@@ -40,6 +43,8 @@ class Meetings(object):
             i["duration_time"] = int(meet_date.seconds)
             participants = self.get_participants_by_meet(i.get("mid"))
             i["total_records"] = participants.get("total_records", 0)
+            if self.org == 'mindspore':
+                i["total_records"] = participants.get("total_count", 0)
             i["participants"] = participants.get("participants", [])
             company = 'independent'
             if i['sponsor'] in self.esClient.giteeid_company_dict:
