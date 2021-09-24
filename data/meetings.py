@@ -19,7 +19,7 @@ class Meetings(object):
         self.esClient = ESClient(config)
         self.meetings_url = config.get('meetings_url')
         self.headers = {'Content-Type': 'application/json', 'Authorization': config.get('authorization')}
-        self.user_headers = config.get('user_headers', 'true')
+        self.use_headers = config.get('use_headers', 'true')
         self.query_token = config.get('query_token')
 
     def run(self, from_time):
@@ -33,7 +33,7 @@ class Meetings(object):
         url = self.meetings_url + "allmeetings/?token=" + self.query_token
         if self.org == 'mindspore':
             url = self.meetings_url + "meetingslist/?token=" + self.query_token
-        if self.user_headers == 'true':
+        if self.use_headers == 'true':
             res = requests.get(url=url, headers=self.headers)
         else:
             res = requests.get(url=url)
