@@ -565,6 +565,9 @@ class Gitee(object):
     def writeRepoData(self, owner, repo, from_date=None, sig_names=None):
         client = GiteeClient(owner, repo, self.gitee_token)
         repo_data = self.getGenerator(client.repo())
+        if len(repo_data) == 0:
+            print("The repo info not exist. repo", repo)
+            return
         actions = ""
         repo_detail = {
             "created_at": repo_data["created_at"],
