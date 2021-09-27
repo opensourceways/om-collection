@@ -13,25 +13,20 @@ class OBS(object):
         self.index_name = config.get('index_name')
         self.target_index_name = config.get('target_index_name')
         self.esClient = ESClient(config)
+        self.from_date = config.get('from_date')
 
     def run(self, datatime=None):
+        if self.from_date is None:
+            self.from_date = datetime.datetime.today().strftime('%Y-%m') + "-01"
 
         packagenames = self.esClient.getObsAllPackageName()
-
-
         for i in packagenames["aggregations"]["each_project"]["buckets"]:
-
-
             packagename = i["key"]
-
-            # if packagename < "ukui-sidebar":
-            #     continue
-
-
             print(packagename)
+            if ':' in packagename:
+                packagename = str(packagename).replace(":", "\\\\:")
 
-
-            res = self.esClient.getObsSumAndCount(packagename)
+            res = self.esClient.getObsSumAndCount(packagename, self.from_date)
             actions = ''
             for i in res["aggregations"]["each_month"]["buckets"]:
                 time = i["key_as_string"]

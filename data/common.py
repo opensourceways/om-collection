@@ -95,60 +95,69 @@ class ESClient(object):
             return {}
         return res.json()
 
-    def getObsSumAndCount(self, packagename):
+    def getObsSumAndCount(self, packagename, current_month_first_date):
         search_json = '''{
-                 "size": 0,
-                 "query": {
-                   "bool": {
-                     "must": [
-                       {
-       				  "term": {
-       					"success": "1"
-       				  }
-       				},
-                       {
-                         "match": {
-                           "package.keyword": "%s"
-                         }
-                       }
-                     ]
-                   }
-                 },
-                 "aggs": {
-                   "each_month": {
-                     "date_histogram": {
-                       "field": "created_at",
-                       "interval": "month",
-                       "format": "yyyy-MM-dd"
-                     },
-                     "aggs": {
-                       "each_project": {
-                         "terms": {
-                           "size": 50,
-                           "field": "project.keyword",
-                           "order": {
-                             "_term": "asc"
-                           }
-                         },
-                         "aggs": {
-                           "each_hostarch": {
-                             "terms": {
-                               "field": "hostarch.keyword"
-                             },
-                             "aggs": {
-                               "avg_duration": {
-                                 "avg": {
-                                   "field": "duration"
-                                 }
-                               }
-                             }
-                           }
-                         }
-                       }
-                     }
-                   }
-                 }
-               }''' % (packagename)
+                      "size": 0,
+                      "query": {
+                        "bool": {
+                          "filter": [
+                            {
+                              "range": {
+                                "created_at": {
+                                  "gte": "%s",
+                                  "lte": "now"
+                                }
+                              }
+                            },
+                            {
+                              "term": {
+                                "success": "1"
+                              }
+                            },
+                            {
+                              "query_string": {
+                                "analyze_wildcard": true,
+                                "query": "package.keyword:%s"
+                              }
+                            }
+                          ]
+                        }
+                      },
+                      "aggs": {
+                        "each_month": {
+                          "date_histogram": {
+                            "field": "created_at",
+                            "interval": "month",
+                            "format": "yyyy-MM-dd"
+                          },
+                          "aggs": {
+                            "each_project": {
+                              "terms": {
+                                "size": 50,
+                                "field": "project.keyword",
+                                "order": {
+                                  "_term": "asc"
+                                }
+                              },
+                              "aggs": {
+                                "each_hostarch": {
+                                  "terms": {
+                                    "field": "hostarch.keyword"
+                                  },
+                                  "aggs": {
+                                    "avg_duration": {
+                                      "avg": {
+                                        "field": "duration"
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }''' % (current_month_first_date, packagename)
         res = requests.get(self.getSearchUrl(index_name=self.index_name), data=search_json,
                            headers=self.default_headers, verify=False)
         if res.status_code != 200:
