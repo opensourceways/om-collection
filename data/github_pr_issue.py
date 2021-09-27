@@ -98,7 +98,7 @@ class GitHubPrIssue(object):
                     'github_repo': self.org + '/' + repo,
                     'is_github_pr_review': 1,
                 }
-                index_id = 'pr_review_' + str(pr_num) + '_' + str(review['id'])
+                index_id = 'pr_review_' + repo + '_' + str(pr_num) + '_' + str(review['id'])
                 index_data = {"index": {"_index": self.index_name, "_id": index_id}}
                 review_actions += json.dumps(index_data) + '\n'
                 review_actions += json.dumps(reviews_data) + '\n'
@@ -125,7 +125,7 @@ class GitHubPrIssue(object):
                     'is_github_pr_comment': 1,
                     'is_github_comment': 1,
                 }
-                index_id = 'pr_comment_' + str(pr_num) + '_' + str(comment['id'])
+                index_id = 'pr_comment_' + repo + '_' + str(pr_num) + '_' + str(comment['id'])
                 index_data = {"index": {"_index": self.index_name, "_id": index_id}}
                 comment_actions += json.dumps(index_data) + '\n'
                 comment_actions += json.dumps(comments_data) + '\n'
@@ -154,7 +154,7 @@ class GitHubPrIssue(object):
             if comments:
                 pr_data['pr_comment_count'] = len(comments)
                 pr_data['pr_comment_first'] = min(comment_times)
-            index_id = 'pr_' + str(pr_num)
+            index_id = 'pr_' + repo + '_' + str(pr_num)
             index_data = {"index": {"_index": self.index_name, "_id": index_id}}
             actions += json.dumps(index_data) + '\n'
             actions += json.dumps(pr_data) + '\n'
@@ -192,7 +192,7 @@ class GitHubPrIssue(object):
                     'is_github_issue_comment': 1,
                     'is_github_comment': 1,
                 }
-                index_id = 'issue_comment_' + str(issue_num) + '_' + str(comment['id'])
+                index_id = 'issue_comment_' + repo + '_' + str(issue_num) + '_' + str(comment['id'])
                 index_data = {"index": {"_index": self.index_name, "_id": index_id}}
                 comment_actions += json.dumps(index_data) + '\n'
                 comment_actions += json.dumps(comments_data) + '\n'
@@ -217,7 +217,7 @@ class GitHubPrIssue(object):
             if comments:
                 issue_data['issue_comment_count'] = len(comments)
                 issue_data['issue_comment_first'] = min(comment_times)
-            index_id = 'issue_' + str(issue_num)
+            index_id = 'issue_' + repo + '_' + str(issue_num)
             index_data = {"index": {"_index": self.index_name, "_id": index_id}}
             actions += json.dumps(index_data) + '\n'
             actions += json.dumps(issue_data) + '\n'
