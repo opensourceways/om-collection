@@ -48,7 +48,8 @@ class GitCommit(object):
         self.is_remove_local_repo_immediate = config.get('is_remove_local_repo_immediate')
         self.lock = threading.Lock()
         self.end_collect_date_str = config.get('end_collect_date_str')
-        self.max_thread_num = config.get('max_thread_num')
+        self.max_thread_num_str = config.get('max_thread_num_str')
+        self.period_day_num_str = config.get('period_day_num_str')
 
     def run(self, start_time):
         start_point_time = datetime.utcnow()
@@ -70,10 +71,11 @@ class GitCommit(object):
     def main_process(self):
 
         thread_func_args = self.get_thread_funcs(self.from_date_str)
-        if not self.max_thread_num:
-            self.max_thread_num = 1
-        self.max_thread_num = eval(self.max_thread_num)
-        common.writeDataThread(thread_func_args, max_thread_num=self.max_thread_num)
+        if not self.max_thread_num_str:
+            max_thread_num = 1
+        else:
+            max_thread_num = eval(self.max_thread_num_str)
+        common.writeDataThread(thread_func_args, max_thread_num=max_thread_num)
 
         print(f'\n\nGame Over!\tProcessing info as follows:')
         print(f'Community name: {self.community_name}')
@@ -97,7 +99,6 @@ class GitCommit(object):
         values = []
 
         self.repo_url_list = self.get_repos_from_sources(self.repo_source_dict)
-
         self.total_repos_count = len(self.repo_url_list)
         self.success_process_repo_count = 0
         self.failed_process_repo_count = 0
@@ -278,60 +279,70 @@ class GitCommit(object):
 
             from_date = datetime.strptime(from_date_str, '%Y-%m-%d')
             start_fetch_date = from_date
+            today = datetime.today()
 
             if self.end_collect_date_str:
                 final_end_fetch_date = datetime.strptime(self.end_collect_date_str, '%Y%m%d')
+                if final_end_fetch_date > today:
+                    final_end_fetch_date = today
             else:
                 final_end_fetch_date = datetime.today()
             final_end_fetch_date_str = final_end_fetch_date.strftime('%Y%m%d')
 
+            if not self.period_day_num_str:
+                period_day_num = 3
+            else:
+                period_day_num = eval(self.period_day_num_str)
+
             branch_commits = []
             while True:  # pull, parse, assemble commit records
-                start_fetch_date_str = start_fetch_date.strftime('%Y-%m-%d')
-                end_fetch_date = start_fetch_date + timedelta(days=3)
-                end_fetch_date_str = end_fetch_date.strftime('%Y-%m-%d')
+                start_fetch_date_str = start_fetch_date.strftime('%Y-%m-%d %X')
+                end_fetch_date = start_fetch_date + timedelta(days=period_day_num)
 
+                if end_fetch_date > final_end_fetch_date:
+                    end_fetch_date = final_end_fetch_date
+
+                end_fetch_date_str = end_fetch_date.strftime('%Y-%m-%d %X')
                 commit_log_dict = self.get_period_commit_log(repo, end_fetch_date_str, start_fetch_date_str)
                 branch_period_commits = self.process_commit_log_dict(commit_log_dict, repo)
-
                 branch_commits.extend(branch_period_commits)
 
-                print(f"Repository: {repo_name};\tBranch_name: {branch_name};\tfrom date: {start_fetch_date_str};"
-                      f"\tend date: {end_fetch_date_str}.\t {len(branch_period_commits)} commits has been collected. "
-                      f"\tRepo_url: {repo_url}")
+                print(f'Repository: {repo_name};\tBranch_name: {branch_name};\tfrom date: {start_fetch_date_str};'
+                      f'\tend date: {end_fetch_date_str}.\t {len(branch_period_commits)} commits has been collected. '
+                      f'\tRepo_url: {repo_url}')
 
                 start_fetch_date = end_fetch_date
 
-                if end_fetch_date > final_end_fetch_date:
+                if end_fetch_date == final_end_fetch_date:
                     break
-            print(f"\nRepository: {repo_name};\tBranch_name: {branch_name};"
-                  f"\t{len(branch_commits)} commits has been collected.")
+            print(f'\nRepository: {repo_name};\tBranch_name: {branch_name};'
+                  f'\t{len(branch_commits)} commits has been collected.')
             repo_commit_list.extend(branch_commits)
 
-        print(f"\nRepository: {repo_name}; \t\t{len(repo_commit_list)} commits has been collected.")
+        print(f'\nRepository: {repo_name}; \t\t{len(repo_commit_list)} commits has been collected.')
         print(f'from {from_date_str}\t to {final_end_fetch_date_str}')
 
         return repo_commit_list
 
     def get_period_commit_log(self, repo, start_date_str, end_date_str):
         log_dict = {}
-        logcmd_base = f'git log --after={end_date_str} --before={start_date_str} --shortstat --pretty=format:"@@@***@@@%n%an;;;%n%ae;;;%n%cd;;;%n%H;;;%n%s;;;%n%b;;;%n%N"' \
+        logcmd_base = f'git log --after="{end_date_str}" --before="{start_date_str}" --shortstat --pretty=format:"@@@***@@@%n%an;;;%n%ae;;;%n%cd;;;%n%H;;;%n%s;;;%n%b;;;%n%N"' \
                       f' --date=format:"%Y-%m-%dT%H:%M:%S%z"'
-        logcmd_merge = logcmd_base + " --merges"
-        logcmd_no_merge = logcmd_base + " --no-merges"
+        logcmd_merge = logcmd_base + ' --merges'
+        logcmd_no_merge = logcmd_base + ' --no-merges'
 
         no_merge_log = ''
         try:
             no_merge_log = repo.git.execute(logcmd_no_merge, shell=True)
         except Exception as ex:
             print(ex.__repr__())
-            print("logcmd_no_merge execute failed")
+            print('logcmd_no_merge execute failed')
         merge_log = ''
         try:
             merge_log = repo.git.execute(logcmd_merge, shell=True)
         except Exception as ex:
             print(ex.__repr__())
-            print("logcmd_merge execute failed")
+            print('logcmd_merge execute failed')
 
         log_dict['merge_log'] = merge_log
         log_dict['no_merge_log'] = no_merge_log
@@ -361,19 +372,39 @@ class GitCommit(object):
         return result
 
     def parse_each_commit_log(self, repo, commit_log, is_merged):
-        # parse each commit log, then assemble data body
-        # input likes:
-        # '''
-        # hwx5333735;;;
-        # haoxiangyu3@huawei.com;;;
-        # Thu Sep 3 19:52:22 2020 +0800;;;
-        # 2c2bb377080f6e962164f90eb1100d43f1700c89;;;
-        # sig优化;;;
-        # sig优化
-        # ;;;
-        #
-        #  1 file changed, 1 insertion(+), 1 deletion(-)
-        # '''
+
+        '''
+        :param repo: local repo object comes from GitPython
+        :param commit_log:
+            specific_user_name;;;
+            specific_email@huawei.com;;;
+            Thu Sep 3 19:52:22 2020 +0800;;;
+            2c2bb377080f6e962982749340d43f1700c89;;;
+            sig优化;;;
+            sig优化
+            ;;;
+            1 file changed, 1 insertion(+), 1 deletion(-)
+        :param is_merged: 0 or 1, marked the commit_log is merged or no merged commit
+        :return: format output data, like follows:
+            {
+            'created_at': '2021-07-27T01:32:01+00:00',
+            'author': 'opengauss-bot',
+            'company': 'Huawei',
+            'email': 'person_email@huawei.com',
+            commit_id': '8a98a77d57b32b84422345fagdf82095615732d3636cc7',
+            'file_changed': 15,
+            'add': 12,
+            'remove': 21,
+            'total': 33,
+            'tilte': '!4 bugfix Merge pull request !4 from chenxiaobin/master',
+            'is_merged': 1,
+            'commit_main_content': '',
+            'branch_name': 'master',
+            'project': 'openGauss-tools-ora2og',
+            'repo_org': 'opengauss-mirror',
+            'repo_url': 'https://github.com/opengauss-mirror/openGauss-tools-ora2og'
+            }
+        '''
 
         if not commit_log:
             return None
@@ -400,6 +431,7 @@ class GitCommit(object):
         commit_contributors = self.get_role_from_commit_content(commit_content, 'openEuler_contributor')
         commit_reviewers = self.get_role_from_commit_content(commit_content, 'openEuler_reviewer')
         repo_url = self.get_url_from_local_repo(repo)
+        repo_org = repo_url.split('/')[-2]
         result = {'created_at': commit_datetime_str,
                   'author': author, 'company': company_name,
                   'email': email, 'commit_id': commit_id,
@@ -407,9 +439,10 @@ class GitCommit(object):
                   'add': commit_log_modifying_dict.get('lines_added'),
                   'remove': commit_log_modifying_dict.get('lines_removed'),
                   'total': commit_log_modifying_dict.get('total'),
-                  "title": title, 'is_merged': is_merged,
-                  'branch_name': branch_name, 'repo_name': repo_name,
-                  'repo_url': repo_url
+                  'tilte': title, 'is_merged': is_merged,
+                  'commit_main_content': commit_content,
+                  'branch_name': branch_name, 'project': repo_name,
+                  'repo_org': repo_org, 'repo_url': repo_url
                   }
         if commit_contributors:
             result['commit_contributors'] = commit_contributors
@@ -428,6 +461,13 @@ class GitCommit(object):
         return common_url
 
     def parse_modifying_info(self, info_line):
+        '''
+        :param info_line: info string
+            2 file changed, 5 insertion(+), 7 deletion(-)
+        :return:
+            {'file_changed': 2, 'lines_added': 5, 'lines_removed': 7, 'total': 12}
+        '''
+
         modify_info = {}
 
         if not info_line:
@@ -436,23 +476,17 @@ class GitCommit(object):
         file_changed = 0
         lines_added = 0
         lines_removed = 0
-
         info_line = info_line.strip()
-        file_pos = info_line.find("file")
-        add_pos = info_line.find("insertion")
-        del_pos = info_line.find("deletion")
+        if info_line.__contains__('file changed'):
+            change_file_info_str = info_line.split('file changed')[0]
+            file_changed = int(change_file_info_str.strip())
+        if info_line.__contains__('insertion'):
+            lines_added_info_str = info_line.split('insertion')[0].split(',')[-1]
+            lines_added = int(lines_added_info_str.strip())
+        if info_line.__contains__('deletion'):
+            lines_removed_info_str = info_line.split('deletion')[0].split(',')[-1]
+            lines_removed = int(lines_removed_info_str.strip())
 
-        if add_pos != -1:
-            lines_added_str = info_line[int(info_line.find(",") + 1):int(add_pos)]
-            lines_added = int(lines_added_str.strip())
-        if del_pos != -1:
-            lines_removed_str = info_line[int(self.find_last(info_line, ",") + 1):int(del_pos)]
-            lines_removed = int(lines_removed_str.strip())
-        if file_pos != -1:
-            try:
-                file_changed = int(info_line[:file_pos].strip())
-            except:
-                print("Cannot get file_changed number")
         modify_info["file_changed"] = file_changed
         modify_info["lines_added"] = lines_added
         modify_info["lines_removed"] = lines_removed
@@ -545,14 +579,6 @@ class GitCommit(object):
                 author = user['user_name']
                 break
         return author
-
-    def find_last(self, string, str):
-        last_position = -1
-        while True:
-            position = string.find(str, last_position + 1)
-            if position == -1:
-                return last_position
-            last_position = position
 
     def get_from_date(self, from_date, filters):
         if from_date is None:
