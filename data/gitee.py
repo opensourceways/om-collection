@@ -1674,6 +1674,7 @@ class Gitee(object):
                         user['user_login'] = user['login']
                         user['user_name'] = user['name']
                         user['author_name'] = user['name']
+                        user['org_name'] = self.orgs[index]
                         userExtra = self.esClient.getUserInfo(user['login'])
                         user.update(userExtra)
                         action = common.getSingleAction(self.index_name_all[index], id, user)
