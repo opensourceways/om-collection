@@ -1672,6 +1672,7 @@ class Gitee(object):
                         user['created_at'] = user['followed_at'].replace('Z', '+08:00')
                         user['is_set_sigs_star'] = 1
                         user['user_login'] = user['login']
+                        user['user_id'] = user['id']
                         user['user_name'] = user['name']
                         user['author_name'] = user['name']
                         user['org_name'] = self.orgs[index]
