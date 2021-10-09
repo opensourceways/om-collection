@@ -243,6 +243,15 @@ class GithubClient(object):
         self.get_data(url=url, params=params, current_page=1, datas=datas)
         return datas
 
+    def get_swf(self, owner, repo, item):
+        url = self.urijoin(BASE_URL, 'repos', owner, repo, item)
+        params = {
+            'per_page': MAX_CATEGORY_ITEMS_PER_PAGE
+        }
+        datas = []
+        self.get_data(url=url, params=params, current_page=1, datas=datas)
+        return datas
+
     def get_pr(self, owner, repo):
         url = self.urijoin(BASE_URL, 'repos', owner, repo, 'pulls')
         params = {
