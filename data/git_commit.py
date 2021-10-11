@@ -78,14 +78,26 @@ class GitCommit(object):
         common.writeDataThread(thread_func_args, max_thread_num=max_thread_num)
 
         print(f'\n\nGame Over!\tProcessing info as follows:')
+        print(f'from date:{self.from_date_str}\tend date:{self.final_end_fetch_date_str}')
         print(f'Community name: {self.community_name}')
         print(f'Total repos count: {self.total_repos_count}')
         print(f'Total repos which have been processed successfully: {self.success_process_repo_count}')
         print(f'Total commits which collected from these processed repos: {self.total_commit_count}')
         print(f'Total repos which have failed to process: {self.failed_process_repo_count}')
-        print(f'Failed to process repos are:')
-        for repo_name in self.failed_clone_repos:
-            print(repo_name)
+
+        if self.failed_clone_repos:
+            print(f'Failed to process repos are:')
+            print(self.failed_clone_repos, '\n')
+
+        tracked_repo = []
+        for repo_url in self.success_process_repo_commit_info_dict:
+            tracked_repo.append(repo_url)
+        tracked_repo.extend(self.failed_clone_repos)
+
+        missed_repo = list(set(self.repo_url_list).difference(set(tracked_repo)))
+        if missed_repo:
+            print(f'Missed repos are:')
+            print(missed_repo)
 
     def get_thread_funcs(self, from_date_str):
 
@@ -99,12 +111,14 @@ class GitCommit(object):
         values = []
 
         self.repo_url_list = self.get_repos_from_sources(self.repo_source_dict)
+
         self.total_repos_count = len(self.repo_url_list)
         self.success_process_repo_count = 0
         self.failed_process_repo_count = 0
         self.reside_process_repo_count = self.total_repos_count
         self.failed_clone_repos = []
         self.total_commit_count = 0
+        self.success_process_repo_commit_info_dict = {}
 
         print(f"From date: {from_date_str}, Collected {self.total_repos_count} "
               f"repositories in  {self.community_name} community totally.\n")
@@ -144,25 +158,32 @@ class GitCommit(object):
         with self.lock:
             self.reside_process_repo_count -= 1
         print(f'Progress: processing the {repo_name}; Has {self.reside_process_repo_count} repos left.')
+
+        if repo_name == 'openGauss-distributed-solutions':
+            print('stop')
+
         repo = self.prepare_local_repo(repo_url)  # Clone repo to local
         if not repo:
             print(f'Failed to prepare the repo: {repo_name}')
             with self.lock:
-                self.failed_clone_repos.append(repo_name)
+                self.failed_clone_repos.append(repo_url)
                 self.failed_process_repo_count += 1
             return
-        repo_commit_list = self.get_commit_from_each_repo(from_date_str, repo)  # Get commits from each branch
 
-        ### Delete local repo after get its commit to reserve enough space for other repo
-        if self.is_remove_local_repo_immediate and eval(self.is_remove_local_repo_immediate):
-            self.remove_local_repo(repo.working_tree_dir)
+        repo_commit_list = self.get_commit_from_each_repo(from_date_str, repo)  # Get commits from each branch
 
         # store a single repo data into ES
         self.push_repo_data_into_es(self.index_name, repo_commit_list, repo)
 
         with self.lock:
+            self.success_process_repo_commit_info_dict[repo_url] = len(repo_commit_list)
             self.total_commit_count += len(repo_commit_list)  ## the total count from all repos
             self.success_process_repo_count += 1
+
+        ### Delete local repo after get its commit to reserve enough space for other repo
+        if self.is_remove_local_repo_immediate and eval(self.is_remove_local_repo_immediate):
+            self.remove_local_repo(repo.working_tree_dir)
+            print(f'Repo {repo_name} has been removed.')
 
         print(f'Completed process repo:{repo_name};\tCollected {len(repo_commit_list)} commits in all.\n')
 
@@ -184,7 +205,7 @@ class GitCommit(object):
 
         action = ''
         for commit in repo_data_list:
-            id = hash(repo_name + '_' + commit['commit_id'])
+            id = repo_name + '_' + commit['commit_id']
             commit_log = common.getSingleAction(index_name, id, commit)
             action += commit_log
 
@@ -266,6 +287,16 @@ class GitCommit(object):
 
         branch_names = self.get_repo_branch_names(repo)  # ensure branch name, then get its commits.
 
+        ## Set final_end_date
+        today = datetime.today()
+        if self.end_collect_date_str:
+            final_end_fetch_date = datetime.strptime(self.end_collect_date_str, '%Y%m%d')
+            if final_end_fetch_date > today:
+                final_end_fetch_date = today
+        else:
+            final_end_fetch_date = today
+        self.final_end_fetch_date_str = final_end_fetch_date.strftime('%Y-%m-%d')
+
         for branch_name in branch_names:
             try:  ## traverse all branches fetch data
                 self.remove_git_index_lock_file(repo)  ## Should remove index.lock before checkout branch
@@ -279,15 +310,6 @@ class GitCommit(object):
 
             from_date = datetime.strptime(from_date_str, '%Y-%m-%d')
             start_fetch_date = from_date
-            today = datetime.today()
-
-            if self.end_collect_date_str:
-                final_end_fetch_date = datetime.strptime(self.end_collect_date_str, '%Y%m%d')
-                if final_end_fetch_date > today:
-                    final_end_fetch_date = today
-            else:
-                final_end_fetch_date = datetime.today()
-            final_end_fetch_date_str = final_end_fetch_date.strftime('%Y%m%d')
 
             if not self.period_day_num_str:
                 period_day_num = 3
@@ -320,7 +342,7 @@ class GitCommit(object):
             repo_commit_list.extend(branch_commits)
 
         print(f'\nRepository: {repo_name}; \t\t{len(repo_commit_list)} commits has been collected.')
-        print(f'from {from_date_str}\t to {final_end_fetch_date_str}')
+        print(f'from {from_date_str}\t to {self.final_end_fetch_date_str}')
 
         return repo_commit_list
 
