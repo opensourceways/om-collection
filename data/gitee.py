@@ -617,7 +617,10 @@ class Gitee(object):
         if var == 'description':
             des = re.compile('%description\s{0,1}\n(.+?)\n{2,}', re.DOTALL).search(spec.__getattribute__('source'))
             if des is None:
-                desc = re.compile(r'%description\s%{(.*)}', re.DOTALL).search(spec.__getattribute__('source')).groups()[0]
+                desc_temp = re.compile(r'%description\s%{(.*)}', re.DOTALL).search(spec.__getattribute__('source'))
+                if desc_temp is None:
+                    return ""
+                desc = desc_temp.groups()[0]
                 desc = desc.split('}')[0]
                 description = re.compile(r'%s\s\\\n(.+?)\n{2,}' % desc, re.DOTALL).search(spec.__getattribute__('source')).groups()
             else:
@@ -637,7 +640,7 @@ class Gitee(object):
             resdata = strsss
         else:
             resdata += data
-        if resdata.endswith('.'):
+        if resdata.endswith('.') or resdata.endswith("}"):
             resdata = resdata[0:len(resdata) - 1]
         return resdata
 
@@ -652,7 +655,10 @@ class Gitee(object):
             try:
                 value = spec.macros[var]
             except:
-                value = spec.macros[str(var).replace("patch", "")]
+                if str(var).replace("patch", "") not in spec.macros:
+                    value = ""
+                else:
+                    value = spec.macros[str(var).replace("patch", "")]
             versionStr = str(versionStr).replace('%{' + var + '}', value)
         self.findVar(versionStr, spec)
 
@@ -905,8 +911,8 @@ class Gitee(object):
                         data += json.loads(res_data.decode('utf-8'))
                 else:
                     data = json.loads(response)
-                    if isinstance(data, dict):
-                        data = []
+                    # if isinstance(data, dict):
+                    #     data = []
                     break
         except StopIteration:
             return data
