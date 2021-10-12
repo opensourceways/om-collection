@@ -70,20 +70,48 @@ class GitCommit(object):
 
     def main_process(self):
 
+        ## Set final_end_date for collecting time window
+        today = datetime.today()
+        if self.end_collect_date_str:
+            final_end_fetch_date = datetime.strptime(self.end_collect_date_str, '%Y%m%d')
+            if final_end_fetch_date > today:
+                final_end_fetch_date = today
+        else:
+            final_end_fetch_date = today
+        self.final_end_fetch_date_str = final_end_fetch_date.strftime('%Y-%m-%d')
+
+        ## Collect functions and repos for multi-thread
         thread_func_args = self.get_thread_funcs(self.from_date_str)
         if not self.max_thread_num_str:
             max_thread_num = 1
         else:
             max_thread_num = eval(self.max_thread_num_str)
+
+        ## Set initial state before processing
+        self.total_repos_count = len(self.repo_url_list)
+        self.success_process_repo_count = 0
+        self.reside_process_repo_count = self.total_repos_count
+        self.failed_clone_repos = []
+        self.total_commit_count = 0
+        self.success_process_repo_commit_info_dict = {}
+
+        print(f"From date: {self.from_date_str}, Collected {self.total_repos_count} unique "
+              f"repositories after removed duplicate ones in  {self.community_name} community totally.\n")
+
+        ## Run multi-thread of collecting functions and store result to es
         common.writeDataThread(thread_func_args, max_thread_num=max_thread_num)
 
+        ## Do statistic of result info:
+        self.failed_clone_repo_count = len(self.failed_clone_repos)
+
         print(f'\n\nGame Over!\tProcessing info as follows:')
-        print(f'from date:{self.from_date_str}\tend date:{self.final_end_fetch_date_str}')
+        print(f'Start time of program:{datetime.now()}')
+        print(f'From date:{self.from_date_str}\tend date:{self.final_end_fetch_date_str}')
         print(f'Community name: {self.community_name}')
-        print(f'Total repos count: {self.total_repos_count}')
-        print(f'Total repos which have been processed successfully: {self.success_process_repo_count}')
+        print(f'Total repos count for processing: {self.total_repos_count}')
+        print(f'Total processed successfully repos count: {self.success_process_repo_count}')
         print(f'Total commits which collected from these processed repos: {self.total_commit_count}')
-        print(f'Total repos which have failed to process: {self.failed_process_repo_count}')
+        print(f'Total repos which have failed to process: {self.failed_clone_repo_count}')
 
         if self.failed_clone_repos:
             print(f'Failed to process repos are:')
@@ -96,8 +124,8 @@ class GitCommit(object):
 
         missed_repo = list(set(self.repo_url_list).difference(set(tracked_repo)))
         if missed_repo:
-            print(f'Missed repos are:')
-            print(missed_repo)
+            print(f'Missed {len(missed_repo)} repos,  as follows:')
+            print(missed_repo, '\n')
 
     def get_thread_funcs(self, from_date_str):
 
@@ -111,17 +139,6 @@ class GitCommit(object):
         values = []
 
         self.repo_url_list = self.get_repos_from_sources(self.repo_source_dict)
-
-        self.total_repos_count = len(self.repo_url_list)
-        self.success_process_repo_count = 0
-        self.failed_process_repo_count = 0
-        self.reside_process_repo_count = self.total_repos_count
-        self.failed_clone_repos = []
-        self.total_commit_count = 0
-        self.success_process_repo_commit_info_dict = {}
-
-        print(f"From date: {from_date_str}, Collected {self.total_repos_count} "
-              f"repositories in  {self.community_name} community totally.\n")
 
         for repo_url in self.repo_url_list:
             values.append((repo_url, from_date_str))
@@ -154,22 +171,19 @@ class GitCommit(object):
 
     def process_each_repo(self, repo_url, from_date_str):
         self.public_local_repo_path = '/home/repo_clone/local_repo'
+        # self.public_local_repo_path = '/home/repo_clone/local_repo/temp'
         repo_name = repo_url.split("/")[-1]
         with self.lock:
             self.reside_process_repo_count -= 1
         print(f'Progress: processing the {repo_name}; Has {self.reside_process_repo_count} repos left.')
-
-        if repo_name == 'openGauss-distributed-solutions':
-            print('stop')
 
         repo = self.prepare_local_repo(repo_url)  # Clone repo to local
         if not repo:
             print(f'Failed to prepare the repo: {repo_name}')
             with self.lock:
                 self.failed_clone_repos.append(repo_url)
-                self.failed_process_repo_count += 1
             return
-
+        self.track_thread_log(repo_name)
         repo_commit_list = self.get_commit_from_each_repo(from_date_str, repo)  # Get commits from each branch
 
         # store a single repo data into ES
@@ -248,7 +262,6 @@ class GitCommit(object):
                         local_repo.remote().pull()
                 except Exception as ex:
                     print(ex.__repr__())
-                    # raise ex
                     print(f'Failed to pull existed repo:{repo_name}')
                     return None
                 print(f'Pulled the repo: {repo_name} successfully.')
@@ -261,6 +274,9 @@ class GitCommit(object):
                     local_repo = git.Repo().clone_from(clone_url, local_repo_path)
                 print(f'Clone {repo_name} repo successfully.')
             except git.GitCommandError as gitError:
+                if gitError.status == 128:
+                    print(f'Cannot clone repo ({repo_name}) to local since authentication failure to this repo')
+                    return None
                 print(gitError.stderr)
 
                 # openEuler/kernel can be cloned successfully, but still caught a exception
@@ -284,18 +300,9 @@ class GitCommit(object):
         repo_name = repo.working_dir.split(os.sep)[-1]
         repo_commit_list = []
         repo_url = self.get_url_from_local_repo(repo)
-
         branch_names = self.get_repo_branch_names(repo)  # ensure branch name, then get its commits.
-
-        ## Set final_end_date
-        today = datetime.today()
-        if self.end_collect_date_str:
-            final_end_fetch_date = datetime.strptime(self.end_collect_date_str, '%Y%m%d')
-            if final_end_fetch_date > today:
-                final_end_fetch_date = today
-        else:
-            final_end_fetch_date = today
-        self.final_end_fetch_date_str = final_end_fetch_date.strftime('%Y-%m-%d')
+        final_end_fetch_date = datetime.strptime(self.final_end_fetch_date_str, '%Y-%m-%d')
+        self.track_thread_log(repo_name)
 
         for branch_name in branch_names:
             try:  ## traverse all branches fetch data
@@ -336,6 +343,7 @@ class GitCommit(object):
                 start_fetch_date = end_fetch_date
 
                 if end_fetch_date == final_end_fetch_date:
+                    print(f'Reach deadline, collecting is over.')
                     break
             print(f'\nRepository: {repo_name};\tBranch_name: {branch_name};'
                   f'\t{len(branch_commits)} commits has been collected.')
@@ -788,3 +796,13 @@ class GitCommit(object):
             return True
 
         return False
+
+    def track_thread_log(self, repo_name):
+        print(f'\n********Thread tracking info************')
+        print(f'function site: {sys._getframe(1).f_code.co_name}')
+        print(f'code line seq: {sys._getframe().f_lineno}')
+        print(f'repo_name: {repo_name}')
+        print(f'thread name: {threading.currentThread().getName()}')
+        print(f'active running thread: {threading.activeCount()}')
+        print(f'current thread is alive? {threading.currentThread().is_alive()}')
+        print(f'********Thread tracking info************\n')
