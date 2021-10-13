@@ -873,25 +873,12 @@ class CollectData(object):
             datas = ''
             try:
                 for key, val in onwers.items():
-                    for onwer in val:
-                        for r in rs2:
-                            if re.search(r'\+\s*-\s*%s' % onwer, r):
-                                #date = re.search(r'Date:\s*(.*)\n', r).group(1)
-                                date = r.split("Date:   ")[1].split(" +0800")[0]
-                                time_struct = time.strptime(date, '%a %b %d %H:%M:%S %Y')
-                                times_onwer = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
-
-                        ID = self.org + '_' + '_' + reponame + '_' + onwer
-                        dataw = {
-                                 "repo_name": reponame,
-                                 "committer": onwer,
-                                 "created_at": times_onwer,
-                                 "is_sig_repo_committer": 1,
-                                 "owner_type": key}
-                        userExtra = self.esClient.getUserInfo(onwer)
-                        dataw.update(userExtra)
-                        datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
-                        datas += datar
+                    if key == 'files':
+                        for r, a in val.items():
+                            for k, v in a.items():
+                                datas = self.get_repo_committer_owner(key=k, val=v, rs2=rs2, reponame=r, datas=datas)
+                    else:
+                        datas = self.get_repo_committer_owner(key=key, val=val, rs2=rs2, reponame=reponame, datas=datas)
 
                 self.safe_put_bulk(datas)
                 print("this repo done: %s" % reponame)
@@ -899,6 +886,29 @@ class CollectData(object):
             except:
                 print(traceback.format_exc())
                 continue
+
+    def get_repo_committer_owner(self, key, val, rs2, reponame, datas=''):
+        for onwer in val:
+            times_onwer = None
+            for r in rs2:
+                if re.search(r'\+\s*-\s*%s' % onwer, r):
+                    #date = re.search(r'Date:\s*(.*)\n', r).group(1)
+                    date = r.split("Date:   ")[1].split(" +0800")[0]
+                    time_struct = time.strptime(date, '%a %b %d %H:%M:%S %Y')
+                    times_onwer = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
+
+            ID = self.org + '_' + '_' + reponame + '_' + onwer + '_' + key
+            dataw = {
+                "repo_name": reponame,
+                "committer": onwer,
+                "created_at": times_onwer,
+                "is_sig_repo_committer": 1,
+                "owner_type": key}
+            userExtra = self.esClient.getUserInfo(onwer)
+            dataw.update(userExtra)
+            datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
+            datas += datar
+        return datas
 
     def get_sig_pr_issue(self):
 
