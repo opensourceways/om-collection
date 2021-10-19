@@ -622,7 +622,10 @@ class Gitee(object):
                     return ""
                 desc = desc_temp.groups()[0]
                 desc = desc.split('}')[0]
-                description = re.compile(r'%s\s\\\n(.+?)\n{2,}' % desc, re.DOTALL).search(spec.__getattribute__('source')).groups()
+                re_temp = re.compile(r'%s\s\\\n(.+?)\n{2,}' % desc, re.DOTALL).search(spec.__getattribute__('source'))
+                if re_temp is None:
+                    return ""
+                description = re_temp.groups()
             else:
                 description = des.groups()
 
