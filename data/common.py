@@ -536,10 +536,14 @@ class ESClient(object):
                 print(res)
             except UnicodeEncodeError:
                 # Related to body.encode('iso-8859-1'). mbox data
-                logger.warning("Encondig error ... converting bulk to iso-8859-1")
+                logger.warning("Enconding error ... converting bulk to iso-8859-1")
                 bulk_json = bulk_json.encode('iso-8859-1', 'ignore')
-                res = requests.put(url, data=bulk_json, headers=_header)
+                res = requests.put(url=_url, data=bulk_json, headers=_header)
                 res.raise_for_status()
+            except Exception as otherError:
+                print('Fail to store data to ES!!! Error info:')
+                print(otherError.__repr__(), '\n')
+                raise otherError
 
     def searchEsList(self, index_name, search=None):
         url = self.url + '/' + index_name + '/search'
