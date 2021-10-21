@@ -111,7 +111,7 @@ class GitCommit(object):
             max_thread_num = eval(self.max_thread_num_str)
 
         ## Set initial state before processing
-        self.total_repos_count = len(self.repo_url_list)
+        self.total_repos_count = len(set(self.repo_url_dict))
         self.success_process_repo_count = 0
         self.reside_process_repo_count = self.total_repos_count
         self.failed_clone_repos = []
@@ -147,14 +147,14 @@ class GitCommit(object):
                 empty_commit_repo_url_list.append(repo_url)
         tracked_repo_url_list.extend(self.failed_clone_repos)
 
-        succeed_store_repo_list = list(
-            set(self.repo_url_list) - set(empty_commit_repo_url_list + self.failed_clone_repos))
+        succeed_store_repo_list = list(set(self.repo_url_dict) -
+                                       set(empty_commit_repo_url_list + self.failed_clone_repos))
 
         if succeed_store_repo_list:
             print(f'\nTotal {len(succeed_store_repo_list)} repos commit num greater than zero, '
                   f'then they are stored to ES.')
 
-        missed_repo = list(set(self.repo_url_list).difference(set(tracked_repo_url_list)))
+        missed_repo = list(set(self.repo_url_dict).difference(set(tracked_repo_url_list)))
         if missed_repo:
             print(f'\nMissed {len(missed_repo)} repos, as follows:')
             print(missed_repo)
@@ -185,10 +185,10 @@ class GitCommit(object):
 
         thread_func_args = {}
         values = []
-        self.repo_url_list = self.get_repos_from_sources(self.repo_source_dict)
+        self.repo_url_dict = self.get_repos_from_sources(self.repo_source_dict)
 
-        for repo_url in self.repo_url_list:
-            values.append((repo_url, from_date_str))
+        for repo_url in self.repo_url_dict:
+            values.append((repo_url, self.repo_url_dict[repo_url]))
 
         thread_func_args[self.process_each_repo] = values
 
@@ -197,29 +197,37 @@ class GitCommit(object):
     def get_repos_from_sources(self, repo_source_dict):
         # collect all repos from various source from repo_source_dict from config file
         try:
-            repos = []
+            all_branches_repo_url_dict = {}
+            general_repo_url_dict = {}
+            default_repo_url_list = []
             repo_source_dict = eval(repo_source_dict)  ## Transform repo_dict to dict
             if repo_source_dict.get('json_file'):
                 file_repo_list = self.get_repo_list_from_json_file(repo_source_dict.get('json_file'))
-                repos.extend(file_repo_list)
+                default_repo_url_list.extend(file_repo_list)
             if repo_source_dict.get('yaml_url_list'):
-                yaml_repo_list = self.get_repo_from_online_yaml_file(repo_source_dict.get('yaml_url_list'))
-                repos.extend(yaml_repo_list)
+                yaml_repo_dict = self.get_repo_from_online_yaml_file(repo_source_dict.get('yaml_url_list'))
+                default_repo_url_list.extend(set(yaml_repo_dict['default_repo_url_dict']))
+                all_branches_repo_url_dict = yaml_repo_dict['all_branches_repo_url_dict']
             if repo_source_dict.get('gitee_org_list'):
                 gitee_repo_list = self.get_repo_list_from_Gitee(repo_source_dict.get('gitee_org_list'))
-                repos.extend(gitee_repo_list)
+                default_repo_url_list.extend(gitee_repo_list)
             if repo_source_dict.get('github_org_list'):
                 gitee_repo_list = self.get_repo_list_from_GitHub(repo_source_dict.get('github_org_list'))
-                repos.extend(gitee_repo_list)
-            repos = list(set(repos))
-            return repos
+                default_repo_url_list.extend(gitee_repo_list)
+
+            for repo_url in default_repo_url_list:
+                general_repo_url_dict[repo_url] = eval(self.is_fetch_all_branches)
+            for repo_url in all_branches_repo_url_dict:
+                general_repo_url_dict[repo_url] = all_branches_repo_url_dict[repo_url]
+
+            print(f'\n{self.thread_name} === Collected {len(set(general_repo_url_dict))} unique repos from '
+                  f'various souces.')
+            return general_repo_url_dict
         except Exception as e:
             print(f'\n{self.thread_name} === Occur error at function: {sys._getframe().f_code.co_name}')
             raise e
 
-    def process_each_repo(self, repo_url, from_date_str):
-        print(f'{self.thread_name} === Progress: processing the {repo_url}; =================')
-
+    def process_each_repo(self, repo_url, is_all_branches):
         self.thread_name = threading.current_thread().getName()
         self.public_local_repo_path = '/home/repo_clone/local_repo'
         repo_name = repo_url.split('/')[-1]
@@ -235,7 +243,7 @@ class GitCommit(object):
                 self.failed_clone_repos.append(repo_url)
                 return
         self.track_thread_log(repo_name)
-        repo_commit_list = self.get_commit_from_each_repo(from_date_str, repo)  # Get commits from each branch
+        repo_commit_list = self.get_commit_from_each_repo(repo, is_all_branches)  # Get commits from each branch
 
         # store a single repo data into ES
         self.push_repo_data_into_es(self.index_name, repo_commit_list, repo)
@@ -253,9 +261,9 @@ class GitCommit(object):
         print(f'{self.thread_name} === Completed process repo:{repo_name};\tCollected {len(repo_commit_list)} '
               f'commits in all.\n')
 
-    def get_repo_branch_names(self, repo):
+    def get_repo_branch_names(self, repo, is_all_branches):
         repo_name = repo.working_dir.split(os.sep)[-1]
-        if self.is_fetch_all_branches == "True":  ## Accquire all remote branch names
+        if is_all_branches:  ## Accquire all remote branch names
             remote_branch_names = [branch_name.remote_head for branch_name in repo.remote().refs]
             remote_branch_names.remove('HEAD')
             branch_names = remote_branch_names
@@ -267,7 +275,10 @@ class GitCommit(object):
         return branch_names
 
     def push_repo_data_into_es(self, index_name, repo_data_list, repo):
-        repo_url = repo_data_list[0]['repo_url']
+        repo_url = self.get_url_from_local_repo(repo)
+        if not repo_data_list:
+            print(f'{self.thread_name} === Repo: {repo_url} has no commits in this period.')
+            return
 
         action = ''
         for commit_body in repo_data_list:
@@ -276,10 +287,6 @@ class GitCommit(object):
             id = hash(repo_url + branch_name + commit_id)
             commit_log = common.getSingleAction(index_name, id, commit_body)
             action += commit_log
-
-        if not action:
-            print(f'{self.thread_name} === Repo: {repo_url} has no commits in this period.')
-            return
 
         if self.lock:
             print(f'{self.thread_name} === Starting to store {len(repo_data_list)} commits of {repo_url} into ES ....')
@@ -301,6 +308,7 @@ class GitCommit(object):
         passwd = base64.b64decode(self.password).decode()
         local_repo_path = self.public_local_repo_path + '/' + repo_name
         repo_dir = Path(local_repo_path)
+        local_repo = None
 
         if not username or not passwd:
             print(f'{self.thread_name} === Have not fetch username or passwd from config.ini.\n')
@@ -308,8 +316,13 @@ class GitCommit(object):
         clone_url = 'https://' + username + ':' + passwd + '@' + website + '/' + project + '/' + repo_name
 
         if repo_dir.exists():
-            local_repo = git.Repo(local_repo_path)
-            check_repo = self.is_dir_git_repo(local_repo_path)
+            try:
+                local_repo = git.Repo(local_repo_path)
+                check_repo = self.is_dir_git_repo(local_repo_path)
+            except Exception as ex:
+                print(f'{self.thread_name} === local_repo_path cannot be build as git.Repo in'
+                      f' {sys._getframe(1).f_code.co_name}, Error as follows:\n{ex.__repr__()}')
+                return local_repo
             if check_repo:
                 try:
                     print(f'{self.thread_name} === Pulling repo {repo_url}, since it has existed...')
@@ -324,7 +337,6 @@ class GitCommit(object):
             else:
                 print(f'{self.thread_name} === {local_repo_path} is not repo.')
         else:
-
             try:
                 print(f'\n{self.thread_name} === Start to clone {repo_url} repo...')
                 with self.lock:
@@ -368,13 +380,13 @@ class GitCommit(object):
                 return None
         return local_repo
 
-    def get_commit_from_each_repo(self, from_date_str, repo):
+    def get_commit_from_each_repo(self, repo, is_all_branches):
         if repo is None:
             return None
         repo_name = repo.working_dir.split(os.sep)[-1]
         repo_commit_list = []
         repo_url = self.get_url_from_local_repo(repo)
-        branch_names = self.get_repo_branch_names(repo)  # ensure branch name, then get its commits.
+        branch_names = self.get_repo_branch_names(repo, is_all_branches)  # ensure branch name, then get its commits.
         final_end_fetch_date = datetime.strptime(self.final_end_fetch_date_str, '%Y-%m-%d')
         self.track_thread_log(repo_name)
 
@@ -390,7 +402,7 @@ class GitCommit(object):
                 print(f'{self.thread_name} === Although occur some error in checkout process, checkout to '
                       f'{branch_name} successfully at last.')
 
-            from_date = datetime.strptime(from_date_str, '%Y-%m-%d')
+            from_date = datetime.strptime(self.from_date_str, '%Y-%m-%d')
             start_fetch_date = from_date
 
             if not self.period_day_num_str:
@@ -420,12 +432,14 @@ class GitCommit(object):
                 if end_fetch_date == final_end_fetch_date:
                     print(f'Reach deadline, collecting is over.')
                     break
+
             print(f'\n{self.thread_name} === Repository: {repo_url};\tBranch_name: {branch_name};'
                   f'\t{len(branch_commits)} commits has been collected.')
+
             repo_commit_list.extend(branch_commits)
 
         print(f'\n{self.thread_name} === Repository: {repo_url}; \t\t{len(repo_commit_list)} commits has been'
-              f' collected, from {from_date_str}\t to {self.final_end_fetch_date_str}')
+              f' collected, from {self.from_date_str}\t to {self.final_end_fetch_date_str}')
 
         return repo_commit_list
 
@@ -754,12 +768,14 @@ class GitCommit(object):
         return repo_url_list
 
     def get_repo_from_online_yaml_file(self, yaml_url_list=None):
-        repos = []
+        repos = {}
 
         if not yaml_url_list:
             print('There is no yaml_url_list')
             return repos
 
+        default_repo_url_list = []
+        all_branches_repo_url_list = []
         for yaml_url in yaml_url_list:
             if not yaml_url:
                 print(f'{self.thread_name} === {yaml_url} is not available.\n')
@@ -777,17 +793,28 @@ class GitCommit(object):
 
             # Parse and load repo info
             users = datas.get("users")
+
             for user in users:
                 user_repos = user.get('repos')
                 user_all_branches_repos = user.get('repos_all_branches')
-
                 if user_repos:
-                    repos.extend(user_repos)
+                    default_repo_url_list.extend(user_repos)
                 if user_all_branches_repos:
-                    repos.extend(user_all_branches_repos)
+                    all_branches_repo_url_list.extend(user_all_branches_repos)
 
-            print(f'{self.thread_name} === Get {len(repos)} repos from {yaml_url}.\n')
-        print(f'{self.thread_name} === Get {len(repos)} repos from yaml totally.\n')
+        default_repo_url_dict = {}
+        for repo_url in default_repo_url_list:
+            default_repo_url_dict[repo_url] = self.is_fetch_all_branches
+
+        all_branches_repo_url_dict = {}
+        for repo_url in all_branches_repo_url_list:
+            all_branches_repo_url_dict[repo_url] = True
+
+        repos['default_repo_url_dict'] = default_repo_url_dict
+        repos['all_branches_repo_url_dict'] = all_branches_repo_url_dict
+
+        repo_total_count = len(set(repos['default_repo_url_dict']).union(set(repos['all_branches_repo_url_dict'])))
+        print(f'{self.thread_name} === Get {repo_total_count} repos from yaml_url.\n')
 
         return repos
 
