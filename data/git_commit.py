@@ -122,7 +122,7 @@ class GitCommit(object):
               f"repositories after removed duplicate ones in  {self.community_name} community totally.\n")
 
         ## Run multi-thread of collecting functions and store result to es
-        # common.writeDataThread(thread_func_args, max_thread_num=max_thread_num)
+        common.writeDataThread(thread_func_args, max_thread_num=max_thread_num)
 
         ## Do statistic of result info:
         self.failed_clone_repo_count = len(self.failed_clone_repos)
@@ -147,8 +147,8 @@ class GitCommit(object):
                 empty_commit_repo_url_list.append(repo_url)
         tracked_repo_url_list.extend(self.failed_clone_repos)
 
-        succeed_store_repo_list = list(
-            set(self.repo_url_dict) - set(empty_commit_repo_url_list + self.failed_clone_repos))
+        succeed_store_repo_list = list(set(self.repo_url_dict) -
+                                       set(empty_commit_repo_url_list + self.failed_clone_repos))
 
         if succeed_store_repo_list:
             print(f'\nTotal {len(succeed_store_repo_list)} repos commit num greater than zero, '
