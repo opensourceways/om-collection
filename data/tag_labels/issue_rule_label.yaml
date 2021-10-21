@@ -1,0 +1,44 @@
+label_rules:
+  - label: 邮件列表
+    aliases:
+      - 邮件
+      - 邮件列表
+      - 邮箱
+      - 求助
+      - 订阅
+      - maillist
+  - label: 多人协作
+    aliases:
+      - etherpad
+      - 会议记录
+      - openeuler.org
+  - label: 贡献协议签署
+    aliases:
+      - cla
+      - 签署
+      - 代码提交
+  - label: 门禁
+    aliases:
+      - jenkins
+      - 构建
+      - 静态检查
+      - 测试用例
+      - 编译
+      - 机器人
+      - 测试环境
+      - 功能测试
+      - 测试
+  - label: 官网
+    aliases:
+      - 下载
+      - 官网
+      - 博客
+      - 镜像
+      - iso
+      - rpm
+      - 手册
+  - label: 会议系统
+    aliases:
+      - 开会
+      - 周例会
+      - 会议系统
