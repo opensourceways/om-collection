@@ -12,10 +12,12 @@ class IssueRuleLabel(object):
         self.index_name = config.get('index_name')
         self.rule_yaml = config.get('rule_yaml', 'issue_rule_label.yaml')
         self.stopwords_file = config.get('stopwords_file', 'cn_stopwords.txt')
+        self.block_num = int(config.get('block_num', '1000'))
         self.text_process = TextProcess(text=None)
-        self.countlist = []
+        self.self_stopwords = []
         self.label_rules = {}
-        self.cn_stopwords = []
+        self.count_list = []
+        self.hit_ids = []
 
     def run(self, from_time):
         # 自定义停用词词典
@@ -57,7 +59,7 @@ class IssueRuleLabel(object):
     def get_stopwords(self):
         f = open("data/tag_labels/cn_stopwords.txt", "r", encoding='utf8')
         for word in f.readlines():
-            self.cn_stopwords.append(word.strip('\n'))
+            self.self_stopwords.append(word.strip('\n'))
 
     # 自定义规则标签字典
     def get_label_rule(self):
@@ -79,7 +81,7 @@ class IssueRuleLabel(object):
             word_list = self.text_process.body_clean(text=text)
 
             # 分词
-            tokens = self.text_process.hanlp_text_spilt_noun(text_list=word_list, self_stopwords=self.cn_stopwords)
+            tokens = self.text_process.hanlp_text_spilt_noun(text_list=word_list, self_stopwords=self.self_stopwords)
 
             # 匹配
             labels = []
@@ -100,26 +102,8 @@ class IssueRuleLabel(object):
 
         self.esClient.safe_put_bulk(actions)
 
-    # 所有ISSUE，生成TF-IDF语料库
-    def tf_idf_word_count_func(self, hits):
-        for hit in hits:
-            source = hit['_source']
-            title = source['issue_title']
-            body = source['body'] if 'body' in source else ''
-            text = title + ',' + body
-
-            # 数据去噪
-            word_list = self.text_process.body_clean(text=text)
-
-            # 分词
-            tokens = self.text_process.hanlp_text_spilt_noun(text_list=word_list, self_stopwords=self.cn_stopwords)
-
-            # 词频语料库
-            self.countlist.append(self.text_process.count_term(tokens))
-
-    # 基于关键词提取的标签
-    def tf_idf_label_func(self, hits):
-        actions = ''
+    # 基于TF-IDF的标签
+    def tf_idf_func(self, hits):
         for hit in hits:
             hit_id = hit['_id']
             source = hit['_source']
@@ -131,19 +115,34 @@ class IssueRuleLabel(object):
             word_list = self.text_process.body_clean(text=text)
 
             # 分词
-            tokens = self.text_process.hanlp_text_spilt_noun(text_list=word_list, self_stopwords=self.cn_stopwords)
+            tokens = self.text_process.hanlp_text_spilt_noun(text_list=word_list, self_stopwords=self.self_stopwords)
 
-            # TF-IDF关键词提取
-            labels = self.text_process.tf_idf(countlist=tokens)
+            # 词频语料库
+            self.count_list.append(self.text_process.count_term(tokens))
 
-            if len(labels) == 0:
-                continue
-            update_data = {
-                "doc": {
-                    "rule_labes": labels,
-                }
-            }
-            action = common.getSingleAction(self.index_name, hit_id, update_data, act="update")
-            actions += action
+            # block_num 条数据作为一个语料库的数据，进行一次关键词提取
+            self.hit_ids.append(hit_id)
+            if len(self.hit_ids) == self.block_num:
+                # TF-IDF计算
+                sorted_words = self.text_process.tf_idf(self.count_list)
 
-        self.esClient.safe_put_bulk(actions)
+                actions = ''
+                for i in range(0, len(self.hit_ids)):
+                    words_scores = sorted_words[i]
+                    labels = []
+                    for item in words_scores[:5]:
+                        labels.append(item[0])
+                    id = self.hit_ids[i]
+                    update_data = {
+                        "doc": {
+                            "rule_labes": labels,
+                        }
+                    }
+                    action = common.getSingleAction(self.index_name, id, update_data, act="update")
+                    actions += action
+
+                # 一个语料库完成，置空语料库
+                self.hit_ids = []
+                self.count_list = []
+
+                self.esClient.safe_put_bulk(actions)
