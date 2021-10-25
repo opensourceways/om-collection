@@ -650,11 +650,11 @@ class GitCommit(object):
                 p = os.popen(cmd.replace('=', ''))
                 p.read()
 
-                users = yaml.load_all(open(user_filename, encoding='UTF-8')).__next__()
+                users = yaml.safe_load(open(user_filename, encoding='UTF-8'))
                 cmd = 'wget -N %s' % self.company_yaml_url
                 p = os.popen(cmd.replace('=', ''))
                 p.read()
-                companies = yaml.load_all(open(company_filename, encoding='UTF-8')).__next__()
+                companies = yaml.safe_load(open(company_filename, encoding='UTF-8'))
                 p.close()
             elif self.platform_name == 'windows':  ###Test in windows without wget command
                 user_yaml_response = requests.get(self.user_yaml_url)
