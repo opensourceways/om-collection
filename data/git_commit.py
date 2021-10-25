@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import base64
 import errno
+import hashlib
 import os
 import platform
 import re
@@ -93,17 +94,17 @@ class GitCommit(object):
         ## Set final_end_date for collecting time window
         now = datetime.now()
         now_str = now.strftime('%Y-%m-%d %X')
-        today = now.today()
+        yesterday = now.today() + timedelta(days=-1)
         if self.end_collect_date_str:
             final_end_fetch_date = datetime.strptime(self.end_collect_date_str, '%Y%m%d')
-            if final_end_fetch_date > today:
-                final_end_fetch_date = today
+            if final_end_fetch_date > yesterday:
+                final_end_fetch_date = yesterday
         else:
-            final_end_fetch_date = today
+            final_end_fetch_date = yesterday
         self.final_end_fetch_date_str = final_end_fetch_date.strftime('%Y-%m-%d')
 
         ## Collect functions and repos for multi-thread
-        thread_func_args = self.get_thread_funcs(self.from_date_str)
+        thread_func_args = self.get_thread_funcs()
 
         if not self.max_thread_num_str:
             max_thread_num = 1
@@ -167,15 +168,15 @@ class GitCommit(object):
                 print(empty_commit_repo_url_list[:10])
                 print('......')
 
-        with open(file='demo_data/success_process_repo_commit_info_dict_text', mode='w') as f:
+        with open(file='success_process_repo_commit_info_dict_text', mode='w') as f:
             f.write(str(self.success_process_repo_commit_info_dict))
 
-        with open(file='demo_data/succeed_store_repo_list', mode='w') as f:
+        with open(file='succeed_store_repo_list', mode='w') as f:
             f.write(str(succeed_store_repo_list))
 
         print(f'{sys._getframe(1).f_code.co_name} is over.')
 
-    def get_thread_funcs(self, from_date_str):
+    def get_thread_funcs(self):
 
         '''
         prepare thread function args for multiple thread running
@@ -284,7 +285,9 @@ class GitCommit(object):
         for commit_body in repo_data_list:
             branch_name = commit_body['branch_name']
             commit_id = commit_body['commit_id']
-            id = hash(repo_url + branch_name + commit_id)
+            id_text = repo_url + '_' + branch_name + '_' + commit_id
+            id = hashlib.sha256('{}\n'.format(id_text).encode('utf-8')).hexdigest()
+
             commit_log = common.getSingleAction(index_name, id, commit_body)
             action += commit_log
 
@@ -438,7 +441,7 @@ class GitCommit(object):
 
             repo_commit_list.extend(branch_commits)
 
-        print(f'\n{self.thread_name} === Repository: {repo_url}; \t\t{len(repo_commit_list)} commits has been'
+        print(f'\n{self.thread_name} === Repository: {repo_url}; \t{len(repo_commit_list)} commits has been'
               f' collected, from {self.from_date_str}\t to {self.final_end_fetch_date_str}')
 
         return repo_commit_list
@@ -532,10 +535,8 @@ class GitCommit(object):
 
         author = self.get_author(split_list).strip()
         email = split_list[1].strip()
-
         commit_datetime_raw_str = split_list[2].strip()
         commit_datetime_str = self.trans_datetime_to_beijingTime(commit_datetime_raw_str)
-
         company_name = self.find_company(email)
         commit_id = split_list[3].strip()
         title = split_list[4].strip()
@@ -559,7 +560,7 @@ class GitCommit(object):
                   'tilte': title, 'is_merged': is_merged,
                   'commit_main_content': commit_content,
                   'branch_name': branch_name, 'project': repo_name,
-                  'repo_org': repo_org, 'repo_url': repo_url
+                  'repo_org': repo_org, 'repo': repo_url
                   }
         if commit_contributors:
             result['commit_contributors'] = commit_contributors
@@ -611,11 +612,12 @@ class GitCommit(object):
         return modify_info
 
     def find_company(self, email):
-        if not self.companyInfo:
-            print(f'{self.thread_name} === There are no proper company information.')
-            return 'Empty companyInfo'
 
-        company_name = ''
+        if not self.companyInfo:
+            ## There are no proper company information from give online yaml.
+            return 'Empty CompanyInfo'
+
+        company_name = 'No Company_name'
         email_tag = email.split("@")[-1]
         users = self.companyInfo.get('users').get('users')
         domain_companies = self.companyInfo.get('domains_company_list')
@@ -632,6 +634,7 @@ class GitCommit(object):
             company_name = domain_companies.get(email_tag)
             return company_name
 
+        ## Find nothing after traverse the self.companyInfo
         return company_name
 
     def get_info_from_company(self):
