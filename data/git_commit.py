@@ -94,14 +94,17 @@ class GitCommit(object):
         ## Set final_end_date for collecting time window
         now = datetime.now()
         now_str = now.strftime('%Y-%m-%d %X')
-        yesterday = now.today() + timedelta(days=-1)
+        tomorrow = now.today() + timedelta(days=1)
         if self.end_collect_date_str:
             final_end_fetch_date = datetime.strptime(self.end_collect_date_str, '%Y%m%d')
-            if final_end_fetch_date > yesterday:
-                final_end_fetch_date = yesterday
+            if final_end_fetch_date > tomorrow:
+                final_end_fetch_date = tomorrow
         else:
-            final_end_fetch_date = yesterday
+            final_end_fetch_date = tomorrow
         self.final_end_fetch_date_str = final_end_fetch_date.strftime('%Y-%m-%d')
+
+        if not self.companyInfo:
+            print(f'There are no company information provided from config.ini')
 
         ## Collect functions and repos for multi-thread
         thread_func_args = self.get_thread_funcs()
@@ -642,6 +645,9 @@ class GitCommit(object):
 
         if not self.user_yaml_url or not self.company_yaml_url:
             return companyInfo
+
+        users = {}
+        companies = {}
         try:
             user_filename = self.get_yaml_file_name_from_url(self.user_yaml_url)
             company_filename = self.get_yaml_file_name_from_url(self.company_yaml_url)
@@ -687,11 +693,12 @@ class GitCommit(object):
 
     def get_author(self, split_list):
         author = split_list[0]
+        if not self.companyInfo:
+            return author
+
         email = split_list[1]
-        try:
-            users = self.companyInfo.get('users').get('users')
-        except:
-            print(f'{self.thread_name} === Has not got users from self.companyInfo.')
+        users = self.companyInfo.get('users').get('users')
+        if not users:
             return author
 
         for user in users:
