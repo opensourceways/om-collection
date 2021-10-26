@@ -536,8 +536,9 @@ class GitCommit(object):
         repo_name = repo.working_tree_dir.split(os.sep)[-1]
         split_list = commit_log.split(";;;")
 
-        author = self.get_author(split_list).strip()
+        raw_author = split_list[0].strip()
         email = split_list[1].strip()
+        unified_author = self.get_author(raw_author, email)
         commit_datetime_raw_str = split_list[2].strip()
         commit_datetime_str = self.trans_datetime_to_beijingTime(commit_datetime_raw_str)
         company_name = self.find_company(email)
@@ -554,16 +555,25 @@ class GitCommit(object):
         repo_url = self.get_url_from_local_repo(repo)
         repo_org = repo_url.split('/')[-2]
         result = {'created_at': commit_datetime_str,
-                  'author': author, 'company': company_name,
-                  'email': email, 'commit_id': commit_id,
+                  'author': raw_author,
+                  'unified_author': unified_author,
+                  'company': company_name,
+                  'email': email,
+                  'commit_id': commit_id,
                   'file_changed': commit_log_modifying_dict.get('file_changed'),
                   'add': commit_log_modifying_dict.get('lines_added'),
                   'remove': commit_log_modifying_dict.get('lines_removed'),
                   'total': commit_log_modifying_dict.get('total'),
-                  'tilte': title, 'is_merged': is_merged,
+                  'tilte': title,
+                  'is_merged': is_merged,
+                  'title': title,
                   'commit_main_content': commit_content,
-                  'branch_name': branch_name, 'project': repo_name,
-                  'repo_org': repo_org, 'repo': repo_url
+                  'branch_name': branch_name,
+                  'project': repo_name,
+                  'repo': repo_url,
+                  'repo_name': repo_name,
+                  'repo_url': repo_url,
+                  'repo_org': repo_org
                   }
         if commit_contributors:
             result['commit_contributors'] = commit_contributors
@@ -691,12 +701,12 @@ class GitCommit(object):
 
         return companyInfo
 
-    def get_author(self, split_list):
-        author = split_list[0]
+    def get_author(self, raw_author, email):
+        author = raw_author
+
         if not self.companyInfo:
             return author
 
-        email = split_list[1]
         users = self.companyInfo.get('users').get('users')
         if not users:
             return author
