@@ -427,8 +427,8 @@ class GiteeClient():
                 response = self.session.post(url, data=payload, headers=headers, stream=stream,
                                              verify=self.ssl_verify, auth=auth)
 
+            print("fetch threading num end: " + threading.currentThread().getName())
             return response
-        print("fetch threading num end: " + threading.currentThread().getName())
 
     def fetch_items(self, path, payload):
         """Return the items from gitee API using links pagination"""

@@ -87,7 +87,7 @@ class IssueRuleLabel(object):
             labels = []
             for token in tokens:
                 for label, rule in self.label_rules.items():
-                    if token in rule:
+                    if token in rule and label not in labels:
                         labels.append(label)
 
             if len(labels) == 0:

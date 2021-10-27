@@ -568,6 +568,7 @@ class Gitee(object):
         if len(repo_data) == 0:
             print("The repo info not exist. repo", repo)
             return
+        print("*** start parse repo info ", repo)
         actions = ""
         repo_detail = {
             "created_at": repo_data["created_at"],
@@ -611,7 +612,9 @@ class Gitee(object):
                       "_id": "gitee_repo_" + re.sub('.git$', '', repo_data['html_url'])}}
         actions += json.dumps(indexData) + '\n'
         actions += json.dumps(repo_detail) + '\n'
+        print("*** start write repo info to ES ***", repo)
         self.esClient.safe_put_bulk(actions)
+        print("*** end write repo info to ES ***", repo)
 
     def transVar2Data(self, var, spec):
         if var == 'description':
@@ -921,6 +924,9 @@ class Gitee(object):
             return data
         except JSONDecodeError:
             print("Gitee get JSONDecodeError, error: ", response)
+        except Exception as ex:
+            print('*** getGenerator fail ***', ex)
+            return data
 
         return data
 
