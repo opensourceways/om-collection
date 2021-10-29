@@ -144,6 +144,14 @@ class GiteeClient():
         # refresh the access token
         # self._refresh_access_token()
 
+    def dir_tree(self, owner, repository, branch):
+        path = self.urijoin(self.base_url, 'repos', owner, repository, 'git', 'trees', branch)
+
+        r = self.fetch(path)
+        trees = r.json()
+
+        return trees
+
     def issue_comments(self, issue_number, from_date=None):
         """Get the issue comments """
 
@@ -310,9 +318,24 @@ class GiteeClient():
         branchs = self.urijoin("branches")
         return self.fetch_items(branchs, {})
 
-    def getspecFile(self, org, repo, branch, file_name):
+    def getspecFile(self, org, repo, branch):
+        trees = self.dir_tree(owner=org, repository=repo, branch=branch)
+        spec_files = []
+        for tree in trees['tree']:
+            if tree['path'].endswith('.spec'):
+                spec_files.append(tree['path'])
+
+        spec_file = None
+        for file in spec_files:
+            if file == '%s.spec' % repo:
+                spec_file = file
+                break
+            spec_file = file
+        if spec_file is None:
+            return None
+
         branch = str(branch).replace("/", "%2")
-        url = 'https://gitee.com/%s/%s/raw/%s/%s.spec' % (org, repo, branch, file_name)
+        url = 'https://gitee.com/%s/%s/raw/%s/%s' % (org, repo, branch, spec_file)
         res = requests.get(url)
         if res.status_code == 200:
             rs_text = res.text
