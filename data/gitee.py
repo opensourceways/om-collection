@@ -565,7 +565,7 @@ class Gitee(object):
     def writeRepoData(self, owner, repo, from_date=None, sig_names=None):
         client = GiteeClient(owner, repo, self.gitee_token)
         repo_data = self.getGenerator(client.repo())
-        if len(repo_data) == 0:
+        if len(repo_data) == 0 or 'created_at' not in repo_data:
             print("The repo info not exist. repo", repo)
             return
         print("*** start parse repo info ", repo)
@@ -672,20 +672,20 @@ class Gitee(object):
         result = []
         version = None
 
-        file_name = repo
-        repo_spec_dict = {}
-        if self.repo_spec is not None:
-            for rs in str(self.repo_spec).split(';'):
-                r_s = rs.split(',')
-                repo_spec_dict.update({r_s[0]: r_s[1]})
-        if repo_spec_dict is not None and repo_spec_dict.keys().__contains__(repo):
-            file_name = repo_spec_dict[repo]
+        # file_name = repo
+        # repo_spec_dict = {}
+        # if self.repo_spec is not None:
+        #     for rs in str(self.repo_spec).split(';'):
+        #         r_s = rs.split(',')
+        #         repo_spec_dict.update({r_s[0]: r_s[1]})
+        # if repo_spec_dict is not None and repo_spec_dict.keys().__contains__(repo):
+        #     file_name = repo_spec_dict[repo]
 
         for br in branches:
             brresult = {}
             try:
                 brresult["brname"] = br['name']
-                spec = client.getspecFile(owner, repo, br['name'], file_name)
+                spec = client.getspecFile(owner, repo, br['name'])
                 if spec is not None:
                     versionstr = self.transVar2Data('version', spec)
                     summary = self.transVar2Data('summary', spec)
