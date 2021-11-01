@@ -5,7 +5,6 @@ import errno
 import hashlib
 import os
 import platform
-import re
 import shutil
 import stat
 import subprocess
@@ -27,6 +26,7 @@ from data import common
 from data.common import ESClient
 
 os.environ["GIT_PYTHON_REFRESH"] = "quiet"
+PUBLIC_LOCAL_REPO_PATH = '/home/repo_clone/local_repo'
 
 
 def count_seconds_of_prepare_local_repo(func):
@@ -48,6 +48,7 @@ def count_seconds_of_prepare_local_repo(func):
 class ClocCode(object):
 
     def __init__(self, config=None):
+        self.thread_name = threading.currentThread().getName()
         self.config = config
         self.platform_name = platform.system().lower()
         self.default_headers = {'Content-Type': 'application/json'}
@@ -55,6 +56,7 @@ class ClocCode(object):
         self.url = config.get('es_url')
         self.authorization = config.get('authorization')
         self.esClient = ESClient(config)
+        self.lock = threading.Lock()
         self.headers = {'Content-Type': 'application/json', "Authorization": config.get('authorization')}
         self.community_name = config.get('community_name')
         self.repo_source_dict = config.get('repo_source_dict')
@@ -63,13 +65,18 @@ class ClocCode(object):
         self.password = config.get('password')
         self.user_yaml_url = config.get('user_yaml_url')
         self.company_yaml_url = config.get('company_yaml_url')
-        self.is_fetch_all_branches = config.get("is_fetch_all_branches")
-        self.is_remove_local_repo_immediate = config.get('is_remove_local_repo_immediate')
-        self.lock = threading.Lock()
-        self.end_collect_date_str = config.get('end_collect_date_str')
-        self.max_thread_num_str = config.get('max_thread_num_str')
-        self.period_day_num_str = config.get('period_day_num_str')
-        self.thread_name = threading.currentThread().getName()
+        self.is_fetch_all_branches = config.get('is_fetch_all_branches', 'False')
+        self.is_remove_local_repo_immediate = config.get('is_remove_local_repo_immediate', 'True')
+        self.max_thread_num_str = config.get('max_thread_num_str', '1')
+        self.public_local_repo_path = config.get('public_local_repo_path', PUBLIC_LOCAL_REPO_PATH)
+
+        self.is_fetch_all_branches = False if not self.is_fetch_all_branches else \
+            eval(self.is_fetch_all_branches)
+        self.is_remove_local_repo_immediate = True if not self.is_remove_local_repo_immediate else \
+            eval(self.is_remove_local_repo_immediate)
+        self.max_thread_num = 1 if not self.max_thread_num_str else eval(self.max_thread_num_str)
+        self.public_local_repo_path = PUBLIC_LOCAL_REPO_PATH if not self.public_local_repo_path else \
+            self.public_local_repo_path
 
     def run(self, start_time):
         start_point_time = datetime.utcnow()
@@ -91,17 +98,13 @@ class ClocCode(object):
 
     def main_process(self):
 
-        ## Set final_end_date for collecting time window
-        now = datetime.now()
-        now_str = now.strftime('%Y-%m-%d %X')
+        ## Set beijingTime_now_str
+        utc_now = datetime.utcnow()
+        beijing_now = utc_now + timedelta(hours=8)
+        self.beijingTime_now_str = beijing_now.strftime('%Y-%m-%dT%X')
 
         ## Collect functions and repos for multi-thread
         thread_func_args = self.get_thread_funcs()
-
-        if not self.max_thread_num_str:
-            max_thread_num = 1
-        else:
-            max_thread_num = eval(self.max_thread_num_str)
 
         ## Set initial state before processing
         self.total_repos_count = len(set(self.repo_url_dict))
@@ -114,14 +117,14 @@ class ClocCode(object):
               f"repositories after removed duplicate ones in  {self.community_name} community totally.\n")
 
         ## Run multi-thread of collecting functions and store result to es
-        common.writeDataThread(thread_func_args, max_thread_num=max_thread_num)
+        common.writeDataThread(thread_func_args, max_thread_num=self.max_thread_num)
 
         ## Do statistic of result info:
         self.failed_clone_repo_count = len(self.failed_clone_repos)
 
         print(f'\n\nGame Over!\tProgram result info as follows:')
-        print(f'Start time of program:{now_str}')
-        print(f'Collecting time: {now_str}')
+        print(f'Start time of program:{self.beijingTime_now_str}')
+        print(f'Collecting time: {self.beijingTime_now_str}')
         print(f'Community name: {self.community_name}')
         print(f'Total repos count from sources: {self.total_repos_count}')
         print(f'Total processed repos count: {self.success_process_repo_count}')
@@ -207,20 +210,20 @@ class ClocCode(object):
                 default_repo_url_list.extend(gitee_repo_list)
 
             for repo_url in default_repo_url_list:
-                general_repo_url_dict[repo_url] = eval(self.is_fetch_all_branches)
+                general_repo_url_dict[repo_url] = self.is_fetch_all_branches
             for repo_url in all_branches_repo_url_dict:
                 general_repo_url_dict[repo_url] = all_branches_repo_url_dict[repo_url]
 
             print(f'\n{self.thread_name} === Collected {len(set(general_repo_url_dict))} unique repos from '
-                  f'various souces.')
+                  f'various sources.')
             return general_repo_url_dict
         except Exception as e:
             print(f'\n{self.thread_name} === Occur error at function: {sys._getframe().f_code.co_name}')
             raise e
 
-    def process_each_repo(self, repo_url, is_all_branches):
+    def process_each_repo(self, repo_url, is_fetch_all_branches):
         self.thread_name = threading.current_thread().getName()
-        self.public_local_repo_path = '/home/repo_clone/local_repo'
+
         repo_name = repo_url.split('/')[-1]
         with self.lock:
             self.reside_process_repo_count -= 1
@@ -235,7 +238,7 @@ class ClocCode(object):
                 return
         self.track_thread_log(repo_name)
 
-        repo_code_list = self.get_code_info_from_each_repo(repo)  # Get commits from each branch
+        repo_code_list = self.get_code_info_from_each_repo(repo, is_fetch_all_branches)  # Get commits from each branch
 
         # store a single repo data into ES
         self.push_repo_data_into_es(self.index_name, repo_code_list, repo)
@@ -245,12 +248,14 @@ class ClocCode(object):
             self.success_process_repo_count += 1
 
         ### Delete local repo after get its code to reserve enough space for other repo
-        if self.is_remove_local_repo_immediate and eval(self.is_remove_local_repo_immediate):
-            self.remove_local_repo(repo.working_tree_dir)
+
+        if self.is_remove_local_repo_immediate:
+            with self.lock:
+                self.remove_local_repo(repo.working_tree_dir)
             print(f'{self.thread_name} === Repo {repo_url} has been removed.')
 
         print(f'{self.thread_name} === Completed process repo:{repo_url};\tCollected {len(repo_code_list)} '
-              f'commits in all.\n')
+              f'code records in all.\n')
 
     def push_repo_data_into_es(self, index_name, repo_data_list, repo):
         repo_url = self.get_url_from_local_repo(repo)
@@ -357,7 +362,7 @@ class ClocCode(object):
                 return None
         return local_repo
 
-    def get_code_info_from_each_repo(self, repo):
+    def get_code_info_from_each_repo(self, repo, is_fetch_all_branches):
         if repo is None:
             return None
 
@@ -365,7 +370,7 @@ class ClocCode(object):
         repo_name = repo.working_dir.split(os.sep)[-1]
         self.track_thread_log(repo_name)
 
-        branch_names = self.get_repo_branch_names(repo, self.is_fetch_all_branches)
+        branch_names = self.get_repo_branch_names(repo, is_fetch_all_branches)
 
         each_repo_code_list = []
         for branch_name in branch_names:
@@ -522,8 +527,8 @@ class ClocCode(object):
                 shutil.rmtree(path, onerror=self.handle_remove_read_only)
                 print(f'{self.thread_name} === Repository: {repo_name} has been removed.\n')
         except Exception as ex:
-            print(ex.__repr__())
-            print(f'{self.thread_name} === Error!!!  Failed to remove local repo directory.\n')
+            print(f'{self.thread_name} === Error!!!  Failed to remove local repo directory.\n'
+                  f'Exception information: ex.__repr__()')
             return False
         return True
 
@@ -592,13 +597,11 @@ class ClocCode(object):
         :return:
         '''
 
-        now = datetime.now()
-        now_str = now.strftime('%Y-%m-%dT%X')
-
         record_dict = {}
         each_record_list = record_line.split()
-        record_dict['created_at'] = now_str
+        record_dict['created_at'] = self.beijingTime_now_str
         record_dict['repo_url'] = repo_url
+        record_dict['repo_org'] = repo_url.split('/')[-2]
         record_dict['branch_name'] = branch_name
 
         if each_record_list.__len__() == 5:
@@ -627,9 +630,9 @@ class ClocCode(object):
             return f'{field} is not a digital'
         return field_int
 
-    def get_repo_branch_names(self, repo, is_all_branches):
+    def get_repo_branch_names(self, repo, is_fetch_all_branches):
         repo_url = self.get_url_from_local_repo(repo)
-        if is_all_branches:  ## Accquire all remote branch names
+        if is_fetch_all_branches:  ## If True, accquire all remote branch names
             remote_branch_names = [branch_name.remote_head for branch_name in repo.remote().refs]
             remote_branch_names.remove('HEAD')
             branch_names = remote_branch_names
@@ -642,7 +645,6 @@ class ClocCode(object):
 
     def get_code_info_from_branch(self, repo, branch_name):
         '''
-
         :param repo: a local repo object
         :param branch_name: a branch_name of the repo param
         :return:
@@ -661,6 +663,17 @@ class ClocCode(object):
         #             b'-------------------------------------------------------------------------------\n',
         #             b'SUM:                            47           2023           5183          10770\n',
         #             b'-------------------------------------------------------------------------------\n']
+        ;;;;
+        # Another situation: outlines has no SUM line
+        # outlines = ['       5 text files.\n',
+        #             'classified 5 files\r       5 unique files.                              \n',
+        #             '       5 files ignored.\n', '\n',
+        #             'github.com/AlDanial/cloc v 1.74  T=0.01 s (82.9 files/s, 3150.6 lines/s)\n',
+        #             '-------------------------------------------------------------------------------\n',
+        #             'Language                     files          blank        comment           code\n',
+        #             '-------------------------------------------------------------------------------\n',
+        #             'Markdown                         1             12              0             26\n',
+        #             '-------------------------------------------------------------------------------\n']
         '''
 
         repo_url = self.get_url_from_local_repo(repo)
@@ -693,19 +706,25 @@ class ClocCode(object):
 
             if recordLine.startswith('Language'):
                 append_flag = True
-            if recordLine.startswith('SUM'):
-                append_flag = False
 
             if append_flag:
                 with self.lock:
                     recordLines.append(recordLine)
 
+            if recordLine.startswith('SUM'):
+                append_flag = False
+
         if not recordLines:
             print(f'\n{self.thread_name} === Repository: {repo_url}; \tBranch: {branch_name} \thave no code '
                   f'records  collected.')
             return []
+
         try:
-            recordLines = recordLines[2:-1]
+            if append_flag:
+                recordLines = recordLines[2:-1]
+            else:
+                recordLines = recordLines[2:-2]
+
         except Exception as exp:
             print(f'\n{self.thread_name} === Repository: {repo_url}; \tBranch: {branch_name} \tcannot get code '
                   f'info because of no language code line was recorded.')
