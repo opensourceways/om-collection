@@ -28,7 +28,7 @@ class IssueRuleLabel(object):
 
         # 获取issue数据，使用自定义规则标签
         search = '''{
-                      "size": 10,
+                      "size": 1000,
                       "_source": {
                         "includes": [
                           "issue_title",
@@ -48,11 +48,18 @@ class IssueRuleLabel(object):
                                 "field": "body"
                               }
                             }
+                          ],
+                          "must_not": [
+                            {
+                              "exists": {
+                                "field": "rule_labels"
+                              }
+                            }
                           ]
                         }
                       }
                     }'''
-        self.esClient.scrollSearch(index_name=self.index_name, search=search, scroll_duration='1m',
+        self.esClient.scrollSearch(index_name=self.index_name, search=search, scroll_duration='10m',
                                    func=self.rule_label_func)
 
     # 自定义停用词词典
@@ -94,7 +101,7 @@ class IssueRuleLabel(object):
                 continue
             update_data = {
                 "doc": {
-                    "rule_labes": labels,
+                    "rule_labels": labels,
                 }
             }
             action = common.getSingleAction(self.index_name, hit_id, update_data, act="update")
@@ -135,7 +142,7 @@ class IssueRuleLabel(object):
                     id = self.hit_ids[i]
                     update_data = {
                         "doc": {
-                            "rule_labes": labels,
+                            "tfidf_labels": labels,
                         }
                     }
                     action = common.getSingleAction(self.index_name, id, update_data, act="update")
