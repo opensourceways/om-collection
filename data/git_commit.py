@@ -3,6 +3,7 @@
 import base64
 import errno
 import hashlib
+import json
 import os
 import platform
 import re
@@ -26,6 +27,7 @@ from data import common
 from data.common import ESClient
 
 os.environ["GIT_PYTHON_REFRESH"] = "quiet"
+PUBLIC_LOCAL_REPO_PATH = '/home/repo_clone/local_repo'
 
 
 def count_seconds_of_prepare_local_repo(func):
@@ -48,28 +50,39 @@ class GitCommit(object):
 
     def __init__(self, config=None):
         self.config = config
+        self.thread_name = threading.currentThread().getName()
+        self.lock = threading.Lock()
         self.platform_name = platform.system().lower()
-        self.default_headers = {'Content-Type': 'application/json'}
+        self.esClient = ESClient(config)
+
+        self.community_name = config.get('community_name')
         self.index_name = config.get('index_name')
         self.url = config.get('es_url')
+        self.company_info_index_name = config.get('company_info_index_name')
         self.authorization = config.get('authorization')
-        self.esClient = ESClient(config)
-        self.headers = {'Content-Type': 'application/json', "Authorization": config.get('authorization')}
-        self.community_name = config.get('community_name')
-        self.repo_source_dict = config.get('repo_source_dict')
+        self.default_headers = {'Content-Type': 'application/json', 'Authorization': self.authorization}
         self.token_v5 = config.get('gitee_token_v5')
         self.username = config.get('username')
         self.password = config.get('password')
+
+        self.repo_source_dict = config.get('repo_source_dict')
+        self.public_local_repo_path = config.get('public_local_repo_path', PUBLIC_LOCAL_REPO_PATH)
+        self.is_fetch_all_branches = config.get('is_fetch_all_branches', 'False')
+        self.is_remove_local_repo_immediate = config.get('is_remove_local_repo_immediate', 'True')
         self.user_yaml_url = config.get('user_yaml_url')
         self.company_yaml_url = config.get('company_yaml_url')
-        self.is_fetch_all_branches = config.get("is_fetch_all_branches")
-        self.companyInfo = self.get_info_from_company()
-        self.is_remove_local_repo_immediate = config.get('is_remove_local_repo_immediate')
-        self.lock = threading.Lock()
         self.end_collect_date_str = config.get('end_collect_date_str')
-        self.max_thread_num_str = config.get('max_thread_num_str')
-        self.period_day_num_str = config.get('period_day_num_str')
-        self.thread_name = threading.currentThread().getName()
+        self.max_thread_num_str = config.get('max_thread_num_str', '1')
+        self.period_day_num_str = config.get('period_day_num_str', '3')
+
+        self.yaml_companyInfo = self.generate_yaml_companyInfo()
+        self.is_fetch_all_branches = False if not self.is_fetch_all_branches else \
+            eval(self.is_fetch_all_branches)
+        self.is_remove_local_repo_immediate = True if not self.is_remove_local_repo_immediate else \
+            eval(self.is_remove_local_repo_immediate)
+        self.max_thread_num = 1 if not self.max_thread_num_str else eval(self.max_thread_num_str)
+        self.public_local_repo_path = PUBLIC_LOCAL_REPO_PATH if not self.public_local_repo_path else \
+            self.public_local_repo_path
 
     def run(self, start_time):
         start_point_time = datetime.utcnow()
@@ -103,16 +116,11 @@ class GitCommit(object):
             final_end_fetch_date = tomorrow
         self.final_end_fetch_date_str = final_end_fetch_date.strftime('%Y-%m-%d')
 
-        if not self.companyInfo:
+        if not self.yaml_companyInfo:
             print(f'There are no company information provided from config.ini')
 
         ## Collect functions and repos for multi-thread
         thread_func_args = self.get_thread_funcs()
-
-        if not self.max_thread_num_str:
-            max_thread_num = 1
-        else:
-            max_thread_num = eval(self.max_thread_num_str)
 
         ## Set initial state before processing
         self.total_repos_count = len(set(self.repo_url_dict))
@@ -126,7 +134,7 @@ class GitCommit(object):
               f"repositories after removed duplicate ones in  {self.community_name} community totally.\n")
 
         ## Run multi-thread of collecting functions and store result to es
-        common.writeDataThread(thread_func_args, max_thread_num=max_thread_num)
+        common.writeDataThread(thread_func_args, max_thread_num=self.max_thread_num)
 
         ## Do statistic of result info:
         self.failed_clone_repo_count = len(self.failed_clone_repos)
@@ -220,7 +228,7 @@ class GitCommit(object):
                 default_repo_url_list.extend(gitee_repo_list)
 
             for repo_url in default_repo_url_list:
-                general_repo_url_dict[repo_url] = eval(self.is_fetch_all_branches)
+                general_repo_url_dict[repo_url] = self.is_fetch_all_branches
             for repo_url in all_branches_repo_url_dict:
                 general_repo_url_dict[repo_url] = all_branches_repo_url_dict[repo_url]
 
@@ -233,7 +241,6 @@ class GitCommit(object):
 
     def process_each_repo(self, repo_url, is_all_branches):
         self.thread_name = threading.current_thread().getName()
-        self.public_local_repo_path = '/home/repo_clone/local_repo'
         repo_name = repo_url.split('/')[-1]
         with self.lock:
             self.reside_process_repo_count -= 1
@@ -258,7 +265,7 @@ class GitCommit(object):
             self.success_process_repo_count += 1
 
         ### Delete local repo after get its commit to reserve enough space for other repo
-        if self.is_remove_local_repo_immediate and eval(self.is_remove_local_repo_immediate):
+        if self.is_remove_local_repo_immediate:
             self.remove_local_repo(repo.working_tree_dir)
             print(f'{self.thread_name} === Repo {repo_name} has been removed.')
 
@@ -541,7 +548,7 @@ class GitCommit(object):
         unified_author = self.get_author(raw_author, email)
         commit_datetime_raw_str = split_list[2].strip()
         commit_datetime_str = self.trans_datetime_to_beijingTime(commit_datetime_raw_str)
-        company_name = self.find_company(email)
+        company_name = self.get_company_name(email)
         commit_id = split_list[3].strip()
         title = split_list[4].strip()
         commit_content = split_list[5].strip()
@@ -624,17 +631,27 @@ class GitCommit(object):
         modify_info['total'] = lines_added + lines_removed
         return modify_info
 
-    def find_company(self, email):
+    def get_company_name(self, email):
+        company_name = None
+        if self.company_info_index_name:
+            company_name = self.get_company_name_from_es(index_name=self.company_info_index_name,
+                                                         field_name='email.keyword', keyword=email)
+        if not company_name and self.yaml_companyInfo:
+            company_name = self.get_companyName_from_YamlCompanyInfo(email)
 
-        if not self.companyInfo:
+        return company_name
+
+    def get_companyName_from_YamlCompanyInfo(self, email):
+
+        if not self.yaml_companyInfo:
             ## There are no proper company information from give online yaml.
             return 'Empty CompanyInfo'
 
         company_name = 'No Company_name'
         email_tag = email.split("@")[-1]
-        users = self.companyInfo.get('users').get('users')
-        domain_companies = self.companyInfo.get('domains_company_list')
-        alias_companies = self.companyInfo.get('aliases_company_list')
+        users = self.yaml_companyInfo.get('users').get('users')
+        domain_companies = self.yaml_companyInfo.get('domains_company_list')
+        alias_companies = self.yaml_companyInfo.get('aliases_company_list')
 
         for user in users:
             if email in user["emails"]:
@@ -650,7 +667,7 @@ class GitCommit(object):
         ## Find nothing after traverse the self.companyInfo
         return company_name
 
-    def get_info_from_company(self):
+    def generate_yaml_companyInfo(self):
         companyInfo = {}
 
         if not self.user_yaml_url or not self.company_yaml_url:
@@ -676,18 +693,20 @@ class GitCommit(object):
                 user_yaml_response = requests.get(self.user_yaml_url)
                 company_yaml_response = requests.get(self.company_yaml_url)
                 if user_yaml_response.status_code != 200 or company_yaml_response.status_code != 200:
-                    print(
-                        'Cannot connect the address of data.yaml or company.yaml online. then return the empty companyInfo dict.')
+                    print('Cannot connect the address of data.yaml or company.yaml online. then return'
+                          ' the empty companyInfo dict.')
                     return companyInfo
 
                 users = yaml.load(user_yaml_response.text, Loader=yaml.FullLoader)
                 companies = yaml.load(company_yaml_response.text, Loader=yaml.FullLoader)
         except:
-            print('Failed to get data.yaml or company.yaml online. then return the empty companyInfo dict.')
+            print('Failed to get data.yaml or company.yaml online. then return the empty companyInfo '
+                  'dict.')
             return companyInfo
 
         domains_company_dict = {}
         aliases_company_dict = {}
+
         for company in companies['companies']:
             for domain in company['domains']:
                 domains_company_dict[domain] = company['company_name']
@@ -701,13 +720,53 @@ class GitCommit(object):
 
         return companyInfo
 
+    def get_company_name_from_es(self, index_name, field_name, keyword):
+        company_name = None
+        if not index_name:
+            return company_name
+
+        url = self.url + '/' + index_name + '/_doc' + '/_search'
+        request_dict = {
+            "query": {
+                "bool": {
+                    "must": [
+                        {
+                            "match": {
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+
+        request_dict['query']['bool']['must'][0]['match'][field_name] = keyword
+        payload = json.dumps(request_dict)
+
+        try:
+            res = requests.post(url=url, headers=self.default_headers, verify=False, data=payload)
+            res_content = json.loads(res.content)
+            if res.status_code != 200:
+                print(f'{self.thread_name} === {sys._getframe(1).f_code.co_name} Failed get '
+                      f'right response data because of unproper request params; \nFailure reason:'
+                      f'\t{res_content}')
+
+            company_info = res_content['hits']['hits']
+            if not company_info: return 'No Company_name'
+
+            company_name = company_info[0].get('_source').get('organization')
+        except Exception as exp:
+            print(f'{self.thread_name} === Encounter exception when get company name from email : {keyword}; \n'
+                  f'Exception as follows:\t{exp.__repr__()}')
+
+        return company_name
+
     def get_author(self, raw_author, email):
         author = raw_author
 
-        if not self.companyInfo:
+        if not self.yaml_companyInfo:
             return author
 
-        users = self.companyInfo.get('users').get('users')
+        users = self.yaml_companyInfo.get('users').get('users')
         if not users:
             return author
 
@@ -826,6 +885,7 @@ class GitCommit(object):
         for repo_url in default_repo_url_list:
             default_repo_url_dict[repo_url] = self.is_fetch_all_branches
 
+        ## all_branches_repo_url_dict is set fetch all branches commits of this repo
         all_branches_repo_url_dict = {}
         for repo_url in all_branches_repo_url_list:
             all_branches_repo_url_dict[repo_url] = True
