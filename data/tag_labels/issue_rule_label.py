@@ -70,7 +70,7 @@ class IssueRuleLabel(object):
 
     # 自定义规则标签字典
     def get_label_rule(self):
-        datas = yaml.load_all(open(self.rule_yaml, 'r', encoding='utf8')).__next__()
+        datas = yaml.safe_load(open(self.rule_yaml, encoding='utf8'))
         for data in datas['label_rules']:
             self.label_rules.update({data['label']: data['aliases']})
 

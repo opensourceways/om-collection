@@ -32,7 +32,7 @@ class ProphetPrediction(object):
         self.get_event_weight()
 
         if self.is_user_prediction == 'true':
-            all_user_buckets = self.esClient.getTotalAuthorName(field="actor.login.keyword", size=4)
+            all_user_buckets = self.esClient.getTotalAuthorName(field="actor.login.keyword", size=10000)
             print('all_user_buckets: %d' % len(all_user_buckets))
             self.user_activity_predict(all_user_buckets)
         if self.is_sig_prediction == 'true':
