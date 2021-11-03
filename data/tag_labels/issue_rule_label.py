@@ -48,6 +48,13 @@ class IssueRuleLabel(object):
                                 "field": "body"
                               }
                             }
+                          ],
+                          "must_not": [
+                            {
+                              "exists": {
+                                "field": "rule_labels"
+                              }
+                            }
                           ]
                         }
                       }
