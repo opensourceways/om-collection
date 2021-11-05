@@ -4,6 +4,7 @@ import base64
 import errno
 import hashlib
 import os
+import pdb
 import platform
 import shutil
 import stat
@@ -14,7 +15,6 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import chardet
 import git
 import pytz
 import requests
@@ -81,6 +81,11 @@ class ClocCode(object):
     def run(self, start_time):
         start_point_time = datetime.utcnow()
 
+        ## Install cloc in linux run environment
+        install_cloc_result = self.execute_shell_command('apt-get install cloc', 'y')
+        if not install_cloc_result:
+            return
+
         if start_time:
             self.from_date = datetime.strptime(start_time, "%Y%m%d")
         self.from_date_str = self.from_date.strftime("%Y-%m-%d")
@@ -95,6 +100,34 @@ class ClocCode(object):
         print("Cost time of this service:", cost_time_seconds)
 
         print(f"*********************Finish Collection*******************************")
+
+    def execute_shell_command(self, command_statement, stdin_statement=''):
+        ## install cloc in linux
+        if self.platform_name != 'linux':
+            print(f'{self.thread_name} === Current OS is not linux.\n {command_statement} would not be executed.')
+            return None
+
+        # pdb.set_trace()
+        # 执行shell语句并定义输出格式
+        subp = subprocess.Popen(command_statement, shell=True, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
+
+        # <editor-fold desc="when install cloc, a standard input to ensure intalling is needed. so must provide this
+        # input string. then close the input stream">
+        subp.stdin.write(stdin_statement.encode())
+        subp.stdin.close()
+        # </editor-fold>q
+
+        wait = subp.wait()
+        if wait == 0:
+            print(f'{self.thread_name} === Statement: {command_statement} has been executed successfully.')
+            result = subp.stdout.readlines()
+            return result
+        else:
+            stderr_info = subp.stdout.read()
+            print(f'{self.thread_name} === Failed to execute statement:  {command_statement}.\n'
+                  f'the error exception as follows:\n'
+                  f'{stderr_info}')
+            return False
 
     def main_process(self):
 
@@ -167,7 +200,7 @@ class ClocCode(object):
         with open(file='succeed_store_repo_list', mode='w') as f:
             f.write(str(succeed_store_repo_list))
 
-        print(f'{sys._getframe(1).f_code.co_name} is over.')
+        print(f'function: {sys._getframe().f_code.co_name} is over.')
 
     def get_thread_funcs(self):
 
@@ -678,21 +711,16 @@ class ClocCode(object):
 
         repo_url = self.get_url_from_local_repo(repo)
         repo_dir = repo.working_dir.replace('\\', '/')
-        cmdline = f'cloc {repo_dir}'
 
         try:
             execute = repo.git.execute(f'git checkout -f {branch_name}', shell=True)
         except Exception as exp:
             print(f'{self.thread_name} === Repo: {repo_url} has failed to checkout to branch_name: {branch_name}.\n'
                   f'Reason is:{exp.__repr__()}')
+        outlines = self.execute_shell_command(f'cloc {repo_dir}')
 
-        command_result_file_obj = subprocess.Popen(cmdline, shell=True, stdout=subprocess.PIPE,
-                                                   stderr=subprocess.STDOUT)
-        outlines = []
-        for line in command_result_file_obj.stdout.readlines():
-            encode_type = chardet.detect(line)['encoding']
-            decode = line.decode(encoding=encode_type)
-            outlines.append(decode)
+        if not outlines and isinstance(outlines, bool):
+            return []
 
         recordLines = []
         append_flag = False
