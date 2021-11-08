@@ -554,11 +554,13 @@ class ClocCode(object):
         # Delete local repo directory after collecting over
         try:
             if self.platform_name == 'linux':  ## delete current local repo on linux
-                os.system(f"rm -rf {path}")  # Execute on Linux
-                print(f'{self.thread_name} === Repository: {repo_name} has been removed.\n')
+                with self.lock:
+                    os.system(f"rm -rf {path}")  # Execute on Linux
+                    print(f'{self.thread_name} === Repository: {repo_name} has been removed.\n')
             elif self.platform_name == 'windows':  ## delete current local repo directory on windows
-                shutil.rmtree(path, onerror=self.handle_remove_read_only)
-                print(f'{self.thread_name} === Repository: {repo_name} has been removed.\n')
+                with self.lock:
+                    shutil.rmtree(path, onerror=self.handle_remove_read_only)
+                    print(f'{self.thread_name} === Repository: {repo_name} has been removed.\n')
         except Exception as ex:
             print(f'{self.thread_name} === Error!!!  Failed to remove local repo directory.\n'
                   f'Exception information: ex.__repr__()')
