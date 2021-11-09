@@ -671,7 +671,7 @@ class Gitee(object):
     def getbranchinfo(self, branches, client, owner, repo, repopath, versiontimemapping_index):
         result = []
         version = None
-
+        print("start getbranchinfo repo: ", repo)
         # file_name = repo
         # repo_spec_dict = {}
         # if self.repo_spec is not None:
@@ -683,6 +683,7 @@ class Gitee(object):
 
         for br in branches:
             brresult = {}
+            print('start getbranchinfo br reop:%s branch:%s ' % (repopath, br['name']))
             try:
                 brresult["brname"] = br['name']
                 spec = client.getspecFile(owner, repo, br['name'])
@@ -693,6 +694,7 @@ class Gitee(object):
                     brresult['summary'] = summary
                     brresult['description'] = description
                     brresult['version'] = versionstr
+                    print("getbranchinfo success, repo(%s) br(%s): " % (repopath, br['name']))
             except Exception as e:
                 print('reop:%s branch:%s has No version' % (repopath, br['name']))
                 result.append(brresult)
@@ -711,7 +713,9 @@ class Gitee(object):
                 # 版本发布时间
                 brresult['releasetime'] = times
                 print('reop:%s branch:%s has No version' % (repopath, br['name']))
+            print('end getbranchinfo br reop:%s branch:%s ' % (repopath, br['name']))
             result.append(brresult)
+        print("end getbranchinfo repo: ", repo)
         return result
 
     def getFromDate(self, from_date, filters):
