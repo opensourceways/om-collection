@@ -177,7 +177,7 @@ class GitHubSWF(object):
     def getRepoNames(self):
         print(f'Starting to fetch all repos...')
         gitclient = GithubClient(self.org, "", self.github_authorization)
-        repos = gitclient.getAllrepo()
+        repos = gitclient.get_repos(self.org)
         repoNames = []
         for repo in repos:
             if repo.get('name'):
