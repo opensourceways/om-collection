@@ -836,7 +836,7 @@ class GitCommit(object):
             githubClient = GithubClient(org=org, repository=None, token=None)
             try:
                 # github_items = self.gitHubDown.getFullNames(org=org, from_date=None)
-                repo_detail_list = githubClient.getAllRepoDetail()
+                repo_detail_list = githubClient.get_repos(org)
                 print(f'Get {len(repo_detail_list)} repos from {org} of Github.\n')
             except:
                 print(f'Failed to get repos from {org} of Github.\n')
