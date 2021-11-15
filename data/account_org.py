@@ -17,8 +17,8 @@ class AccountOrg(object):
         self.email_gitee_es = config.get('email_gitee_es')
         self.email_gitee_authorization = config.get('email_gitee_authorization')
         self.email_gitee_index = config.get('email_gitee_index')
-        self.data_yaml_url = config.get('data_yaml_url')
-        self.company_yaml_url = config.get('company_yaml_url')
+        self.data_yaml_url = config.get('data_yaml_url', 'data.yaml')
+        self.company_yaml_url = config.get('company_yaml_url', 'company.yaml')
         self.csv_data = {}
 
     def run(self, from_time):
@@ -108,11 +108,15 @@ class AccountOrg(object):
             actions = ""
             for data in datas['users']:
                 gitee_id = data['gitee_id']
-                if gitee_id == 'Cmb_Sjz':
-                    a= 0
                 organization = data['companies'][0]['company_name']
                 if organization == '' or gitee_id in dic1 or gitee_id in dic2:
                     continue
+                emails = data['emails']
+                if len(emails) != 0:
+                    email = emails[0]
+                else:
+                    email = gitee_id
+                id = email
 
                 # email = None
                 # if gitee_id in self.csv_data:
@@ -120,14 +124,14 @@ class AccountOrg(object):
                 # if email is None:
                 #     continue
                 action = {
-                    "email": gitee_id,
+                    "email": email,
                     "organization": dic3.get(organization),
                     "gitee_id": gitee_id,
                     "domain": None,
                     "created_at": '1999-01-01',
                     "is_cla": 1
                 }
-                index_data = {"index": {"_index": self.index_name, "_id": gitee_id}}
+                index_data = {"index": {"_index": self.index_name, "_id": id}}
                 actions += json.dumps(index_data) + '\n'
                 actions += json.dumps(action) + '\n'
 

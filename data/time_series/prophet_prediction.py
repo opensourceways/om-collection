@@ -1,4 +1,5 @@
 import json
+import time
 from data.common import ESClient
 from prophet import Prophet
 import pandas as pd
@@ -109,12 +110,14 @@ class ProphetPrediction(object):
             # 数据写入ES
             actions = ''
             for index, data in result.iterrows():
+                created_at = time.strftime("%Y-%m-%d", time.strptime(data['ds'], "%Y-%m"))
                 action = {
                     'user_login': data['actor_login'],
                     'date_month': data['ds'],
                     'activity_metric': data['y'],
                     'predict_label': data['predict_label'],
                     'churn_label': data['churn_label'],
+                    'created_at': created_at,
                 }
                 index_id = data['actor_login'] + '_' + data['ds']
                 index_data = {"index": {"_index": self.user_prediction_index, "_id": index_id}}
@@ -183,12 +186,14 @@ class ProphetPrediction(object):
             # 数据写入ES
             actions = ''
             for index, data in result.iterrows():
+                created_at = time.strftime("%Y-%m-%d", time.strptime(data['ds'], "%Y-%m"))
                 action = {
                     'sig_name': data['sig'],
                     'date_month': data['ds'],
                     'activity_metric': data['y'],
                     'predict_label': data['predict_label'],
                     'churn_label': data['churn_label'],
+                    'created_at': created_at,
                 }
                 index_id = data['sig'] + '_' + data['ds']
                 index_data = {"index": {"_index": self.sig_prediction_index, "_id": index_id}}
