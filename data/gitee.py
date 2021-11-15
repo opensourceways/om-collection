@@ -687,6 +687,7 @@ class Gitee(object):
             try:
                 brresult["brname"] = br['name']
                 spec = client.getspecFile(owner, repo, br['name'])
+                print('client getspecFile br reop:%s branch:%s success, spec(%s)' % (repopath, br['name'], spec))
                 if spec is not None:
                     versionstr = self.transVar2Data('version', spec)
                     summary = self.transVar2Data('summary', spec)
