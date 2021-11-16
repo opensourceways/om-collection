@@ -615,8 +615,8 @@ class GitCommit(object):
         lines_added = 0
         lines_removed = 0
         info_line = info_line.strip()
-        if info_line.__contains__('file changed'):
-            change_file_info_str = info_line.split('file changed')[0]
+        if info_line.__contains__('file'):
+            change_file_info_str = info_line.split('file')[0]
             file_changed = int(change_file_info_str.strip())
         if info_line.__contains__('insertion'):
             lines_added_info_str = info_line.split('insertion')[0].split(',')[-1]
