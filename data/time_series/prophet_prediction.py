@@ -1,3 +1,4 @@
+import datetime
 import json
 import time
 from data.common import ESClient
@@ -18,7 +19,7 @@ class ProphetPrediction(object):
         self.user_prediction_index = config.get('user_prediction_index')
         self.sig_prediction_index = config.get('sig_prediction_index')
         self.start_date = config.get('start_date', '2019-01-01')
-        self.end_date = config.get('end_date', 'now')
+        self.end_date = config.get('end_date', self.get_last_day_of_last_month())
         self.prediction_periods = int(config.get('prediction_periods', '3'))
         self.event_weight = config.get('event_weight')
         self.events_weight = {}
@@ -92,14 +93,14 @@ class ProphetPrediction(object):
                 }
                 user_time_series.append(user_action)
 
-            # 数据量小于2不能做预测
-            if len(user_time_series) < 2:
-                print('%s: Dataframe has less than 2 non-NaN rows' % user)
-                continue
-
             # 用户时间序列活跃度数据 -> DataFrame
             user_df = pd.DataFrame(user_time_series).groupby(['actor_login', 'ds']).sum('popularity').sort_values(
                 'ds').reset_index()
+
+            # 数据量小于2不能做预测
+            if len(user_df) < 2:
+                print('%s: Dataframe has less than 2 non-NaN rows' % user)
+                continue
 
             # 用户活跃度预测
             predict_result = self.time_series_predict(time_series_data=user_df, item='actor_login', item_value=user,
@@ -266,3 +267,8 @@ class ProphetPrediction(object):
             else:
                 predict_result.at[index, 'churn_label'] = 'churned'
         return predict_result
+
+    def get_last_day_of_last_month(self):
+        today = datetime.date.today()
+        end_date = datetime.date(today.year, today.month, 1) - datetime.timedelta(days=1)
+        return str(end_date)
