@@ -83,9 +83,9 @@ class GitCommit(object):
         self.max_thread_num = 1 if not self.max_thread_num_str else eval(self.max_thread_num_str)
         self.public_local_repo_path = PUBLIC_LOCAL_REPO_PATH if not self.public_local_repo_path else \
             self.public_local_repo_path
+        self.test_repo_url_dict_dir = config.get('test_repo_url_dict_dir')
 
     def run(self, start_time):
-        start_point_time = datetime.utcnow()
 
         if start_time:
             self.from_date = datetime.strptime(start_time, "%Y%m%d")
@@ -95,97 +95,170 @@ class GitCommit(object):
         self.main_process()  # collect repo commit entrance
         self.from_date = datetime.today()  # Set start_time for next run time
 
-        end_point_time = datetime.utcnow()
-        cost_time_seconds = end_point_time - start_point_time
-
-        print("Cost time of this service:", cost_time_seconds)
-
         print(f"*********************Finish Collection*******************************")
 
+    @common.show_spend_seconds_of_this_function
     def main_process(self):
 
-        ## Set final_end_date for collecting time window
-        now = datetime.now()
-        now_str = now.strftime('%Y-%m-%d %X')
-        tomorrow = now.today() + timedelta(days=1)
-        if self.end_collect_date_str:
-            final_end_fetch_date = datetime.strptime(self.end_collect_date_str, '%Y%m%d')
-            if final_end_fetch_date > tomorrow:
-                final_end_fetch_date = tomorrow
+        # <editor-fold desc="Created log dir">
+        dest_dir = 'result_logs'
+        is_result_log_exist = self.create_log_dir(dest_dir)
+        if is_result_log_exist:
+            print(f'log_dir exists.')
         else:
-            final_end_fetch_date = tomorrow
+            print(f'create log_dir failure.')
+
+        # </editor-fold>
+
+        # <editor-fold desc="Initialize the several time variable">
+        beijingTime_now = common.get_beijingTime()
+        beijingTime_now_str = beijingTime_now.strftime('%Y-%m-%d %X')
+        tomorrow = beijingTime_now.today() + timedelta(days=1)
+
+        final_end_fetch_date = tomorrow
+        if self.end_collect_date_str:
+            end_collect_date = datetime.strptime(self.end_collect_date_str, '%Y%m%d')
+            if end_collect_date < tomorrow:
+                final_end_fetch_date = end_collect_date
+
+        self.final_end_fetch_date = common.convert_to_localTime(final_end_fetch_date)
         self.final_end_fetch_date_str = final_end_fetch_date.strftime('%Y-%m-%d')
+        # </editor-fold>
 
         if not self.yaml_companyInfo:
             print(f'There are no company information provided from config.ini')
 
-        ## Collect functions and repos for multi-thread
+        # <editor-fold desc="Set several log file directory">
+        acquired_total_repos_log = dest_dir + os.sep + 'acquired_total_repos_log.txt'
+        tracked_repo_log_dir = dest_dir + os.sep + 'tracked_repos_log.txt'
+        success_processed_repos_log_dir = dest_dir + os.sep + 'success_processed_repos_log.txt'
+        success_stored_repos_log_dir = dest_dir + os.sep + 'success_stored_repos_log.txt'
+        failed_process_repos_log_dir = dest_dir + os.sep + 'failed_process_repos_log.txt'
+        empty_commit_repos_log_dir = dest_dir + os.sep + 'empty_commit_repos_log.txt'
+        missed_repos_log_dir = dest_dir + os.sep + 'missed_repos_repos_log.txt'
+        # </editor-fold>
+
+        # <editor-fold desc="Collect functions and repos for multi-thread">
         thread_func_args = self.get_thread_funcs()
+        # </editor-fold>
 
         ## Set initial state before processing
         self.total_repos_count = len(set(self.repo_url_dict))
-        self.success_process_repo_count = 0
-        self.reside_process_repo_count = self.total_repos_count
-        self.failed_clone_repos = []
+
+        # <editor-fold desc="Store self.repo_url_dict into local file">
+        with open(file=acquired_total_repos_log, mode='w', encoding='utf-8') as f:
+            f.write(f'There are {self.total_repos_count} repos were collected from sources:\n')
+            f.mode = 'a'
+            for repo_url in self.repo_url_dict:
+                f.write(repo_url + f': {self.repo_url_dict[repo_url]}\n')
+        # </editor-fold>
+
+        # <editor-fold desc="Initialize several result global variable">
         self.total_commit_count = 0
-        self.success_process_repo_commit_info_dict = {}
+        self.reside_process_repo_count = self.total_repos_count
+
+        self.failed_prepare_repo_dict = {}
+        self.empty_commit_repo_url_list = []
+        self.success_store_es_repo_commit_info_dict = {}
+
+        # </editor-fold>
 
         print(f"From date: {self.from_date_str}, Collected {self.total_repos_count} unique "
               f"repositories after removed duplicate ones in  {self.community_name} community totally.\n")
 
-        ## Run multi-thread of collecting functions and store result to es
+        # <editor-fold desc="Run multi-thread of collecting functions and store result to es">
         common.writeDataThread(thread_func_args, max_thread_num=self.max_thread_num)
+        # </editor-fold>
 
-        ## Do statistic of result info:
-        self.failed_clone_repo_count = len(self.failed_clone_repos)
+        # <editor-fold desc="Store result log info into local file">
 
+        # <editor-fold desc="Store success_processed repos to local file">
+        success_processed_repo_list = []
+        success_processed_repo_list.extend(self.empty_commit_repo_url_list)
+        success_processed_repo_list.extend(list(set(self.success_store_es_repo_commit_info_dict)))
+        success_processed_repo_count = len(success_processed_repo_list)
+        with open(file=success_processed_repos_log_dir, mode='w') as f:
+            f.write(f'success processed {success_processed_repo_count} repos: \n')
+            f.mode = 'a'
+            f.write('\n'.join(success_processed_repo_list))
+        # </editor-fold>
+
+        # <editor-fold desc="Store tracked_repo_url_list to local file">
+        tracked_repo_url_list = []
+        tracked_repo_url_list.extend(success_processed_repo_list)
+        tracked_repo_url_list.extend(self.failed_prepare_repo_dict)
+        tracked_repo_count = len(tracked_repo_url_list)
+
+        with open(file=tracked_repo_log_dir, mode='w', encoding='utf-8') as f:
+            f.write(f'There are {tracked_repo_count} repos were tracked:\n')
+            f.mode = 'a'
+            f.write('\n'.join(tracked_repo_url_list))
+        # </editor-fold>
+
+        # <editor-fold desc="Store succeed_stored repos to local file">
+        succeed_store_repos_count = len(self.success_store_es_repo_commit_info_dict)
+        with open(file=success_stored_repos_log_dir, mode='w', encoding='utf-8') as f:
+            f.write(f'Total {succeed_store_repos_count} repos: \n')
+            f.mode = 'a'
+            for repo_url in self.success_store_es_repo_commit_info_dict:
+                record_line = f'{repo_url}: {self.success_store_es_repo_commit_info_dict[repo_url]}\n'
+                f.write(record_line)
+
+        # </editor-fold>
+
+        # <editor-fold desc="Store failed_clone_repos to local file">
+        self.failed_prepare_repo_count = len(self.failed_prepare_repo_dict)
+        if self.failed_prepare_repo_dict:
+            with open(file=failed_process_repos_log_dir, mode='w', encoding='utf-8') as f:
+                f.write(f'There are {self.failed_prepare_repo_count} failed prepared repos:\n')
+                f.mode = 'a'
+                for repo_url in self.failed_prepare_repo_dict:
+                    f.write(repo_url)
+                    f.write(self.failed_prepare_repo_dict[repo_url] + '\n\n')
+        # </editor-fold>
+
+        # <editor-fold desc="Store empty_commit_repo_url_list to local file">
+        empty_repo_count = len(self.empty_commit_repo_url_list)
+        if self.empty_commit_repo_url_list:
+            with open(file=empty_commit_repos_log_dir, mode='w', encoding='utf-8') as f:
+                f.write(f'There are {empty_repo_count} empty repos:\n')
+                f.mode = 'a'
+                f.write('\n'.join(self.empty_commit_repo_url_list))
+        # </editor-fold>
+
+        # <editor-fold desc="Store missed_repo_list to local file">
+        missed_repo_list = list(set(self.repo_url_dict).difference(set(tracked_repo_url_list)))
+        missed_repo_count = len(missed_repo_list)
+        if missed_repo_list:
+            with open(file=missed_repos_log_dir, mode='w', encoding='utf-8') as f:
+                f.write(f'Missed {missed_repo_count} repos: \n')
+                f.mode = 'a'
+                f.write('\n'.join(missed_repo_list))
+        # </editor-fold>
+
+        # </editor-fold  show all>
+
+        # <editor-fold desc="Calculate the total collected commits">
+        for repo_url in self.success_store_es_repo_commit_info_dict:
+            self.total_commit_count += self.success_store_es_repo_commit_info_dict[repo_url]
+        # </editor-fold>
+
+        # <editor-fold desc="Show result infomation after running">
         print(f'\n\nGame Over!\tProgram result info as follows:')
-        print(f'Start time of program:{now_str}')
-        print(f'From date: {self.from_date_str}\tend date:{self.final_end_fetch_date_str}')
+        print(f'Start time of program:\t{beijingTime_now_str}')
+        print(f'From date: {self.from_date_str};\tend date: {self.final_end_fetch_date_str}')
         print(f'Community name: {self.community_name}')
         print(f'Total repos count from sources: {self.total_repos_count}')
-        print(f'Total processed repos count: {self.success_process_repo_count}')
-        print(f'Total commits from processed repos: {self.total_commit_count}')
-
-        if self.failed_clone_repos:
-            print(f'\nFailed to clone {self.failed_clone_repo_count} repos are:')
-            print(self.failed_clone_repos, '\n')
-
-        tracked_repo_url_list = []
-        empty_commit_repo_url_list = []
-        for repo_url in self.success_process_repo_commit_info_dict:
-            tracked_repo_url_list.append(repo_url)
-            if self.success_process_repo_commit_info_dict[repo_url] == 0:
-                empty_commit_repo_url_list.append(repo_url)
-        tracked_repo_url_list.extend(self.failed_clone_repos)
-
-        succeed_store_repo_list = list(set(self.repo_url_dict) -
-                                       set(empty_commit_repo_url_list + self.failed_clone_repos))
-
-        if succeed_store_repo_list:
-            print(f'\nTotal {len(succeed_store_repo_list)} repos commit num greater than zero, '
-                  f'then they are stored to ES.')
-
-        missed_repo = list(set(self.repo_url_dict).difference(set(tracked_repo_url_list)))
-        if missed_repo:
-            print(f'\nMissed {len(missed_repo)} repos, as follows:')
-            print(missed_repo)
-
-        if empty_commit_repo_url_list:
-            empty_repo_count = len(empty_commit_repo_url_list)
-            print(f'\nThere are {empty_repo_count} repos has no commit '
-                  f'in the specific period. They are:')
-            if empty_repo_count > 10:
-                print(empty_commit_repo_url_list[:10])
-                print('......')
-
-        with open(file='success_process_repo_commit_info_dict_text', mode='w') as f:
-            f.write(str(self.success_process_repo_commit_info_dict))
-
-        with open(file='succeed_store_repo_list', mode='w') as f:
-            f.write(str(succeed_store_repo_list))
-
-        print(f'{sys._getframe(1).f_code.co_name} is over.')
+        print(f'Total repos which successfully tracked in whole: {tracked_repo_count}')
+        print(f'Total processed repos count: {success_processed_repo_count}')
+        print(f'Total repos which successfully stored into ES: {succeed_store_repos_count}')
+        print(f'Total repos which have empty commit cannot store to ES: {empty_repo_count}')
+        print(f'Failed to prepare (clone or pull) for  local repos: {self.failed_prepare_repo_count}')
+        print(f'Total missing repos: {missed_repo_count}')
+        print(f'Total commits from successfully processed repos: {self.total_commit_count}')
+        print(f'Stored ES index name: {self.index_name}')
+        print(f'\nPlease check the detail info from local run log files.\n')
+        # </editor-fold>
 
     def get_thread_funcs(self):
 
@@ -197,7 +270,10 @@ class GitCommit(object):
 
         thread_func_args = {}
         values = []
-        self.repo_url_dict = self.get_repos_from_sources(self.repo_source_dict)
+        if self.test_repo_url_dict_dir:
+            self.repo_url_dict = self.get_repos_from_local_file(False)
+        else:
+            self.repo_url_dict = self.get_repos_from_sources(self.repo_source_dict)
 
         for repo_url in self.repo_url_dict:
             values.append((repo_url, self.repo_url_dict[repo_url]))
@@ -206,6 +282,7 @@ class GitCommit(object):
 
         return thread_func_args
 
+    @common.show_spend_seconds_of_this_function
     def get_repos_from_sources(self, repo_source_dict):
         # collect all repos from various source from repo_source_dict from config file
         try:
@@ -239,6 +316,7 @@ class GitCommit(object):
             print(f'\n{self.thread_name} === Occur error at function: {sys._getframe().f_code.co_name}')
             raise e
 
+    @common.show_spend_seconds_of_this_function
     def process_each_repo(self, repo_url, is_all_branches):
         self.thread_name = threading.current_thread().getName()
         repo_name = repo_url.split('/')[-1]
@@ -246,23 +324,31 @@ class GitCommit(object):
             self.reside_process_repo_count -= 1
         print(f'\n{self.thread_name} === Progress: processing the {repo_url}; Has {self.reside_process_repo_count} '
               f'repos left.')
+        repo = None
 
-        repo = self.prepare_local_repo(repo_url)  # Clone repo to local
-        if not repo:
+        result = self.prepare_local_repo(repo_url)  # Clone repo to local
+
+        if isinstance(result, git.repo.base.Repo):
+            repo = result
+        elif isinstance(result, str):
             print(f'{self.thread_name} === Failed to prepare the repo: {repo_url}')
             with self.lock:
-                self.failed_clone_repos.append(repo_url)
+                self.failed_prepare_repo_dict[repo_url] = result
                 return
         self.track_thread_log(repo_name)
+
         repo_commit_list = self.get_commit_from_each_repo(repo, is_all_branches)  # Get commits from each branch
 
         # store a single repo data into ES
         self.push_repo_data_into_es(self.index_name, repo_commit_list, repo)
 
-        with self.lock:
-            self.success_process_repo_commit_info_dict[repo_url] = len(repo_commit_list)
-            self.total_commit_count += len(repo_commit_list)  ## the total count from all repos
-            self.success_process_repo_count += 1
+        # region Alter the global variable
+        repo_commit_count = len(repo_commit_list)
+        if repo_commit_count == 0:
+            self.empty_commit_repo_url_list.append(repo_url)
+        elif repo_commit_count > 0:
+            self.success_store_es_repo_commit_info_dict[repo_url] = repo_commit_count
+        # endregion
 
         ### Delete local repo after get its commit to reserve enough space for other repo
         if self.is_remove_local_repo_immediate:
@@ -287,9 +373,6 @@ class GitCommit(object):
 
     def push_repo_data_into_es(self, index_name, repo_data_list, repo):
         repo_url = self.get_url_from_local_repo(repo)
-        if not repo_data_list:
-            print(f'{self.thread_name} === Repo: {repo_url} has no commits in this period.')
-            return
 
         action = ''
         for commit_body in repo_data_list:
@@ -306,7 +389,7 @@ class GitCommit(object):
             self.esClient.safe_put_bulk(action)
             print(f'{self.thread_name} === Successfully Stored {len(repo_data_list)} commits of {repo_url} into ES.')
 
-    @count_seconds_of_prepare_local_repo
+    @common.show_spend_seconds_of_this_function
     def prepare_local_repo(self, repo_url):
         '''
         Prepare a local repo object for parsing
@@ -314,19 +397,21 @@ class GitCommit(object):
         demo: https://github.com/postgres/postgres
         :return: repo object
         '''
-        repo_name = repo_url.split("/")[-1]
-        website = repo_url.split("/")[2]
-        project = repo_url.split("/")[-2]
         username = base64.b64decode(self.username).decode()
         passwd = base64.b64decode(self.password).decode()
-        local_repo_path = self.public_local_repo_path + '/' + repo_name
+
+        repo_name = repo_url.split("/")[-1]
+        website = repo_url.split("/")[2]
+        org = repo_url.split("/")[-2]
+        local_repo_file_name = repo_url.split('://')[-1].replace('/', '-')
+        local_repo_path = self.public_local_repo_path + '/' + local_repo_file_name
         repo_dir = Path(local_repo_path)
         local_repo = None
 
         if not username or not passwd:
             print(f'{self.thread_name} === Have not fetch username or passwd from config.ini.\n')
-            return None
-        clone_url = 'https://' + username + ':' + passwd + '@' + website + '/' + project + '/' + repo_name
+            return 'Lack of username or passwd'
+        clone_url = 'https://' + username + ':' + passwd + '@' + website + '/' + org + '/' + repo_name
 
         if repo_dir.exists():
             try:
@@ -335,7 +420,7 @@ class GitCommit(object):
             except Exception as ex:
                 print(f'{self.thread_name} === local_repo_path cannot be build as git.Repo in'
                       f' {sys._getframe(1).f_code.co_name}, Error as follows:\n{ex.__repr__()}')
-                return local_repo
+                return ex.__repr__()
             if check_repo:
                 try:
                     print(f'{self.thread_name} === Pulling repo {repo_url}, since it has existed...')
@@ -345,8 +430,7 @@ class GitCommit(object):
                 except Exception as ex:
                     print(f'{self.thread_name} === Failed to pull existed repo:{repo_url}\n'
                           f' Exception : {ex.__repr__()}')
-                    return None
-
+                    return ex.__repr__()
             else:
                 print(f'{self.thread_name} === {local_repo_path} is not repo.')
         else:
@@ -356,12 +440,12 @@ class GitCommit(object):
                     local_repo = git.Repo().clone_from(clone_url, local_repo_path)
                     print(f'{self.thread_name} === Clone {repo_url} repo successfully.')
             except git.GitCommandError as gitError:
-
                 if os.path.exists(local_repo_path):
                     if self.is_dir_git_repo(local_repo_path):
                         local_repo = git.Repo(local_repo_path)
                         # <editor-fold desc=" Recover the repo which delete a batch file by exception. such as openEuler/kernel">
                         try:
+                            ## Restore all files in the repo
                             local_repo.git.execute(f'git restore --source=HEAD :/', shell=True)
                         except Exception as ex:
                             print(f'{self.thread_name} === Repo: {repo_url} is cloned uncompleted.\n'
@@ -377,22 +461,24 @@ class GitCommit(object):
                     if stderr_fatal.startswith('Authentication failed for'):
                         print(f'{self.thread_name} === Failed to clone {repo_url} repo cause of authentication '
                               f'failure.')
-                        return None
+                        return 'Authentication failure'
 
                     if gitError.stderr.__contains__('not found'):
                         print(f'{self.thread_name} === Failed to clone {repo_url} repo since cannot reach from'
                               f' this repo_url')
-                        return None
+                        return 'Cannot reach from this repo_url since it is private.'
 
                 print(f'{self.thread_name} === Unpredicted GitCommandError, stderr as follows: {gitError.stderr}')
-                return None
+                return gitError.stderr
 
             except Exception as cloneEx:
                 print(f'{self.thread_name} === Occurs unexpected error besides GitCommmandError '
                       f'while clone repo: {repo_url}. \nThe Error is:{repr(cloneEx)}')
-                return None
+                return cloneEx.__repr__()
+
         return local_repo
 
+    @common.show_spend_seconds_of_this_function
     def get_commit_from_each_repo(self, repo, is_all_branches):
         if repo is None:
             return None
@@ -400,61 +486,74 @@ class GitCommit(object):
         repo_commit_list = []
         repo_url = self.get_url_from_local_repo(repo)
         branch_names = self.get_repo_branch_names(repo, is_all_branches)  # ensure branch name, then get its commits.
-        final_end_fetch_date = datetime.strptime(self.final_end_fetch_date_str, '%Y-%m-%d')
+
         self.track_thread_log(repo_name)
 
         for branch_name in branch_names:
-            try:  ## traverse all branches fetch data
-                self.remove_git_index_lock_file(repo)  ## Should remove index.lock before checkout branch
-                repo.git.execute(f"git checkout -f {branch_name}", shell=True)
-            except git.GitCommandError as gitCheckoutError:
-                if branch_name != repo.head.reference.name:
-                    print(f'{self.thread_name} === Failed to checkout to branch name: {branch_name}. '
-                          f'Error is: {repr(gitCheckoutError.status)}\n')
-                    continue
-                print(f'{self.thread_name} === Although occur some error in checkout process, checkout to '
-                      f'{branch_name} successfully at last.')
-
-            from_date = datetime.strptime(self.from_date_str, '%Y-%m-%d')
-            start_fetch_date = from_date
-
-            if not self.period_day_num_str:
-                period_day_num = 3
-            else:
-                period_day_num = eval(self.period_day_num_str)
-
-            branch_commits = []
-            while True:  # pull, parse, assemble commit records
-                start_fetch_date_str = start_fetch_date.strftime('%Y-%m-%d %X')
-                end_fetch_date = start_fetch_date + timedelta(days=period_day_num)
-
-                if end_fetch_date > final_end_fetch_date:
-                    end_fetch_date = final_end_fetch_date
-
-                end_fetch_date_str = end_fetch_date.strftime('%Y-%m-%d %X')
-                commit_log_dict = self.get_period_commit_log(repo, end_fetch_date_str, start_fetch_date_str)
-                branch_period_commits = self.process_commit_log_dict(commit_log_dict, repo)
-
-                print(f'{self.thread_name} === Repository: {repo_url};\tBranch_name: {branch_name};\tfrom date: '
-                      f'{start_fetch_date_str};\tend date: {end_fetch_date_str}.\t {len(branch_period_commits)} ' \
-                      'commits has been collected. ')
-
-                branch_commits.extend(branch_period_commits)
-                start_fetch_date = end_fetch_date
-
-                if end_fetch_date == final_end_fetch_date:
-                    print(f'Reach deadline, collecting is over.')
-                    break
-
-            print(f'\n{self.thread_name} === Repository: {repo_url};\tBranch_name: {branch_name};'
-                  f'\t{len(branch_commits)} commits has been collected.')
-
+            branch_commits = self.get_commits_from_each_branch(branch_name, repo)
             repo_commit_list.extend(branch_commits)
 
         print(f'\n{self.thread_name} === Repository: {repo_url}; \t{len(repo_commit_list)} commits has been'
               f' collected, from {self.from_date_str}\t to {self.final_end_fetch_date_str}')
 
         return repo_commit_list
+
+    @common.show_spend_seconds_of_this_function
+    def get_commits_from_each_branch(self, branch_name, repo):
+        repo_url = self.get_url_from_local_repo(repo)
+
+        # <editor-fold desc="Switch to current branch">
+        try:
+            self.remove_git_index_lock_file(repo)  ## Should remove index.lock before checkout branch
+            repo.git.execute(f"git checkout -f {branch_name}", shell=True)
+        except Exception as exp:
+            if branch_name != repo.head.reference.name:
+                print(f'{self.thread_name} === Failed to switch to branch name: {branch_name}. '
+                      f'Error is: {repr(exp)}\n')
+                return []
+            else:
+                print(f'{self.thread_name} === Although occur some error in checkout process, checkout to '
+                      f'{branch_name} successfully at last.')
+        # </editor-fold>
+
+        # <editor-fold desc="Prepare start time and time window">
+
+        from_date = datetime.strptime(self.from_date_str, '%Y-%m-%d')
+        start_fetch_date = common.convert_to_localTime(from_date)
+
+        if not self.period_day_num_str:
+            period_day_num = 3
+        else:
+            period_day_num = eval(self.period_day_num_str)
+        # </editor-fold>
+
+        # <editor-fold desc="Fetch commits based on time window between start time to end time">
+        branch_commits = []
+        while True:  # pull, parse, assemble commit records
+            start_fetch_date_str = start_fetch_date.strftime('%Y-%m-%d %X')
+            end_fetch_date = start_fetch_date + timedelta(days=period_day_num)
+
+            if end_fetch_date > self.final_end_fetch_date:
+                end_fetch_date = self.final_end_fetch_date
+
+            end_fetch_date_str = end_fetch_date.strftime('%Y-%m-%d %X')
+            commit_log_dict = self.get_period_commit_log(repo, end_fetch_date_str, start_fetch_date_str)
+            branch_period_commits = self.process_commit_log_dict(commit_log_dict, repo)
+
+            print(f'{self.thread_name} === Repository: {repo_url};\tBranch_name: {branch_name};\tfrom date: '
+                  f'{start_fetch_date_str};\tend date: {end_fetch_date_str}.\t {len(branch_period_commits)} ' \
+                  'commits has been collected. ')
+
+            branch_commits.extend(branch_period_commits)
+            start_fetch_date = end_fetch_date
+
+            if end_fetch_date == self.final_end_fetch_date:
+                print(f'Reach deadline, collecting is over.')
+                break
+        print(f'\n{self.thread_name} === Repository: {repo_url};\tBranch_name: {branch_name};\t{len(branch_commits)} ' \
+              'commits has been collected.')
+        # </editor-fold>
+        return branch_commits
 
     def get_period_commit_log(self, repo, start_date_str, end_date_str):
         log_dict = {}
@@ -547,7 +646,7 @@ class GitCommit(object):
         email = split_list[1].strip()
         unified_author = self.get_author(raw_author, email)
         commit_datetime_raw_str = split_list[2].strip()
-        commit_datetime_str = self.trans_datetime_to_beijingTime(commit_datetime_raw_str)
+        commit_beijing_datetime_str = self.trans_datetime_to_beijingTime(commit_datetime_raw_str)
         company_name = self.get_company_name(email)
         commit_id = split_list[3].strip()
         title = split_list[4].strip()
@@ -561,7 +660,8 @@ class GitCommit(object):
         commit_reviewers = self.get_role_from_commit_content(commit_content, 'openEuler_reviewer')
         repo_url = self.get_url_from_local_repo(repo)
         repo_org = repo_url.split('/')[-2]
-        result = {'created_at': commit_datetime_str,
+        result = {'created_at': commit_beijing_datetime_str,
+                  'raw_datetime': commit_datetime_raw_str,
                   'author': raw_author,
                   'unified_author': unified_author,
                   'company': company_name,
@@ -590,7 +690,14 @@ class GitCommit(object):
         return result
 
     def get_url_from_local_repo(self, repo):
-        remote_url = repo.remote().urls.__next__()
+        local_dir = repo.working_tree_dir
+        repo_name = local_dir.split(os.sep)[-1]
+        remote_url = ''
+        try:
+            remote_url = repo.remote().urls.__next__()
+        except Exception as exp:
+            f'\n{self.thread_name} === Cannot get repo_url: {sys._getfram().f_code.co_name}'
+            print(f'Error: {exp.__repr__()}')
         if remote_url.__contains__('@'):
             address = remote_url.split('@')[-1]
             common_url = 'https://' + address
@@ -1005,3 +1112,42 @@ class GitCommit(object):
             print(f'{self.thread_name} === Occurs some exception in function:{sys._getframe(1).f_code.co_name}\n'
                   f'{ex.__repr__()}')
         return beijing_datetime_str
+
+    def create_log_dir(self, dest_dir):
+        '''
+        create a local dir object under root project dir
+        :param dest_dir: the wanted dir name
+        :return: local dir object
+        '''
+        windows_commandline = f'md {dest_dir}'
+        linux_commandline = f'mkdir -p {dest_dir}'
+
+        if os.path.exists(dest_dir):
+            return True
+
+        if self.platform_name == 'windows':
+            exec_out_file = subprocess.Popen(windows_commandline, shell=True, stdout=subprocess.PIPE,
+                                             stderr=subprocess.PIPE)
+        elif self.platform_name == 'linux':
+            exec_out_file = subprocess.Popen(linux_commandline, shell=True, stdout=subprocess.PIPE,
+                                             stderr=subprocess.PIPE)
+
+        if os.path.exists(dest_dir):
+            return True
+        else:
+            print(f'Failed to create log dir for some reasons')
+            return False
+
+    def get_repos_from_local_file(self, is_branch_all):
+        '''
+        get repo_url_dict from local file for test
+        :param is_branch_all: where collect all branches from the specific repo
+        :return: repo_url_dict
+        '''
+        repo_url_dict = {}
+        with open(file=self.test_repo_url_dict_dir, mode='r', encoding='utf-8') as f:
+            repos_lines = f.readlines()
+        for line in repos_lines:
+            repo_url_dict[line.strip()] = is_branch_all
+
+        return repo_url_dict
