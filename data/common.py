@@ -15,22 +15,23 @@
 
 
 import json
-import time
-from collections import defaultdict
-
-from dateutil import parser
-import types
 import re
+import threading
+import time
+import traceback
+import types
+from collections import defaultdict
+from datetime import timedelta, datetime
+from json import JSONDecodeError
+from logging import Logger as logger
+from urllib.parse import quote
+
 import dateutil.parser
 import dateutil.rrule
 import dateutil.tz
-import threading
-import traceback
-from json import JSONDecodeError
-from urllib.parse import quote
-from datetime import timedelta, datetime
 import urllib3
-from logging import Logger as logger
+from dateutil import parser
+from tzlocal import get_localzone
 
 from collect.gitee import GiteeClient
 
@@ -38,6 +39,7 @@ urllib3.disable_warnings()
 import requests
 import os
 import yaml
+import pytz
 
 
 class ESClient(object):
@@ -1991,3 +1993,43 @@ def getGenerator(response):
         print("Gitee get JSONDecodeError, error: ", response)
 
     return data
+
+
+def show_spend_seconds_of_this_function(func):
+    '''
+    :param func: the function, is noted
+    :return: the total spend time of the given fucniton
+    '''
+
+    def wrapper(*args, **kw):
+        thread_name = threading.current_thread().getName()
+        start_time_point = time.time()
+        func_value = func(*args, **kw)
+        end_time_point = time.time()
+        spend_seconds = end_time_point - start_time_point
+        pretty_second = round(spend_seconds, 1)
+        print(f'{thread_name} === Function name: {func.__name__},\tSpend seconds: {pretty_second}s\n')
+        return func_value
+
+    return wrapper
+
+
+def get_beijingTime():
+    ''' Get beijing time from different local time zone
+    :return: standardized beijing time from right now
+    '''
+    utc_now_time = datetime.now(tz=pytz.timezone('UTC'))
+    tz = pytz.timezone('Asia/Shanghai')
+    beijingTime = utc_now_time.astimezone(tz)
+    return beijingTime
+
+
+def convert_to_localTime(input_datetime):
+    '''
+    Convert the given datetime object to local time base local timezone
+    :param input_datetime: a given datetime object
+    :return: a local time based on local timezone
+    '''
+
+    local_tz = get_localzone()
+    return input_datetime.astimezone(local_tz)
