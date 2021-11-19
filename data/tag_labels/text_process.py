@@ -43,9 +43,10 @@ class TextProcess(object):
         if no_punctuation == '' or len(no_punctuation) == 1:
             return no_punctuation
         else:
-            tokens = self.HanLP(no_punctuation)['tok/fine']
+            res = self.HanLP(text_list, tasks=['tok/fine', 'pos/pku'])
+            tokens = res['tok/fine']
             stopwords_list = stopwords.words('english') + self_stopwords  # 中英文分词
-            postag = self.HanLP(no_punctuation)['pos/pku']  # 词性识别
+            postag = res['pos/pku']  # 词性识别
             index = 0
             tokens_new = []
             for pos in postag:

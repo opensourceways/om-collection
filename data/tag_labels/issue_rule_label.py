@@ -1,3 +1,5 @@
+import time
+
 import yaml
 from data import common
 from data.common import ESClient
@@ -28,7 +30,7 @@ class IssueRuleLabel(object):
 
         # 获取issue数据，使用自定义规则标签
         search = '''{
-                      "size": 1000,
+                      "size": %d,
                       "_source": {
                         "includes": [
                           "issue_title",
@@ -58,7 +60,7 @@ class IssueRuleLabel(object):
                           ]
                         }
                       }
-                    }'''
+                    }''' % self.block_num
         self.esClient.scrollSearch(index_name=self.index_name, search=search, scroll_duration='10m',
                                    func=self.rule_label_func)
 
@@ -77,6 +79,7 @@ class IssueRuleLabel(object):
     # 基于匹配的标签
     def rule_label_func(self, hits):
         actions = ''
+        t1 = time.time()
         for hit in hits:
             hit_id = hit['_id']
             source = hit['_source']
@@ -89,6 +92,7 @@ class IssueRuleLabel(object):
 
             # 分词
             tokens = self.text_process.hanlp_text_spilt_noun(text_list=word_list, self_stopwords=self.self_stopwords)
+            print('*** issue_id: %s, end tok' % hit_id)
 
             # 匹配
             labels = []
@@ -108,6 +112,9 @@ class IssueRuleLabel(object):
             actions += action
 
         self.esClient.safe_put_bulk(actions)
+        t2 = time.time()
+        t3 = t2 - t1
+        print('*** block_size: %d, time: %d' % (self.block_num, t3))
 
     # 基于TF-IDF的标签
     def tf_idf_func(self, hits):

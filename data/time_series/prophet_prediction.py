@@ -236,10 +236,10 @@ class ProphetPrediction(object):
         # future['cap'] = activity_cap
         future_time_series_data = model.predict(future)
 
-        print("****** 原始数据 ******")
-        print(time_series_data)
-        print("****** 预测数据 ******")
-        print(future_time_series_data)
+        # print("****** 原始数据 ******")
+        # print(time_series_data)
+        # print("****** 预测数据 ******")
+        # print(future_time_series_data)
 
         future_time_series_data = future_time_series_data.tail(3)[['ds', 'yhat']]
         future_time_series_data.rename(columns={'yhat': 'y'}, inplace=True)

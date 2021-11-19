@@ -74,7 +74,7 @@ class UserRelations:
                         }
                       }
                     }'''
-        self.esClient.scrollSearch(index_name=self.user_index, search=search, scroll_duration='1m',
+        self.esClient.scrollSearch(index_name=self.user_index, search=search, scroll_duration='2m',
                                    func=self.issue_user_func)
         print('****** finish issue user relations ******')
 
@@ -175,7 +175,7 @@ class UserRelations:
                         }
                       }
                     }'''
-        self.esClient.scrollSearch(index_name=self.user_index, search=search, scroll_duration='1m',
+        self.esClient.scrollSearch(index_name=self.user_index, search=search, scroll_duration='2m',
                                    func=self.pr_user_func)
         print('****** finish pr user relations ******')
 
