@@ -1,4 +1,6 @@
+import datetime
 import json
+import time
 from data.common import ESClient
 from prophet import Prophet
 import pandas as pd
@@ -17,7 +19,7 @@ class ProphetPrediction(object):
         self.user_prediction_index = config.get('user_prediction_index')
         self.sig_prediction_index = config.get('sig_prediction_index')
         self.start_date = config.get('start_date', '2019-01-01')
-        self.end_date = config.get('end_date', 'now')
+        self.end_date = config.get('end_date', self.get_last_day_of_last_month())
         self.prediction_periods = int(config.get('prediction_periods', '3'))
         self.event_weight = config.get('event_weight')
         self.events_weight = {}
@@ -91,14 +93,14 @@ class ProphetPrediction(object):
                 }
                 user_time_series.append(user_action)
 
-            # 数据量小于2不能做预测
-            if len(user_time_series) < 2:
-                print('%s: Dataframe has less than 2 non-NaN rows' % user)
-                continue
-
             # 用户时间序列活跃度数据 -> DataFrame
             user_df = pd.DataFrame(user_time_series).groupby(['actor_login', 'ds']).sum('popularity').sort_values(
                 'ds').reset_index()
+
+            # 数据量小于2不能做预测
+            if len(user_df) < 2:
+                print('%s: Dataframe has less than 2 non-NaN rows' % user)
+                continue
 
             # 用户活跃度预测
             predict_result = self.time_series_predict(time_series_data=user_df, item='actor_login', item_value=user,
@@ -109,12 +111,14 @@ class ProphetPrediction(object):
             # 数据写入ES
             actions = ''
             for index, data in result.iterrows():
+                created_at = time.strftime("%Y-%m-%d", time.strptime(data['ds'], "%Y-%m"))
                 action = {
                     'user_login': data['actor_login'],
                     'date_month': data['ds'],
                     'activity_metric': data['y'],
                     'predict_label': data['predict_label'],
                     'churn_label': data['churn_label'],
+                    'created_at': created_at,
                 }
                 index_id = data['actor_login'] + '_' + data['ds']
                 index_data = {"index": {"_index": self.user_prediction_index, "_id": index_id}}
@@ -183,12 +187,14 @@ class ProphetPrediction(object):
             # 数据写入ES
             actions = ''
             for index, data in result.iterrows():
+                created_at = time.strftime("%Y-%m-%d", time.strptime(data['ds'], "%Y-%m"))
                 action = {
                     'sig_name': data['sig'],
                     'date_month': data['ds'],
                     'activity_metric': data['y'],
                     'predict_label': data['predict_label'],
                     'churn_label': data['churn_label'],
+                    'created_at': created_at,
                 }
                 index_id = data['sig'] + '_' + data['ds']
                 index_data = {"index": {"_index": self.sig_prediction_index, "_id": index_id}}
@@ -230,10 +236,10 @@ class ProphetPrediction(object):
         # future['cap'] = activity_cap
         future_time_series_data = model.predict(future)
 
-        print("****** 原始数据 ******")
-        print(time_series_data)
-        print("****** 预测数据 ******")
-        print(future_time_series_data)
+        # print("****** 原始数据 ******")
+        # print(time_series_data)
+        # print("****** 预测数据 ******")
+        # print(future_time_series_data)
 
         future_time_series_data = future_time_series_data.tail(3)[['ds', 'yhat']]
         future_time_series_data.rename(columns={'yhat': 'y'}, inplace=True)
@@ -261,3 +267,8 @@ class ProphetPrediction(object):
             else:
                 predict_result.at[index, 'churn_label'] = 'churned'
         return predict_result
+
+    def get_last_day_of_last_month(self):
+        today = datetime.date.today()
+        end_date = datetime.date(today.year, today.month, 1) - datetime.timedelta(days=1)
+        return str(end_date)

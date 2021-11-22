@@ -2,7 +2,7 @@ import math
 import re
 import hanlp
 from collections import Counter
-from nltk.corpus import stopwords
+# from nltk.corpus import stopwords
 
 
 class TextProcess(object):
@@ -43,9 +43,10 @@ class TextProcess(object):
         if no_punctuation == '' or len(no_punctuation) == 1:
             return no_punctuation
         else:
-            tokens = self.HanLP(no_punctuation)['tok/fine']
-            stopwords_list = stopwords.words('english') + self_stopwords  # 中英文分词
-            postag = self.HanLP(no_punctuation)['pos/pku']  # 词性识别
+            res = self.HanLP(text_list, tasks=['tok/fine', 'pos/pku'])
+            tokens = res['tok/fine']
+            stopwords_list = self_stopwords  # stopwords.words('english') + self_stopwords  # 中英文分词
+            postag = res['pos/pku']  # 词性识别
             index = 0
             tokens_new = []
             for pos in postag:
