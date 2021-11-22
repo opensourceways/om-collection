@@ -92,7 +92,7 @@ class IssueRuleLabel(object):
 
             # 分词
             tokens = self.text_process.hanlp_text_spilt_noun(text_list=word_list, self_stopwords=self.self_stopwords)
-            print('*** issue_id: %s, end tok' % hit_id)
+            # print('*** issue_id: %s, end tok' % hit_id)
 
             # 匹配
             labels = []

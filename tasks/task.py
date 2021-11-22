@@ -59,7 +59,8 @@ BACKEND_MAPPING = {
     'up_down_ratio': 'data.combine.up_down_ratio.UpDownRatio',
     'build_obs': 'data.build_obs.OBS',
     'issue_rule_label': 'data.tag_labels.issue_rule_label.IssueRuleLabel',
-    'prophet_prediction': 'data.time_series.prophet_prediction.ProphetPrediction'
+    'prophet_prediction': 'data.time_series.prophet_prediction.ProphetPrediction',
+    'user_relations': 'data.user_relations.UserRelations'
 }
 
 
