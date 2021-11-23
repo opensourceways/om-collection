@@ -100,6 +100,7 @@ class ProphetPrediction(object):
             # 数据量小于2不能做预测
             if len(user_df) < 2:
                 print('%s: Dataframe has less than 2 non-NaN rows' % user)
+                self.single_user_events = []
                 continue
 
             # 用户活跃度预测
