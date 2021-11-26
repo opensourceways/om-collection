@@ -250,6 +250,12 @@ class GithubClient(object):
         self.get_data(url=url, params=params, current_page=1, datas=datas)
         return datas
 
+    def get_repo(self, org, repo):
+        url = self.urijoin(BASE_URL, 'repos', org, repo)
+        datas = []
+        self.get_data(url=url, params=None, current_page=1, datas=datas)
+        return datas
+
     def get_swf(self, owner, repo, item):
         url = self.urijoin(BASE_URL, 'repos', owner, repo, item)
         params = {
@@ -323,8 +329,11 @@ class GithubClient(object):
             print("Thread sleeping, cause exceed the rate limit of github...")
             time.sleep(3600)
             current_page -= 1
-
-        datas.extend(req.json())
+        js = req.json()
+        if type(js) == dict:
+            datas.append(js)
+        else:
+            datas.extend(req.json())
 
         if 'next' in req.links:
             url_next = req.links['next']['url']
