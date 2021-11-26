@@ -12,7 +12,7 @@ GITEE = 'https://gitee.com/'
 GITHUB = 'https://github.com/'
 
 
-class GiteeGithubStarFork(object):
+class GiteeGithubCombine(object):
     def __init__(self, config=None):
         self.config = config
         self.gitee_token = config.get('gitee_token')
