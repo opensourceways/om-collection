@@ -61,7 +61,7 @@ BACKEND_MAPPING = {
     'issue_rule_label': 'data.tag_labels.issue_rule_label.IssueRuleLabel',
     'prophet_prediction': 'data.time_series.prophet_prediction.ProphetPrediction',
     'user_relations': 'data.user_relations.UserRelations',
-    'gitee_github_star_fork': 'data.gitee_github_star_fork.GiteeGithubStarFork'
+    'gitee_github_combine': 'data.combine.gitee_github_combine.GiteeGithubCombine'
 }
 
 
