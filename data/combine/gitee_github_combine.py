@@ -27,7 +27,7 @@ class GiteeGithubCombine(object):
         self.get_owner_project()
 
     def get_owner_project(self):
-        datas = yaml.load_all(open(self.owner_project_yaml, encoding='UTF-8')).__next__()
+        datas = yaml.safe_load_all(open(self.owner_project_yaml, encoding='UTF-8')).__next__()
         for owner_item in datas['owner_items']:
             owner = owner_item['owner']
             items = owner_item['items']
