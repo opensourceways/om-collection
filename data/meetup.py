@@ -103,6 +103,7 @@ class Meetup(object):
                           'meetup_name': meetup_name,
                           'meetup_date': meetup_date,
                           'user_login': user_login,
+                          'sign': registrant['sign'],
                           key: 1}
                 if geo is not None:
                     city = geo['city']
