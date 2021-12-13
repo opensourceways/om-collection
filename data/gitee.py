@@ -1230,6 +1230,7 @@ class Gitee(object):
         rich_issue['closed_at'] = issue['finished_at']
         rich_issue['url'] = issue['html_url']
         rich_issue['issue_url'] = issue['html_url']
+        rich_issue['issue_customize_state'] = issue['issue_state']
 
         # extract reactions and add it to enriched item
         # rich_issue.update(self.__get_reactions(issue))
