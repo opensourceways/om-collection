@@ -15,7 +15,9 @@
 
 
 import json
+import platform
 import re
+import subprocess
 import threading
 import time
 import traceback
@@ -1827,6 +1829,33 @@ class ESClient(object):
         return json.loads(req.content)
 
 
+def create_log_dir(dest_dir):
+    '''
+    create a local dir object under root project dir
+    :param dest_dir: the wanted dir name
+    :return: local dir object
+    '''
+    platform_name = platform.system().lower()
+    windows_commandline = f'md {dest_dir}'
+    linux_commandline = f'mkdir -p {dest_dir}'
+
+    if os.path.exists(dest_dir):
+        return True
+
+    if platform_name == 'windows':
+        exec_out_file = subprocess.Popen(windows_commandline, shell=True, stdout=subprocess.PIPE,
+                                         stderr=subprocess.PIPE)
+    elif platform_name == 'linux':
+        exec_out_file = subprocess.Popen(linux_commandline, shell=True, stdout=subprocess.PIPE,
+                                         stderr=subprocess.PIPE)
+
+    if os.path.exists(dest_dir):
+        return True
+    else:
+        print(f'Failed to create log dir for some reasons')
+    return False
+
+
 def get_date(time):
     if time:
         return time.split("+")[0]
@@ -2008,7 +2037,7 @@ def show_spend_seconds_of_this_function(func):
         end_time_point = time.time()
         spend_seconds = end_time_point - start_time_point
         pretty_second = round(spend_seconds, 1)
-        print(f'{thread_name} === Function name: {func.__name__},\tSpend seconds: {pretty_second}s\n')
+        print(f'{thread_name} === Function name: {func.__name__}, Spend seconds: {pretty_second}s\n')
         return func_value
 
     return wrapper
