@@ -296,7 +296,11 @@ class CVE(object):
 
             res['user_login'] = issue['user_login']
             res['issue_state'] = issue['issue_state']
-            res['issue_customize_state'] = issue['issue_customize_state']
+            if 'issue_customize_state' not in issue:
+                issue_customize_state = ''
+            else:
+                issue_customize_state = issue['issue_customize_state']
+            res['issue_customize_state'] = issue_customize_state
             res['issue_labels'] = issue['issue_labels']
             # 受影响软件（仓库）
             res['repository'] = str(issue['repository']).split("/")[1]
