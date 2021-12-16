@@ -1,5 +1,6 @@
 import json
 import datetime
+import re
 
 import requests
 
@@ -292,7 +293,8 @@ class CVE(object):
                                                            res['CVE_public_time'], '%Y-%m-%d')
             else:
                 res['cve_rec_duration'] = self.getDuration(res['created_at'], '%Y-%m-%dT%H:%M:%S+08:00',
-                                                           str(rec_time).split('.')[0], '%Y-%m-%d %H:%M:%S')
+                                                           self.format_time(str(rec_time).split('.')[0]),
+                                                           '%Y-%m-%d %H:%M:%S')
 
             res['user_login'] = issue['user_login']
             res['issue_state'] = issue['issue_state']
@@ -360,3 +362,9 @@ class CVE(object):
         else:
             is_slo = 0
         return is_slo
+
+    def format_time(self, str):
+        r = re.findall('\d+', str)
+        if len(r) == 5:
+            r.append("00")
+        return r[0] + '-' + r[1] + '-' + r[2] + ' ' + r[3] + ':' + r[4] + ':' + r[5]
