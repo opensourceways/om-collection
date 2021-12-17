@@ -39,7 +39,6 @@ class GoogleAnalyticUser(object):
         self.base_url = config.get('base_url')
         self.es_url = config.get('es_url')
         self.collect_endDate_str = config.get('collect_end_date_str')
-        # self.gitee_token_v5 = config.get('gitee_token_v5')
         self.authorization = config.get('authorization')
         self.headers = {
             'Authorization': self.authorization,
@@ -96,8 +95,9 @@ class GoogleAnalyticUser(object):
             'date': 'date', 'region': 'visit_district_title', 'sourceMedium': 'sourceMedium',
             'keyword': 'simple_searchword_title', 'pagePath': 'visit_page_url', 'pageTitle': 'visit_page_title',
             'country': 'country', 'source': 'source', 'medium': 'medium', 'ip_count': 'ip_count',
+            'searchKeyword': 'simple_searchword_title',
 
-            'pageviews': 'pv_count', 'users': 'visitor_count', '1dayUsers': 'active_visitor_count',
+            'pageviews': 'pv_count', 'users': 'visitor_count', '1dayUsers': 'active_user_count',
             'newUsers': 'new_visitor_count', 'sessions': 'session_count', 'avgTimeOnPage': 'avg_visit_time',
             'pageviewsPerSession': 'avg_visit_pages', 'bounces': 'outward_count', 'bounceRate': 'bounce_rate',
 
@@ -109,56 +109,74 @@ class GoogleAnalyticUser(object):
         # </editor-fold>
 
         # <editor-fold desc="Set collecting time window">
+
         self.set_collect_time_window(startTime)
         print(f'Collecting date: from {self.startDate_str} to {self.endDate_str}')
         # </editor-fold>
 
         self.request_body = self.get_request_body()
-        request_body = copy.deepcopy(self.request_body)
 
         # # <editor-fold desc="Collect date-1dayUsers data from fetch_auto function">
         date_dimension_list = ['date']
-        date_metric_list = ['pageviews', '1dayUsers', 'newUsers', 'sessions', 'avgTimeOnPage',
-                            'pageviewsPerSession', 'bounces', 'bounceRate']
-        self.process_auto_dimension_metric_data(date_dimension_list, date_metric_list)
-
+        date_metric_list = ['pageviews', '1dayUsers', 'newUsers', 'sessions', 'avgTimeOnPage', 'pageviewsPerSession',
+                            'bounces', 'bounceRate']
+        date_row_count, _ = self.process_auto_dimension_metric_data(date_dimension_list, date_metric_list, 'date')
         # # </editor-fold>
 
         # <editor-fold desc="fetch, parse, store increment data by fetch_increment function">
+        increment_dimension_list = ['date']
         increment_field_metric_list = ['total_pageviews', 'total_users', 'total_newUsers', 'total_sessions',
                                        'total_ip_count', 'avgTimeOnPage', 'pageviewsPerSession', 'total_bounces',
                                        'bounceRate']
-        self.process_increment_data(increment_field_metric_list)
+        increment_row_count = self.process_increment_data(increment_dimension_list, increment_field_metric_list,
+                                                          data_type='increment')
         # </editor-fold>
 
         # # <editor-fold desc="collect whole fields data by fetch_auto function">
         detail_dimension_list = ['date', 'region', 'sourceMedium', 'keyword', 'pagePath', 'pageTitle']
-        detail_metric_list = ['pageviews', 'users', 'newUsers', 'ip_count', 'sessions', 'avgTimeOnPage',
-                              'pageviewsPerSession', 'bounces', 'bounceRate']
-        detail_row_bodies = self.process_auto_dimension_metric_data(detail_dimension_list, detail_metric_list)
+        detail_metric_list = ['pageviews', 'users', 'newUsers', 'sessions', 'avgTimeOnPage', 'pageviewsPerSession',
+                              'bounces', 'bounceRate']
+        detail_row_count, detail_row_bodies = self.process_auto_dimension_metric_data(detail_dimension_list,
+                                                                                      detail_metric_list,
+                                                                                      data_type='detail')
         to_local = self.write_content_rows_to_local(content_rows=detail_row_bodies, top_count=len(detail_row_bodies))
         # # </editor-fold>
+
+        total_row_count = date_row_count + increment_row_count + detail_row_count
+        print(f'\n==============================================================')
+        print(f'date data rows: {date_row_count};')
+        print(f'increment data rows: {increment_row_count};')
+        print(f'detail data: {detail_row_count};')
+        print(f'total data: {total_row_count};')
+        print(f'==============================================================\n')
 
         self.startDate_str = self.endDate_str
 
         print(f'Run over!!!')
 
-    def process_increment_data(self, increment_field_metric_list):
+    @common.show_spend_seconds_of_this_function
+    def process_increment_data(self, increment_dimension_list, increment_field_metric_list, data_type):
         increment_total_rows = self.fetch_increment_total_rows(request_body=copy.deepcopy(self.request_body))
-        increment_total_bodies = self.parse_increment_total_rows_of_each_date(increment_total_rows)
-        increment_id_field_list = self.get_id_field_list(increment_total_bodies, increment_field_metric_list)
-        stored_state = self.push_content_rows_into_es(increment_total_bodies, id_field_list=increment_id_field_list)
+        increment_total_bodies = self.parse_increment_total_rows_of_each_date(increment_total_rows,
+                                                                              increment_field_metric_list, data_type)
+        stored_state = self.push_content_rows_into_es(increment_total_bodies, id_field_list=increment_dimension_list,
+                                                      data_type=data_type)
+        increment_row_count = len(increment_total_rows)
         print(f'Success process increment data.')
+        return increment_row_count
 
-    def process_auto_dimension_metric_data(self, auto_dimension_list, auto_metric_list):
+    @common.show_spend_seconds_of_this_function
+    def process_auto_dimension_metric_data(self, auto_dimension_list, auto_metric_list, data_type):
         _, data_rows = self.fetch_auto_defined_rows(dimension_name_list=auto_dimension_list,
                                                     metric_list=auto_metric_list,
                                                     request_body=copy.deepcopy(self.request_body))
-        data_bodies = self.parse_auto_defined_rows(data_rows, auto_dimension_list, auto_metric_list)
-        data_bodies_id_field_list = self.get_id_field_list(data_bodies, auto_metric_list)
-        self.push_content_rows_into_es(data_bodies, data_bodies_id_field_list)
-        print(f'Success process date data by auto function.')
-        return data_bodies
+
+        data_bodies = self.parse_auto_defined_rows(data_rows, auto_dimension_list, auto_metric_list,
+                                                   data_type=data_type)
+        self.push_content_rows_into_es(data_bodies, auto_dimension_list, data_type)
+        print(f'Success process {data_type} data by auto function.')
+        data_count = len(data_rows)
+        return data_count, data_bodies
 
     def readContentFromLocal(self, file_name):
         content_list = []
@@ -194,12 +212,7 @@ class GoogleAnalyticUser(object):
         :param pageSize:
         :return:
         '''
-        try:
-            first_page_report = self.get_report(body=request_body, pageToken=1, pageSize=1)
-        except Exception as exp:
-            print(exp.__repr__())
-            raise exp
-
+        first_page_report = self.get_report(body=request_body, pageToken=1, pageSize=1)
         total_pages = self.get_total_pages(pageSize, totalCount)
         print(f'Total {total_pages} pages data should be fetch.')
         print(f'Starting to collect googleanalytic data...')
@@ -233,6 +246,7 @@ class GoogleAnalyticUser(object):
         :return: total pages calculated from the pageSize and totalCount
         '''
         # Calculate total page of data
+
         pageOdds = totalCount % pageSize
         total_page = math.floor(totalCount / pageSize)
         if pageOdds != 0:
@@ -260,7 +274,7 @@ class GoogleAnalyticUser(object):
         return content_totals, content_rows
 
     @common.show_spend_seconds_of_this_function
-    def push_content_rows_into_es(self, data_bodies, id_field_list):
+    def push_content_rows_into_es(self, data_bodies, id_field_list, data_type):
         '''
         push the data_bodies which has been parsed successfully into es.
         :param data_bodies:
@@ -278,7 +292,7 @@ class GoogleAnalyticUser(object):
         actions = ''
         for data_body in data_bodies:
             data_body_copy = copy.deepcopy(data_body)
-            doc_id = self.get_es_doc_id(data_body=data_body_copy, id_field_list=id_field_list)
+            doc_id = self.get_es_doc_id(data_body=data_body_copy, id_field_list=id_field_list, data_type=data_type)
             action = common.getSingleAction(index_name=self.index_name, id=doc_id, body=data_body)
             actions += action
 
@@ -288,7 +302,7 @@ class GoogleAnalyticUser(object):
 
         return True
 
-    def get_es_doc_id(self, data_body, id_field_list):
+    def get_es_doc_id(self, data_body, id_field_list, data_type=None):
         '''
         Generate the doc id for each doc in ES
         doc id comes form fields of data_body
@@ -303,13 +317,9 @@ class GoogleAnalyticUser(object):
         'pv_count_per_session': 1.24, 'bounce_count': 48, 'bounce_rate': 56.47}
         '''
 
-        doc_id_list = [str(data_body[field]) for field in id_field_list]
-        doc_id_list.sort()
-        doc_id_str = '_'.join(doc_id_list)
-
-        if data_body.get('all_pv_count'):
-            doc_id_str = 'all_' + doc_id_str
-
+        doc_id_list = [str(data_body[self.google_baidu_map[field]]) for field in id_field_list]
+        id_field_list.sort()
+        doc_id_str = str(data_type) + '_'.join(doc_id_list)
         doc_id = hashlib.sha256('{}\n'.format(doc_id_str).encode('utf-8')).hexdigest()
         return doc_id
 
@@ -368,18 +378,27 @@ class GoogleAnalyticUser(object):
 
     def set_collect_time_window(self, startTime):
         if not startTime:
-            print(f'StartTime of collecting is not provide, please have a check.')
-            raise ValueError
+            if self.startDate_str:
+                startTime = self.startDate_str
+            else:
+                print(f'StartTime of collecting is not provide, please have a check.')
+                raise ValueError
+
+        try:
+            startDate = datetime.strptime(startTime, '%Y%m%d')
+        except ValueError as ve:
+            startDate = datetime.strptime(startTime, '%Y-%m-%d')
+        except Exception as exp:
+            raise exp
 
         endDate = datetime.today() + timedelta(days=-1)  # set endDate to yesterday from now
         if self.collect_endDate_str:
-            endDate = datetime.strptime(self.collect_endDate_str, '%Y%m%d')
-
-        startDate = datetime.strptime(startTime, '%Y%m%d')
+            collect_endDate = datetime.strptime(self.collect_endDate_str, '%Y%m%d')
+            if collect_endDate > startDate and collect_endDate < endDate:
+                endDate = collect_endDate
 
         if startDate > endDate:
-            print('Cannot collect data: startDate beyond endDate')
-            raise ValueError
+            raise ValueError('startDate beyond endDate')
 
         self.startDate_str = startDate.strftime('%Y-%m-%d')
         self.endDate_str = endDate.strftime('%Y-%m-%d')
@@ -408,7 +427,9 @@ class GoogleAnalyticUser(object):
     def get_id_field_list(self, data_bodies, metric_list):
         data_bodies_list = list(data_bodies[0].keys())
         metric_field_list = [self.google_baidu_map[field] for field in metric_list]
+        metric_field_list.append('ip_count')
         field_list = list(set(data_bodies_list).difference(set(metric_field_list)))
+        field_list.sort()
         return field_list
 
     @common.show_spend_seconds_of_this_function
@@ -419,6 +440,7 @@ class GoogleAnalyticUser(object):
 
         days = 0
         while True:
+            total_data_dict = {}
             cursor_date = start_date + timedelta(days=days)
 
             if cursor_date > end_date:
@@ -433,9 +455,12 @@ class GoogleAnalyticUser(object):
             except Exception as exp:
                 print(f'Failed to get the response reports of your googleanalytic data. Program will be over.')
                 print(repr(exp))
-            content_totals = first_page_reports[0].get('data').get('totals')
-            total_data_dict = content_totals[0]
-            total_data_dict['date'] = cursor_date_str
+
+            total_data_dict['dimensions'] = [cursor_date.strftime('%Y%m%d')]
+            total_data_dict['metrics'] = first_page_reports[0].get('data').get('totals')
+
+            # total_data_dict = content_totals[0]
+            # total_data_dict['date'] = cursor_date_str
             increment_date_total_row_list.append(total_data_dict)
 
             days += 1
@@ -443,7 +468,7 @@ class GoogleAnalyticUser(object):
         return increment_date_total_row_list
 
     @common.show_spend_seconds_of_this_function
-    def parse_increment_total_rows_of_each_date(self, rows, ):
+    def parse_increment_total_rows_of_each_date(self, rows, increment_field_metric_list, data_type):
         content_bodies = []
         try:
             if not rows:
@@ -452,11 +477,11 @@ class GoogleAnalyticUser(object):
             print(f'{self.thread_name} ===  rows is None.\n {exp.__repr__()} ')
 
         for row in rows:
-            content_body = self.parse_each_increment_total_row(row)
+            content_body = self.parse_each_increment_total_row(row, increment_field_metric_list, data_type)
             content_bodies.append(content_body)
         return content_bodies
 
-    def parse_each_increment_total_row(self, row):
+    def parse_each_increment_total_row(self, row, increment_field_metric_list, data_type):
         '''
         {'values': ['7160', '5682', '978', '1784', '64.0561755952381', '4.013452914798206', '1001', '56.109865470852014'], 'date': '2021-11-21'}
         :param row:
@@ -464,16 +489,18 @@ class GoogleAnalyticUser(object):
         '''
 
         row_body = {}
-        metric = row.get('values')
+        dimensions = row.get('dimensions')
+        metric = row.get('metrics')[0].get('values')
         metric_values = list(map(self.get_standarded_numeric_value_from_string, metric))
-        date_str = row.get('date')
-
-        row_body['analytic_platform'] = 'googleAnalytic'
+        date_str = dimensions[0]
+        row_body['analytic_platform'] = 'GoogleAnalytic'
         row_body['created_at'] = self.getTime(date_str)
+        row_body['date'] = date_str
+        row_body['data_type'] = data_type
 
         row_body[self.google_baidu_map['total_pageviews']] = metric_values[0]  # pv_count
         row_body[self.google_baidu_map['total_users']] = metric_values[1]  # visit_count
-        row_body[self.google_baidu_map['total_ip_count']] = metric_values[1]  # visit_count
+        row_body[self.google_baidu_map['total_ip_count']] = metric_values[2]  # visit_count
         row_body[self.google_baidu_map['total_newUsers']] = metric_values[2]  # new_visitor_count
         row_body[self.google_baidu_map['total_sessions']] = metric_values[3]
         row_body[self.google_baidu_map['avgTimeOnPage']] = metric_values[4]  # avg_visit_time
@@ -490,7 +517,8 @@ class GoogleAnalyticUser(object):
         request_body["reportRequests"][0]["metrics"] = metrics
         return request_body
 
-    def parse_auto_defined_rows(self, rows, specific_dimension_list, specific_metric_list):
+    @common.show_spend_seconds_of_this_function
+    def parse_auto_defined_rows(self, rows, specific_dimension_list, specific_metric_list, data_type):
         '''
         Parse the specific dimension data from GA
         :param rows:
@@ -505,12 +533,13 @@ class GoogleAnalyticUser(object):
             print(f'{self.thread_name} ===  rows is None.\n {exp.__repr__()} ')
 
         for row in rows:
-            content_body = self.parse_each_row_of_auto_defined(row, specific_dimension_list, specific_metric_list)
+            content_body = self.parse_each_row_of_auto_defined(row, specific_dimension_list, specific_metric_list,
+                                                               data_type)
             content_bodies.append(content_body)
 
         return content_bodies
 
-    def parse_each_row_of_auto_defined(self, row, specific_dimension_list, specific_metric_list):
+    def parse_each_row_of_auto_defined(self, row, specific_dimension_list, specific_metric_list, data_type=None):
         '''
         {'dimensions': ['20210705'], 'metrics': [{'values': ['584', '406', '406', '464', '294.65833333333336', '1.2586206896551724', '379', '81.68103448275862']}]}
         :param row:
@@ -523,23 +552,29 @@ class GoogleAnalyticUser(object):
         metric_values = list(map(self.get_standarded_numeric_value_from_string, metrics))
 
         row_body['analytic_platform'] = 'GoogleAnalytic'
-        self.set_row_body_dimensions(row_body, dimensions, specific_dimension_list)
-        self.set_row_body_metric_values(row_body, metric_values, specific_metric_list)
+        self.set_row_body_dimensions(row_body, dimensions, specific_dimension_list, data_type)
+        self.set_row_body_metric_values(row_body, metric_values, specific_metric_list, data_type)
 
         return row_body
 
-    def set_row_body_dimensions(self, row_body, dimensions, specific_dimension_list):
+    def set_row_body_dimensions(self, row_body, dimensions, specific_dimension_list, data_type):
+        row_body['data_type'] = data_type
         for indice in range(len(specific_dimension_list)):
             row_body[self.google_baidu_map[specific_dimension_list[indice]]] = dimensions[indice]
 
         if row_body.get('date'):
-            row_body['created_at'] = self.getTime(row_body.pop('date'))
+            row_body['created_at'] = self.getTime(row_body.get('date'))
         if 'sourceMedium' in specific_dimension_list:
             self.set_source_type_engine_title(dimension_name=row_body['sourceMedium'], dimensions=dimensions,
                                               row_body=row_body)
         return row_body
 
-    def set_row_body_metric_values(self, row_body, metrics, specific_metric_list):
+    def set_row_body_metric_values(self, row_body, metrics, specific_metric_list, data_type):
         for indice in range(len(specific_metric_list)):
             row_body[self.google_baidu_map[specific_metric_list[indice]]] = metrics[indice]
+
+        if data_type == 'detail':
+            row_body['ip_count'] = row_body[self.google_baidu_map['newUsers']]
+        if data_type == 'date':
+            row_body['ip_count'] = row_body[self.google_baidu_map['1dayUsers']]
         return row_body
