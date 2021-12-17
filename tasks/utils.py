@@ -15,6 +15,7 @@
 
 
 import sys
+import traceback
 
 
 def import_class(import_str):
@@ -28,6 +29,7 @@ def import_class(import_str):
         raise ImportError('Class %s cannot be found (%s)' %
                           (class_str,
                            traceback.format_exception(*sys.exc_info())))
+
 
 def import_object(import_str, *args, **kwargs):
     """Import a class and return an instance of it.
