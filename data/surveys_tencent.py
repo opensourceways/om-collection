@@ -34,7 +34,6 @@ class SurveysTencent(object):
         surveys_req = self.surveys_tencent_api.get_surveys(access_token=self.token, user_id=self.user_id,
                                                            current_page=current_survey_page,
                                                            per_page=self.per_page).json()
-        # surveys_req = self.surveys_tencent_api.get_surveys(access_token=self.token, user_id=self.user_id).json()
         total = surveys_req['data']['total']
         print("The total number of surveys is %d ." % total)
         surveys_page = total / int(self.per_page) + 1
