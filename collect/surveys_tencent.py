@@ -9,6 +9,7 @@ class SurveysTencentApi(object):
         self.secret = secret
         self.session = requests.Session()
         self.headers = {'Content-Type': 'application/json'}
+        self.user_id = "60010905868"
 
     # 获取access_token
     def get_token(self):
@@ -47,7 +48,27 @@ class SurveysTencentApi(object):
         return self.http_req(url=url, params=params)
 
     # 获取回答列表 TODO
+    def get_answers(self, access_token, survey_id, per_page=20, last_answer_id=0):
+        url = self.url_join(BASE_URL, 'surveys', survey_id, 'answers')
+        params = {
+            'appid': self.app_id,
+            'access_token': access_token,
+            'survey_id': survey_id,
+            'per_page': per_page,
+            'last_answer_id': last_answer_id,
+        }
+        return self.http_req(url=url, params=params)
+
     # 获取回答详情 TODO
+    def get_answer_legacy(self, access_token, survey_id, answer_id):
+        url = self.url_join(BASE_URL, 'surveys', survey_id, 'answers', answer_id)
+        params = {
+            'appid': self.app_id,
+            'access_token': access_token,
+            'survey_id': survey_id,
+            'answer_id': answer_id,
+        }
+        return self.http_req(url=url, params=params)
 
     def url_join(self, *args):
         return '/'.join(map(lambda x: str(x).strip('/'), args))
@@ -63,3 +84,6 @@ class SurveysTencentApi(object):
             response = self.session.post(url, data=params, headers=headers, stream=stream,
                                          verify=True, auth=auth)
         return response
+
+
+

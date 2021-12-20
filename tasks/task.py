@@ -97,9 +97,7 @@ class George:
             else:
                 print("[common] Start to run from ", starTime)
             for driver in drivers:
-                print('start============')
                 driver.run(starTime)
-                print('end============')
 
             print("try to run again....waiting for %d seconds, from %s" % (self.sleep_time, self.from_data))
             time.sleep(self.sleep_time)
