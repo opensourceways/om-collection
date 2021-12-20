@@ -13,6 +13,8 @@ class GiteeDeveloper(object):
         self.access_token = config.get('token')
         self.repository = None
         self.base_url = config.get('base_url')
+        self.since = config.get('since')
+        self.until = config.get('until')
         # self.gitee_api = GiteeClient(self.owner, self.repository, self.access_token, self.base_url)
 
     def run(self, from_time):
@@ -41,7 +43,9 @@ class GiteeDeveloper(object):
                     page = 0
                     while True:
                         page += 1
-                        commits = gitee_api.get_commits(repo_path, cur_page=page)
+                        print(self.since)
+                        print(type(self.since))
+                        commits = gitee_api.get_commits(repo_path, cur_page=page, since=self.since, until=self.until)
                         commits_legacy = commits.json()
                         if len(commits_legacy) == 0:
                             print("commit_page: %i finish..." % page)

@@ -43,8 +43,6 @@ GITEE_REFRESH_TOKEN_URL = "https://gitee.com/oauth/token"
 
 MAX_CATEGORY_ITEMS_PER_PAGE = 100
 PER_PAGE = 100
-SINCE = "2021-10-17T00:00:00"
-UNTIL = "2022-12-16T00:00:00"
 
 # Default sleep time and retries to deal with connection/server problems
 DEFAULT_SLEEP_TIME = 1
@@ -563,12 +561,12 @@ class GiteeClient():
 
         return self.http_req(url=url_next, params=params)
 
-    def get_commits(self, repo, cur_page):
+    def get_commits(self, repo, cur_page, since, until):
         params = {
             'page': cur_page,
             'per_page': PER_PAGE,
-            'since': SINCE,
-            'until': UNTIL,
+            'since': since,
+            'until': until,
             'access_token': self.access_token
         }
         commit_url = self.urijoin(self.base_url, 'repos', self.owner, repo, 'commits')
