@@ -548,7 +548,7 @@ class GiteeClient():
     def get_repos(self, cur_page):
         """Get repository data"""
         commit_url = self.urijoin('orgs', self.owner, 'repos')
-        params = {
+        payload = {
             'type': 'all',
             'page': cur_page,
             'per_page': PER_PAGE,
@@ -559,10 +559,10 @@ class GiteeClient():
         else:
             url_next = self.urijoin(self.base_url, commit_url)
 
-        return self.http_req(url=url_next, params=params)
+        return self.fetch(url=url_next, payload=payload)
 
     def get_commits(self, repo, cur_page, since, until):
-        params = {
+        payload = {
             'page': cur_page,
             'per_page': PER_PAGE,
             'since': since,
@@ -571,17 +571,6 @@ class GiteeClient():
         }
         commit_url = self.urijoin(self.base_url, 'repos', self.owner, repo, 'commits')
 
-        return self.http_req(url=commit_url, params=params)
+        return self.fetch(url=commit_url, payload=payload)
 
-    def http_req(self, url, params, method='GET', headers=None, stream=False, auth=None):
-        if headers is None:
-            headers = self.headers
-
-        if method == 'GET':
-            response = self.session.get(url, params=params, headers=headers, stream=stream,
-                                        verify=True, auth=auth, timeout=60)
-        else:
-            response = self.session.post(url, data=params, headers=headers, stream=stream,
-                                         verify=True, auth=auth)
-        return response
 

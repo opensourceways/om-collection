@@ -4,12 +4,12 @@ BASE_URL = 'https://open.wj.qq.com/api'
 
 
 class SurveysTencentApi(object):
-    def __init__(self, app_id, secret):
+    def __init__(self, app_id, secret, user_id):
         self.app_id = app_id
         self.secret = secret
         self.session = requests.Session()
         self.headers = {'Content-Type': 'application/json'}
-        self.user_id = "60010905868"
+        self.user_id = user_id
 
     # 获取access_token
     def get_token(self):

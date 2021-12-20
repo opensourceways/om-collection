@@ -15,7 +15,6 @@ class GiteeDeveloper(object):
         self.base_url = config.get('base_url')
         self.since = config.get('since')
         self.until = config.get('until')
-        # self.gitee_api = GiteeClient(self.owner, self.repository, self.access_token, self.base_url)
 
     def run(self, from_time):
         print("Collect tencent surveys data: start")
@@ -37,14 +36,11 @@ class GiteeDeveloper(object):
                     break
                 print("repo_page: %i" % repo_page)
                 for repo in repos:
-                    # print(repo)
                     repo_path = repo['path']
                     print("start repo: %s" % repo_path)
                     page = 0
                     while True:
                         page += 1
-                        print(self.since)
-                        print(type(self.since))
                         commits = gitee_api.get_commits(repo_path, cur_page=page, since=self.since, until=self.until)
                         commits_legacy = commits.json()
                         if len(commits_legacy) == 0:

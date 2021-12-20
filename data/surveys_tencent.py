@@ -14,7 +14,7 @@ class SurveysTencent(object):
         self.secret = config.get('secret')
         self.per_page = config.get('per_page')
         self.esClient = ESClient(config)
-        self.surveys_tencent_api = SurveysTencentApi(self.app_id, self.secret)
+        self.surveys_tencent_api = SurveysTencentApi(self.app_id, self.secret, self.user_id)
         self.token = self.surveys_tencent_api.get_token()
 
     def run(self, from_time):
@@ -93,11 +93,16 @@ class SurveysTencent(object):
                         for its in item_answer['answer']:
                             for it in its['questions']:
                                 answer_legacy_list.append(it)
+                        started_ats = item_answer['started_at'].split(' ')
+                        ended_ats = item_answer['ended_at'].split(' ')
+                        started_at = started_ats[0] + "T" + started_ats[1] + "+08:00"
+                        ended_at = ended_ats[0] + "T" + ended_ats[1] + "+08:00"
+
                         action_answer = {
                             "survey_id": item_answer['survey_id'],
                             "answer_id": item_answer['answer_id'],
-                            "started_at": item_answer['started_at'],
-                            "ended_at": item_answer['ended_at'],
+                            "started_at": started_at,
+                            "ended_at": ended_at,
                             "answer_legacy_list": answer_legacy_list
                         }
                         str_survey_id = str(survey_id)
