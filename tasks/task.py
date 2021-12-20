@@ -61,7 +61,9 @@ BACKEND_MAPPING = {
     'issue_rule_label': 'data.tag_labels.issue_rule_label.IssueRuleLabel',
     'prophet_prediction': 'data.time_series.prophet_prediction.ProphetPrediction',
     'user_relations': 'data.user_relations.UserRelations',
-    'gitee_github_combine': 'data.combine.gitee_github_combine.GiteeGithubCombine'
+    'gitee_github_combine': 'data.combine.gitee_github_combine.GiteeGithubCombine',
+    'surveys_tencent': 'data.surveys_tencent.SurveysTencent',
+    'gitee_developer':'data.gitee_developer.GiteeDeveloper'
 }
 
 
@@ -86,6 +88,7 @@ class George:
             if backend in BACKEND_MAPPING:
                 driver = import_object(BACKEND_MAPPING[backend], self.getBackendConfig(backend))
                 drivers.append(driver)
+                print(drivers)
 
         starTime = self.from_data
         while True:
@@ -94,7 +97,9 @@ class George:
             else:
                 print("[common] Start to run from ", starTime)
             for driver in drivers:
+                print('start============')
                 driver.run(starTime)
+                print('end============')
 
             print("try to run again....waiting for %d seconds, from %s" % (self.sleep_time, self.from_data))
             time.sleep(self.sleep_time)

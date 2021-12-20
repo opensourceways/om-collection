@@ -43,6 +43,8 @@ GITEE_REFRESH_TOKEN_URL = "https://gitee.com/oauth/token"
 
 MAX_CATEGORY_ITEMS_PER_PAGE = 100
 PER_PAGE = 100
+SINCE = "2021-10-17T00:00:00"
+UNTIL = "2022-12-16T00:00:00"
 
 # Default sleep time and retries to deal with connection/server problems
 DEFAULT_SLEEP_TIME = 1
@@ -121,6 +123,8 @@ class GiteeClient():
                  base_url=None, max_items=MAX_CATEGORY_ITEMS_PER_PAGE, ):
         self.owner = owner
         self.repository = repository
+        #self.since = since
+        self.headers = {'Content-Type': 'application/json'}
         # Just take the first token
         if token:
             self.access_token = token
@@ -537,7 +541,49 @@ class GiteeClient():
             logger.info("Refresh the access_token for Gitee API")
             self.session.post(url, data=None, headers=None, stream=False, auth=None)
 
-    def urijoin(self, *args):
+    @staticmethod
+    def urijoin(*args):
         """Joins given arguments into a URI.
         """
         return '/'.join(map(lambda x: str(x).strip('/'), args))
+
+    def get_repos(self, cur_page):
+        """Get repository data"""
+        commit_url = self.urijoin('orgs', self.owner, 'repos')
+        params = {
+            'type': 'all',
+            'page': cur_page,
+            'per_page': PER_PAGE,
+            'access_token': self.access_token
+        }
+        if self.repository:
+            url_next = self.urijoin(self.base_url, 'repos', self.owner, self.repository, commit_url)
+        else:
+            url_next = self.urijoin(self.base_url, commit_url)
+
+        return self.http_req(url=url_next, params=params)
+
+    def get_commits(self, repo, cur_page):
+        params = {
+            'page': cur_page,
+            'per_page': PER_PAGE,
+            'since': SINCE,
+            'until': UNTIL,
+            'access_token': self.access_token
+        }
+        commit_url = self.urijoin(self.base_url, 'repos', self.owner, repo, 'commits')
+
+        return self.http_req(url=commit_url, params=params)
+
+    def http_req(self, url, params, method='GET', headers=None, stream=False, auth=None):
+        if headers is None:
+            headers = self.headers
+
+        if method == 'GET':
+            response = self.session.get(url, params=params, headers=headers, stream=stream,
+                                        verify=True, auth=auth, timeout=60)
+        else:
+            response = self.session.post(url, data=params, headers=headers, stream=stream,
+                                         verify=True, auth=auth)
+        return response
+
