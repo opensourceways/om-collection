@@ -121,8 +121,6 @@ class GiteeClient():
                  base_url=None, max_items=MAX_CATEGORY_ITEMS_PER_PAGE, ):
         self.owner = owner
         self.repository = repository
-        #self.since = since
-        self.headers = {'Content-Type': 'application/json'}
         # Just take the first token
         if token:
             self.access_token = token

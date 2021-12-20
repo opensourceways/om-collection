@@ -17,9 +17,9 @@ class GiteeDeveloper(object):
         self.until = config.get('until')
 
     def run(self, from_time):
-        print("Collect tencent surveys data: start")
+        print("Collect gitee committers data: start")
         self.collect_developer_details()
-        print("Collect tencent surveys data: finished")
+        print("Collect gitee committers data: finished")
 
     def collect_developer_details(self):
         actions = ""

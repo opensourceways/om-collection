@@ -88,7 +88,6 @@ class George:
             if backend in BACKEND_MAPPING:
                 driver = import_object(BACKEND_MAPPING[backend], self.getBackendConfig(backend))
                 drivers.append(driver)
-                print(drivers)
 
         starTime = self.from_data
         while True:
