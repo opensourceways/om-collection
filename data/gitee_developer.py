@@ -22,7 +22,7 @@ class GiteeDeveloper(object):
         print("Collect gitee committers data: finished")
 
     def collect_developer_details(self):
-        actions = ""
+
         owners = self.owners.split(',')
         print(owners)
         for owner in owners:
@@ -36,6 +36,7 @@ class GiteeDeveloper(object):
                     break
                 print("repo_page: %i" % repo_page)
                 for repo in repos:
+                    actions = ""
                     repo_path = repo['path']
                     print("start repo: %s" % repo_path)
                     page = 0
@@ -47,30 +48,24 @@ class GiteeDeveloper(object):
                             print("commit_page: %i finish..." % page)
                             break
                         for commit in commits_legacy:
-                            if commit['author'] is None:
-                                continue
-                            if 'id' not in commit['author']:
-                                print(commit['author']['login'])
-                                continue
-                            action = {
-                                'email': commit['commit']['author']['email'],
-                                'login': commit['author']['login'],
-                                'id': commit['author']['id']
-                            }
-                            index_data_survey = {"index": {"_index": self.index_name_committer, "_id": action['email']}}
-                            actions += json.dumps(index_data_survey) + '\n'
-                            actions += json.dumps(action) + '\n'
+                            if commit['author'] is not None and 'id' in commit['author']:
+                                action = {
+                                    'email': commit['commit']['author']['email'],
+                                    'gitee_id': commit['author']['login'],
+                                    'id': commit['author']['id']
+                                }
+                                index_data_survey = {"index": {"_index": self.index_name_committer, "_id": action['email']}}
+                                actions += json.dumps(index_data_survey) + '\n'
+                                actions += json.dumps(action) + '\n'
 
-                        for commit in commits_legacy:
-                            if commit['committer'] is None:
-                                continue
-                            action = {
-                                'email': commit['commit']['committer']['email'],
-                                'login': commit['committer']['login'],
-                                'id': commit['committer']['id']
-                            }
-                            index_data_survey = {"index": {"_index": self.index_name_committer, "_id": action['email']}}
-                            actions += json.dumps(index_data_survey) + '\n'
-                            actions += json.dumps(action) + '\n'
+                            if commit['committer'] is not None and 'id' in commit['committer']:
+                                action = {
+                                    'email': commit['commit']['committer']['email'],
+                                    'gitee_id': commit['committer']['login'],
+                                    'id': commit['committer']['id']
+                                }
+                                index_data_survey = {"index": {"_index": self.index_name_committer, "_id": action['email']}}
+                                actions += json.dumps(index_data_survey) + '\n'
+                                actions += json.dumps(action) + '\n'
 
-        self.esClient.safe_put_bulk(actions)
+                    self.esClient.safe_put_bulk(actions)
