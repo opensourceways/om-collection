@@ -537,7 +537,38 @@ class GiteeClient():
             logger.info("Refresh the access_token for Gitee API")
             self.session.post(url, data=None, headers=None, stream=False, auth=None)
 
-    def urijoin(self, *args):
+    @staticmethod
+    def urijoin(*args):
         """Joins given arguments into a URI.
         """
         return '/'.join(map(lambda x: str(x).strip('/'), args))
+
+    def get_repos(self, cur_page):
+        """Get repository data"""
+        commit_url = self.urijoin('orgs', self.owner, 'repos')
+        payload = {
+            'type': 'all',
+            'page': cur_page,
+            'per_page': PER_PAGE,
+            'access_token': self.access_token
+        }
+        if self.repository:
+            url_next = self.urijoin(self.base_url, 'repos', self.owner, self.repository, commit_url)
+        else:
+            url_next = self.urijoin(self.base_url, commit_url)
+
+        return self.fetch(url=url_next, payload=payload)
+
+    def get_commits(self, repo, cur_page, since, until):
+        payload = {
+            'page': cur_page,
+            'per_page': PER_PAGE,
+            'since': since,
+            'until': until,
+            'access_token': self.access_token
+        }
+        commit_url = self.urijoin(self.base_url, 'repos', self.owner, repo, 'commits')
+
+        return self.fetch(url=commit_url, payload=payload)
+
+

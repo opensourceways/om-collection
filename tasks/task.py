@@ -61,7 +61,9 @@ BACKEND_MAPPING = {
     'issue_rule_label': 'data.tag_labels.issue_rule_label.IssueRuleLabel',
     'prophet_prediction': 'data.time_series.prophet_prediction.ProphetPrediction',
     'user_relations': 'data.user_relations.UserRelations',
-    'gitee_github_combine': 'data.combine.gitee_github_combine.GiteeGithubCombine'
+    'gitee_github_combine': 'data.combine.gitee_github_combine.GiteeGithubCombine',
+    'surveys_tencent': 'data.surveys_tencent.SurveysTencent',
+    'gitee_developer':'data.gitee_developer.GiteeDeveloper'
 }
 
 
