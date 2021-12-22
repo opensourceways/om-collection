@@ -334,6 +334,11 @@ class BlueZoneUser(object):
                               }
                             },
                             {
+                              "term": {
+                                "is_merged": 0
+                              }
+                            },
+                            {
                               "range": {
                                 "created_at": {
                                   "gte": "%s",
