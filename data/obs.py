@@ -12,8 +12,7 @@
 # See the Mulan PSL v2 for more details.
 # Create: 2020-05
 #
-
-
+import re
 import time
 from datetime import timedelta, datetime
 
@@ -146,6 +145,8 @@ class OBS(object):
         if path.endswith("/"):
             return None, None
 
+        package_version = self.downloadPackageVersion(path)
+
         location = self.esClient.getLocationByIP(ip)
         print(".......location=", location)
 
@@ -155,6 +156,7 @@ class OBS(object):
             "created_at": created_at,
             "ip": ip,
             "path": path,
+            "package_version": package_version,
             "url": url,
             "object_type": object_type,
             "method": type,
@@ -219,6 +221,12 @@ class OBS(object):
         thread_func_args[self.setOneDayData] = prefixs
         return thread_func_args
 
+    def downloadPackageVersion(self, path):
+        res = ''
+        if path is not None and re.match(r'^.*/.*', path):
+            arr = re.split(r'/', path, maxsplit=1)
+            res = arr[0]
+        return res
 
     def run(self, from_date=None):
         startTime = time.time()
