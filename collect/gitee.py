@@ -571,4 +571,9 @@ class GiteeClient():
 
         return self.fetch(url=commit_url, payload=payload)
 
-
+    def is_exists_issue(self, url):
+        req = requests.get(url)
+        if req.status_code != 200:
+            return False
+        else:
+            return True
