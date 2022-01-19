@@ -85,8 +85,10 @@ class GitCommitLog(object):
             # checkout到指定分支获取数据
             print('*** start repo: %s/%s; branch: %s ***' % (owner, repo_name, branch_name))
             repo.git.checkout(branch_name)
-            commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name))
-            self.parse_commits(commits, platform, owner, branch_name, remote_repo)
+            merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, merges=True))
+            self.parse_commits(merge_commits, platform, owner, branch_name, remote_repo, 1)
+            no_merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, no_merges=True))
+            self.parse_commits(no_merge_commits, platform, owner, branch_name, remote_repo, 0)
         else:
             # 遍历所有分支，获取数据
             for branch in repo.git.branch('-r').split('\n'):
@@ -95,12 +97,13 @@ class GitCommitLog(object):
                 branch_name = branch.split('/')[1]
                 print('*** start repo: %s/%s; branch: %s ***' % (owner, repo_name, branch_name))
                 repo.git.checkout(branch_name)
-                commits = list(
-                    repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name))
-                self.parse_commits(commits, platform, owner, branch_name, remote_repo)
+                merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, merges=True))
+                self.parse_commits(merge_commits, platform, owner, branch_name, remote_repo, 1)
+                no_merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, no_merges=True))
+                self.parse_commits(no_merge_commits, platform, owner, branch_name, remote_repo, 0)
 
-    def parse_commits(self, commits, platform, owner, branch, repo_url):
-        print(' -> commit count: %d' % len(commits))
+    def parse_commits(self, commits, platform, owner, branch, repo_url, is_merge):
+        print(' -> is merge: %d, commit count: %d' % (is_merge, len(commits)))
         actions = ''
         for commit in commits:
             file_code = commit.stats.total
@@ -121,8 +124,10 @@ class GitCommitLog(object):
                 'org': self.org,
                 'platform': platform,
                 'commit_url': repo_url + '/commit/' + commit.hexsha,
+                'is_merge': is_merge,
             }
-            index_id = hashlib.md5(action['commit_url'].encode('utf-8')).hexdigest()
+            id_str = action['commit_url'] + '-' + branch
+            index_id = hashlib.md5(id_str.encode('utf-8')).hexdigest()
             index_data = {"index": {"_index": self.index_name, "_id": index_id}}
             actions += json.dumps(index_data) + '\n'
             actions += json.dumps(action) + '\n'
