@@ -77,18 +77,21 @@ class GitCommitLog(object):
         username = base64.b64decode(self.username).decode()
         passwd = base64.b64decode(self.password).decode()
         if platform == 'gitee':
-            remote_repo = 'https://%s:%s@%s/%s/%s' % (username, passwd, GITEE_BASE, owner, repo_name)
+            remote_repo = 'https://%s/%s/%s' % (GITEE_BASE, owner, repo_name)
+            clone_url = 'https://%s:%s@%s/%s/%s' % (username, passwd, GITEE_BASE, owner, repo_name)
         elif platform == 'github':
-            remote_repo = 'https://%s:%s@%s/%s/%s' % (username, passwd, GITHUB_BASE, owner, repo_name)
+            remote_repo = 'https://%s/%s/%s' % (GITHUB_BASE, owner, repo_name)
+            clone_url = 'https://%s:%s@%s/%s/%s' % (username, passwd, GITHUB_BASE, owner, repo_name)
         else:
             remote_repo = None
+            clone_url = None
 
         # 本地仓库已存在执行git pull；否则执行git clone
         if os.path.exists(code_path):
             cmd_pull = 'cd %s;git pull' % code_path
             os.system(cmd_pull)
         else:
-            if remote_repo is None:
+            if clone_url is None:
                 return
             cmd_clone = 'cd %s;git clone %s' % (owner_path, remote_repo + '.git')
             os.system(cmd_clone)
