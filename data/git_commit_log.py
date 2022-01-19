@@ -1,3 +1,4 @@
+import base64
 import datetime
 import hashlib
 import json
@@ -11,8 +12,8 @@ from collect.gitee import GiteeClient
 from collect.github import GithubClient
 from data.common import ESClient
 
-GITEE_BASE_URL = "https://gitee.com/"
-GITHUB_BASE_URL = "https://github.com/"
+GITEE_BASE = "gitee.com"
+GITHUB_BASE = "github.com"
 
 
 class GitCommitLog(object):
@@ -26,7 +27,10 @@ class GitCommitLog(object):
         self.end_date = config.get('end_date')
         self.before_days = config.get('before_days')
         self.user_commit_name = config.get('user_commit_name')
-        self.repo_branch = config.get('repo_branch')
+        self.gitee_repo_branch = config.get('gitee_repo_branch')
+        self.github_repo_branch = config.get('github_repo_branch')
+        self.username = config.get('username')
+        self.password = config.get('password')
         self.esClient = ESClient(config)
 
     def run(self, from_time):
@@ -37,6 +41,8 @@ class GitCommitLog(object):
 
         # 代码托管平台 gitee or github
         for items in self.platform_owner_token.split(';'):
+            if not str(items).__contains__('->'):
+                continue
             vs = items.split('->')
             platform = vs[0]
             owner = vs[1]
@@ -44,15 +50,20 @@ class GitCommitLog(object):
 
             # 指定了仓库则获取指定仓库数据，否则获取owner下的所有仓库
             repos = []
-            if self.repo_branch:
-                repos = self.repo_branch.split(';')
-            else:
-                if platform == 'gitee':
+            if platform == 'gitee':
+                if self.gitee_repo_branch:
+                    repos = self.gitee_repo_branch.split(';')
+                else:
                     repos = self.gitee_repos(owner=owner, token=token)
-                elif platform == 'github':
+            elif platform == 'github':
+                if self.github_repo_branch:
+                    repos = self.github_repo_branch.split(';')
+                else:
                     repos = self.github_repos(owner=owner, token=token)
 
             for repo in repos:
+                if not str(repo).__contains__('->'):
+                    continue
                 rb = repo.split('->')
                 self.getLog(platform, owner, repo_name=rb[0], branch_name=rb[1])
 
@@ -63,10 +74,12 @@ class GitCommitLog(object):
             os.makedirs(owner_path)
         code_path = owner_path + repo_name
 
+        username = base64.b64decode(self.username).decode()
+        passwd = base64.b64decode(self.password).decode()
         if platform == 'gitee':
-            remote_repo = GITEE_BASE_URL + owner + '/' + repo_name
+            remote_repo = 'https://%s:%s@%s/%s/%s' % (username, passwd, GITEE_BASE, owner, repo_name)
         elif platform == 'github':
-            remote_repo = GITHUB_BASE_URL + owner + '/' + repo_name
+            remote_repo = 'https://%s:%s@%s/%s/%s' % (username, passwd, GITHUB_BASE, owner, repo_name)
         else:
             remote_repo = None
 
@@ -80,10 +93,13 @@ class GitCommitLog(object):
             cmd_clone = 'cd %s;git clone %s' % (owner_path, remote_repo + '.git')
             os.system(cmd_clone)
 
-        repo = git.Repo(code_path)
+        try:
+            repo = git.Repo(code_path)
+        except Exception:
+            return
         if branch_name != '':
             # checkout到指定分支获取数据
-            print('*** start repo: %s/%s; branch: %s ***' % (owner, repo_name, branch_name))
+            print('*** start %s repo: %s/%s; branch: %s ***' % (platform, owner, repo_name, branch_name))
             repo.git.checkout(branch_name)
             merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, merges=True))
             self.parse_commits(merge_commits, platform, owner, branch_name, remote_repo, 1)
@@ -95,7 +111,7 @@ class GitCommitLog(object):
                 if branch.startswith('  origin/HEAD ->'):
                     continue
                 branch_name = branch.split('/')[1]
-                print('*** start repo: %s/%s; branch: %s ***' % (owner, repo_name, branch_name))
+                print('*** start %s repo: %s/%s; branch: %s ***' % (platform, owner, repo_name, branch_name))
                 repo.git.checkout(branch_name)
                 merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, merges=True))
                 self.parse_commits(merge_commits, platform, owner, branch_name, remote_repo, 1)
