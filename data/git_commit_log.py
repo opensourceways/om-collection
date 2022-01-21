@@ -32,9 +32,12 @@ class GitCommitLog(object):
         self.username = config.get('username')
         self.password = config.get('password')
         self.esClient = ESClient(config)
+        self.email_orgs_dict = {}
 
     def run(self, from_time):
         print("Git commit log collect: start")
+        self.email_orgs_dict = self.esClient.getOrgByEmail()
+
         # 配置默认获取最近 <before_days> 天的数据
         if self.start_date is None and self.before_days:
             self.start_date = datetime.date.today() + datetime.timedelta(days=-int(self.before_days))
@@ -77,34 +80,43 @@ class GitCommitLog(object):
         username = base64.b64decode(self.username).decode()
         passwd = base64.b64decode(self.password).decode()
         if platform == 'gitee':
-            remote_repo = 'https://%s:%s@%s/%s/%s' % (username, passwd, GITEE_BASE, owner, repo_name)
+            remote_repo = 'https://%s/%s/%s' % (GITEE_BASE, owner, repo_name)
+            clone_url = 'https://%s:%s@%s/%s/%s' % (username, passwd, GITEE_BASE, owner, repo_name)
         elif platform == 'github':
-            remote_repo = 'https://%s:%s@%s/%s/%s' % (username, passwd, GITHUB_BASE, owner, repo_name)
+            remote_repo = 'https://%s/%s/%s' % (GITHUB_BASE, owner, repo_name)
+            clone_url = 'https://%s:%s@%s/%s/%s' % (username, passwd, GITHUB_BASE, owner, repo_name)
         else:
             remote_repo = None
+            clone_url = None
 
         # 本地仓库已存在执行git pull；否则执行git clone
         if os.path.exists(code_path):
             cmd_pull = 'cd %s;git pull' % code_path
             os.system(cmd_pull)
         else:
-            if remote_repo is None:
+            if clone_url is None:
                 return
-            cmd_clone = 'cd %s;git clone %s' % (owner_path, remote_repo + '.git')
+            cmd_clone = 'cd %s;git clone %s' % (owner_path, clone_url + '.git')
             os.system(cmd_clone)
 
         try:
             repo = git.Repo(code_path)
         except Exception:
+            print('*** repo clone fail: %s' % remote_repo)
             return
+
+        # 如果指定分支为default，则指定分支为默认分支
+        default_branch = str(repo.active_branch)
+        if branch_name == 'default':
+            branch_name = default_branch
         if branch_name != '':
             # checkout到指定分支获取数据
             print('*** start %s repo: %s/%s; branch: %s ***' % (platform, owner, repo_name, branch_name))
             repo.git.checkout(branch_name)
             merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, merges=True))
-            self.parse_commits(merge_commits, platform, owner, branch_name, remote_repo, 1)
+            self.parse_commits(merge_commits, platform, owner, branch_name, remote_repo, 1, default_branch)
             no_merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, no_merges=True))
-            self.parse_commits(no_merge_commits, platform, owner, branch_name, remote_repo, 0)
+            self.parse_commits(no_merge_commits, platform, owner, branch_name, remote_repo, 0, default_branch)
         else:
             # 遍历所有分支，获取数据
             for branch in repo.git.branch('-r').split('\n'):
@@ -114,20 +126,29 @@ class GitCommitLog(object):
                 print('*** start %s repo: %s/%s; branch: %s ***' % (platform, owner, repo_name, branch_name))
                 repo.git.checkout(branch_name)
                 merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, merges=True))
-                self.parse_commits(merge_commits, platform, owner, branch_name, remote_repo, 1)
+                self.parse_commits(merge_commits, platform, owner, branch_name, remote_repo, 1, default_branch)
                 no_merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, no_merges=True))
-                self.parse_commits(no_merge_commits, platform, owner, branch_name, remote_repo, 0)
+                self.parse_commits(no_merge_commits, platform, owner, branch_name, remote_repo, 0, default_branch)
 
-    def parse_commits(self, commits, platform, owner, branch, repo_url, is_merge):
+    def parse_commits(self, commits, platform, owner, branch, repo_url, is_merge, default_branch):
+        is_default_branch = 0
+        if branch == default_branch:
+            is_default_branch = 1
         print(' -> is merge: %d, commit count: %d' % (is_merge, len(commits)))
         actions = ''
         for commit in commits:
             file_code = commit.stats.total
+
+            company = 'independent'
+            email = commit.author.email
+            if self.email_orgs_dict and email in self.email_orgs_dict:
+                company = self.email_orgs_dict[email]
             action = {
                 'commit_id': commit.hexsha,
                 'created_at': str(commit.committed_datetime).replace(' ', 'T'),
                 'author': commit.author.name,
                 'email': commit.author.email,
+                'tag_user_company': company,
                 'title': commit.summary,
                 'body': commit.message,
                 'file_changed': file_code['files'],
@@ -135,6 +156,7 @@ class GitCommitLog(object):
                 'remove': file_code['deletions'],
                 'total': file_code['lines'],
                 'branch': branch,
+                'is_default_branch': is_default_branch,
                 'repo': repo_url,
                 'owner': owner,
                 'org': self.org,
