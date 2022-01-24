@@ -3,6 +3,7 @@ import datetime
 import hashlib
 import json
 import os
+import re
 import types
 from json import JSONDecodeError
 
@@ -31,6 +32,7 @@ class GitCommitLog(object):
         self.github_repo_branch = config.get('github_repo_branch')
         self.username = config.get('username')
         self.password = config.get('password')
+        self.write_bulk = int(config.get('write_bulk', 1000))
         self.esClient = ESClient(config)
         self.email_orgs_dict = {}
 
@@ -113,6 +115,7 @@ class GitCommitLog(object):
             # checkout到指定分支获取数据
             print('*** start %s repo: %s/%s; branch: %s ***' % (platform, owner, repo_name, branch_name))
             repo.git.checkout(branch_name)
+            repo.remote().pull()
             merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, merges=True))
             self.parse_commits(merge_commits, platform, owner, branch_name, remote_repo, 1, default_branch)
             no_merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, no_merges=True))
@@ -125,6 +128,7 @@ class GitCommitLog(object):
                 branch_name = branch.split('/')[1]
                 print('*** start %s repo: %s/%s; branch: %s ***' % (platform, owner, repo_name, branch_name))
                 repo.git.checkout(branch_name)
+                repo.remote().pull()
                 merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, merges=True))
                 self.parse_commits(merge_commits, platform, owner, branch_name, remote_repo, 1, default_branch)
                 no_merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, no_merges=True))
@@ -136,6 +140,7 @@ class GitCommitLog(object):
             is_default_branch = 1
         print(' -> is merge: %d, commit count: %d' % (is_merge, len(commits)))
         actions = ''
+        count = 0
         for commit in commits:
             file_code = commit.stats.total
 
@@ -143,12 +148,17 @@ class GitCommitLog(object):
             email = commit.author.email
             if self.email_orgs_dict and email in self.email_orgs_dict:
                 company = self.email_orgs_dict[email]
+
+            co_author, co_author_email = self.getCoAuthor(commit.message)
+
             action = {
                 'commit_id': commit.hexsha,
                 'created_at': str(commit.committed_datetime).replace(' ', 'T'),
                 'author': commit.author.name,
                 'email': commit.author.email,
                 'tag_user_company': company,
+                'co_author': co_author,
+                'co_author_email': co_author_email,
                 'title': commit.summary,
                 'body': commit.message,
                 'file_changed': file_code['files'],
@@ -169,7 +179,31 @@ class GitCommitLog(object):
             index_data = {"index": {"_index": self.index_name, "_id": index_id}}
             actions += json.dumps(index_data) + '\n'
             actions += json.dumps(action) + '\n'
+
+            # 因数据量太大，写入时太慢，每4000条数据写人一次
+            count += 1
+            if count == self.write_bulk:
+                print('*** bulk count: %d' % count)
+                self.esClient.safe_put_bulk(actions)
+                count = 0
+                actions = ''
         self.esClient.safe_put_bulk(actions)
+
+    # 协作者信息,message中带’Co-authored-by:‘或者’Signed-off-by:‘的为协作者
+    def getCoAuthor(self, mess):
+        co_author = []
+        co_author_email = []
+        if mess.__contains__('Co-authored-by: ') or mess.__contains__('Signed-off-by: '):
+            try:
+                items = re.split(r'\nCo-authored-by: |\nSigned-off-by: ', mess)
+                items.pop(0)
+                for item in items:
+                    co_author_info = item.split(' ')
+                    co_author.append(co_author_info[0])
+                    co_author_email.append(co_author_info[1].replace('<', '').replace('>', '').replace('\n', '', -1))
+            except Exception:
+                print('*** Co-authored parse failed ')
+        return co_author, co_author_email
 
     def gitee_repos(self, owner, token):
         client = GiteeClient(owner, None, token)
