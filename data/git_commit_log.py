@@ -117,9 +117,9 @@ class GitCommitLog(object):
             repo.git.checkout(branch_name)
             repo.remote().pull()
             merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, merges=True))
-            self.parse_commits(merge_commits, platform, owner, branch_name, remote_repo, 1, default_branch)
+            self.parse_commits(merge_commits, platform, owner, branch_name, remote_repo, 1, default_branch, repo_name)
             no_merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, no_merges=True))
-            self.parse_commits(no_merge_commits, platform, owner, branch_name, remote_repo, 0, default_branch)
+            self.parse_commits(no_merge_commits, platform, owner, branch_name, remote_repo, 0, default_branch, repo_name)
         else:
             # 遍历所有分支，获取数据
             for branch in repo.git.branch('-r').split('\n'):
@@ -130,11 +130,11 @@ class GitCommitLog(object):
                 repo.git.checkout(branch_name)
                 repo.remote().pull()
                 merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, merges=True))
-                self.parse_commits(merge_commits, platform, owner, branch_name, remote_repo, 1, default_branch)
+                self.parse_commits(merge_commits, platform, owner, branch_name, remote_repo, 1, default_branch, repo_name)
                 no_merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, no_merges=True))
-                self.parse_commits(no_merge_commits, platform, owner, branch_name, remote_repo, 0, default_branch)
+                self.parse_commits(no_merge_commits, platform, owner, branch_name, remote_repo, 0, default_branch, repo_name)
 
-    def parse_commits(self, commits, platform, owner, branch, repo_url, is_merge, default_branch):
+    def parse_commits(self, commits, platform, owner, branch, repo_url, is_merge, default_branch, repo_name):
         is_default_branch = 0
         if branch == default_branch:
             is_default_branch = 1
@@ -149,24 +149,22 @@ class GitCommitLog(object):
             if self.email_orgs_dict and email in self.email_orgs_dict:
                 company = self.email_orgs_dict[email]
 
-            co_author, co_author_email = self.getCoAuthor(commit.message)
-
+            mess = commit.message
             action = {
                 'commit_id': commit.hexsha,
                 'created_at': str(commit.committed_datetime).replace(' ', 'T'),
                 'author': commit.author.name,
                 'email': commit.author.email,
                 'tag_user_company': company,
-                'co_author': co_author,
-                'co_author_email': co_author_email,
                 'title': commit.summary,
-                'body': commit.message,
+                'body': mess,
                 'file_changed': file_code['files'],
                 'add': file_code['insertions'],
                 'remove': file_code['deletions'],
                 'total': file_code['lines'],
                 'branch': branch,
                 'is_default_branch': is_default_branch,
+                'repo_name': repo_name,
                 'repo': repo_url,
                 'owner': owner,
                 'org': self.org,
@@ -174,33 +172,69 @@ class GitCommitLog(object):
                 'commit_url': repo_url + '/commit/' + commit.hexsha,
                 'is_merge': is_merge,
             }
+
+            co_author, co_author_email = self.getCoAuthor(mess)
+            if co_author:
+                action['co_author'] = co_author
+                action['co_author_email'] = co_author_email
+
+            commit_contributors, commit_contributor_emails, commit_reviewers, commit_reviewer_emails = self.getContributorAndReviewer(
+                owner, repo_name, mess)
+            if commit_contributors:
+                action['commit_contributors'] = commit_contributors
+                action['commit_contributor_emails'] = commit_contributor_emails
+            if commit_reviewers:
+                action['commit_reviewers'] = commit_reviewers
+                action['commit_reviewer_emails'] = commit_reviewer_emails
+
             id_str = action['commit_url'] + '-' + branch
             index_id = hashlib.md5(id_str.encode('utf-8')).hexdigest()
             index_data = {"index": {"_index": self.index_name, "_id": index_id}}
             actions += json.dumps(index_data) + '\n'
             actions += json.dumps(action) + '\n'
 
-            # 因数据量太大，写入时太慢，每4000条数据写人一次
+            # 因数据量太大，写入时太慢，减少批量写入条数
             count += 1
             if count == self.write_bulk:
-                print('*** bulk count: %d' % count)
+                print('*** write bulk count: %d' % count)
                 self.esClient.safe_put_bulk(actions)
                 count = 0
                 actions = ''
         self.esClient.safe_put_bulk(actions)
 
+    # openeuler kernel需要识别标记的contributor和reviewer
+    def getContributorAndReviewer(self, owner, repo, mess):
+        commit_contributors = []
+        commit_contributor_emails = []
+        commit_reviewers = []
+        commit_reviewer_emails = []
+        if owner != 'openeuler' or repo != 'kernel':
+            return commit_contributors, commit_contributor_emails, commit_reviewers, commit_reviewer_emails
+        if mess.__contains__('Signed-off-by') or mess.__contains__('Reviewed-by'):
+            items = re.split(r'\nSigned-off-by:|\nReviewed-by:', mess)
+            items.pop(0)
+            for item in items:
+                ele = item.strip()
+                if ele.__contains__('openEuler_contributor') or ele.__contains__('openeuler_contributor'):
+                    commit_contributors.append(re.findall(r'.*<', ele)[0].replace('<', '').strip())
+                    commit_contributor_emails.append(re.findall(r'<.*@\w*.\w*>', ele)[0].replace('<', '').replace('>', ''))
+                if ele.__contains__('openEuler_reviewer') or ele.__contains__('openeuler_reviewer'):
+                    commit_reviewers.append(re.findall(r'.*<', ele)[0].replace('<', '').strip())
+                    commit_reviewer_emails.append(re.findall(r'<.*@\w*.\w*>', ele)[0].replace('<', '').replace('>', ''))
+        return commit_contributors, commit_contributor_emails, commit_reviewers, commit_reviewer_emails
+
     # 协作者信息,message中带’Co-authored-by:‘或者’Signed-off-by:‘的为协作者
     def getCoAuthor(self, mess):
         co_author = []
         co_author_email = []
-        if mess.__contains__('Co-authored-by: ') or mess.__contains__('Signed-off-by: '):
+        if mess.__contains__('Co-authored-by:'):
             try:
-                items = re.split(r'\nCo-authored-by: |\nSigned-off-by: ', mess)
+                items = re.split(r'\nCo-authored-by:', mess)
                 items.pop(0)
                 for item in items:
-                    co_author_info = item.split(' ')
-                    co_author.append(co_author_info[0])
-                    co_author_email.append(co_author_info[1].replace('<', '').replace('>', '').replace('\n', '', -1))
+                    ele = item.strip()
+                    co_author.append(re.findall(r'.*<', ele)[0].replace('<', '').strip())
+                    co_author_email.append(re.findall(r'<.*@\w*.\w*>', ele)[0].replace('<', '').replace('>', ''))
             except Exception:
                 print('*** Co-authored parse failed ')
         return co_author, co_author_email
