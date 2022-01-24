@@ -3,10 +3,12 @@ import datetime
 import hashlib
 import json
 import os
+import re
 import types
 from json import JSONDecodeError
 
 import git
+import yaml
 
 from collect.gitee import GiteeClient
 from collect.github import GithubClient
@@ -31,17 +33,30 @@ class GitCommitLog(object):
         self.github_repo_branch = config.get('github_repo_branch')
         self.username = config.get('username')
         self.password = config.get('password')
+        self.write_bulk = int(config.get('write_bulk', 1000))
         self.esClient = ESClient(config)
         self.email_orgs_dict = {}
+        self.white_box_yaml = config.get('white_box_yaml')
 
     def run(self, from_time):
         print("Git commit log collect: start")
+        # 邮箱 -> 企业
         self.email_orgs_dict = self.esClient.getOrgByEmail()
 
         # 配置默认获取最近 <before_days> 天的数据
         if self.start_date is None and self.before_days:
             self.start_date = datetime.date.today() + datetime.timedelta(days=-int(self.before_days))
 
+        # white box指定仓库commits
+        if self.white_box_yaml:
+            all_branch_repos, default_branch_repos = self.getYamlData()
+            self.getCommitWhiteBox(default_branch_repos, 'default')  # 只是获取默认分支commit
+            self.getCommitWhiteBox(all_branch_repos)  # 获取全部分支commit
+        else:
+            # 全部commits
+            self.getCommit()
+
+    def getCommit(self):
         # 代码托管平台 gitee or github
         for items in self.platform_owner_token.split(';'):
             if not str(items).__contains__('->'):
@@ -90,6 +105,7 @@ class GitCommitLog(object):
             clone_url = None
 
         # 本地仓库已存在执行git pull；否则执行git clone
+        self.removeGitLockFile(code_path)
         if os.path.exists(code_path):
             cmd_pull = 'cd %s;git pull' % code_path
             os.system(cmd_pull)
@@ -113,10 +129,11 @@ class GitCommitLog(object):
             # checkout到指定分支获取数据
             print('*** start %s repo: %s/%s; branch: %s ***' % (platform, owner, repo_name, branch_name))
             repo.git.checkout(branch_name)
+            repo.remote().pull()
             merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, merges=True))
-            self.parse_commits(merge_commits, platform, owner, branch_name, remote_repo, 1, default_branch)
+            self.parse_commits(merge_commits, platform, owner, branch_name, remote_repo, 1, default_branch, repo_name)
             no_merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, no_merges=True))
-            self.parse_commits(no_merge_commits, platform, owner, branch_name, remote_repo, 0, default_branch)
+            self.parse_commits(no_merge_commits, platform, owner, branch_name, remote_repo, 0, default_branch, repo_name)
         else:
             # 遍历所有分支，获取数据
             for branch in repo.git.branch('-r').split('\n'):
@@ -125,17 +142,20 @@ class GitCommitLog(object):
                 branch_name = branch.split('/')[1]
                 print('*** start %s repo: %s/%s; branch: %s ***' % (platform, owner, repo_name, branch_name))
                 repo.git.checkout(branch_name)
+                repo.remote().pull()
                 merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, merges=True))
-                self.parse_commits(merge_commits, platform, owner, branch_name, remote_repo, 1, default_branch)
+                self.parse_commits(merge_commits, platform, owner, branch_name, remote_repo, 1, default_branch, repo_name)
                 no_merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, no_merges=True))
-                self.parse_commits(no_merge_commits, platform, owner, branch_name, remote_repo, 0, default_branch)
+                self.parse_commits(no_merge_commits, platform, owner, branch_name, remote_repo, 0, default_branch, repo_name)
 
-    def parse_commits(self, commits, platform, owner, branch, repo_url, is_merge, default_branch):
+    # 数据解析
+    def parse_commits(self, commits, platform, owner, branch, repo_url, is_merge, default_branch, repo_name):
         is_default_branch = 0
         if branch == default_branch:
             is_default_branch = 1
         print(' -> is merge: %d, commit count: %d' % (is_merge, len(commits)))
         actions = ''
+        count = 0
         for commit in commits:
             file_code = commit.stats.total
 
@@ -143,6 +163,8 @@ class GitCommitLog(object):
             email = commit.author.email
             if self.email_orgs_dict and email in self.email_orgs_dict:
                 company = self.email_orgs_dict[email]
+
+            mess = commit.message
             action = {
                 'commit_id': commit.hexsha,
                 'created_at': str(commit.committed_datetime).replace(' ', 'T'),
@@ -150,13 +172,14 @@ class GitCommitLog(object):
                 'email': commit.author.email,
                 'tag_user_company': company,
                 'title': commit.summary,
-                'body': commit.message,
+                'body': mess,
                 'file_changed': file_code['files'],
                 'add': file_code['insertions'],
                 'remove': file_code['deletions'],
                 'total': file_code['lines'],
                 'branch': branch,
                 'is_default_branch': is_default_branch,
+                'repo_name': repo_name,
                 'repo': repo_url,
                 'owner': owner,
                 'org': self.org,
@@ -164,12 +187,80 @@ class GitCommitLog(object):
                 'commit_url': repo_url + '/commit/' + commit.hexsha,
                 'is_merge': is_merge,
             }
+
+            # 协作者
+            co_author, co_author_email = self.getCoAuthor(mess)
+            if co_author:
+                action['co_author'] = co_author
+                action['co_author_email'] = co_author_email
+
+            # openeuler kernel 下 contributor和reviewer
+            commit_contributors, commit_contributor_emails, commit_reviewers, commit_reviewer_emails = self.getContributorAndReviewer(
+                owner, repo_name, mess)
+            if commit_contributors:
+                action['commit_contributors'] = commit_contributors
+                action['commit_contributor_emails'] = commit_contributor_emails
+            if commit_reviewers:
+                action['commit_reviewers'] = commit_reviewers
+                action['commit_reviewer_emails'] = commit_reviewer_emails
+
             id_str = action['commit_url'] + '-' + branch
             index_id = hashlib.md5(id_str.encode('utf-8')).hexdigest()
             index_data = {"index": {"_index": self.index_name, "_id": index_id}}
             actions += json.dumps(index_data) + '\n'
             actions += json.dumps(action) + '\n'
+
+            # 因数据量太大，写入时太慢，减少批量写入条数，默认1000
+            count += 1
+            if count == self.write_bulk:
+                print('*** write bulk count: %d' % count)
+                self.esClient.safe_put_bulk(actions)
+                count = 0
+                actions = ''
         self.esClient.safe_put_bulk(actions)
+
+    # 删除git lock
+    def removeGitLockFile(self, code_path):
+        lock_file = code_path + '/.git/index.lock'
+        if os.path.exists(lock_file):
+            os.remove(lock_file)
+
+    # openeuler kernel需要识别标记的contributor和reviewer
+    def getContributorAndReviewer(self, owner, repo, mess):
+        commit_contributors = []
+        commit_contributor_emails = []
+        commit_reviewers = []
+        commit_reviewer_emails = []
+        if owner != 'openeuler' or repo != 'kernel':
+            return commit_contributors, commit_contributor_emails, commit_reviewers, commit_reviewer_emails
+        if mess.__contains__('Signed-off-by') or mess.__contains__('Reviewed-by'):
+            items = re.split(r'\nSigned-off-by:|\nReviewed-by:', mess)
+            items.pop(0)
+            for item in items:
+                ele = item.strip()
+                if ele.__contains__('openEuler_contributor') or ele.__contains__('openeuler_contributor'):
+                    commit_contributors.append(re.findall(r'.*<', ele)[0].replace('<', '').strip())
+                    commit_contributor_emails.append(re.findall(r'<.*@\w*.\w*>', ele)[0].replace('<', '').replace('>', ''))
+                if ele.__contains__('openEuler_reviewer') or ele.__contains__('openeuler_reviewer'):
+                    commit_reviewers.append(re.findall(r'.*<', ele)[0].replace('<', '').strip())
+                    commit_reviewer_emails.append(re.findall(r'<.*@\w*.\w*>', ele)[0].replace('<', '').replace('>', ''))
+        return commit_contributors, commit_contributor_emails, commit_reviewers, commit_reviewer_emails
+
+    # 协作者信息,message中带’Co-authored-by:‘或者’Signed-off-by:‘的为协作者
+    def getCoAuthor(self, mess):
+        co_author = []
+        co_author_email = []
+        if mess.__contains__('Co-authored-by:'):
+            try:
+                items = re.split(r'\nCo-authored-by:', mess)
+                items.pop(0)
+                for item in items:
+                    ele = item.strip()
+                    co_author.append(re.findall(r'.*<', ele)[0].replace('<', '').strip())
+                    co_author_email.append(re.findall(r'<.*@\w*.\w*>', ele)[0].replace('<', '').replace('>', ''))
+            except Exception:
+                print('*** Co-authored parse failed ')
+        return co_author, co_author_email
 
     def gitee_repos(self, owner, token):
         client = GiteeClient(owner, None, token)
@@ -209,3 +300,40 @@ class GitCommitLog(object):
             return data
 
         return data
+
+    # get repos from white box yaml
+    def getYamlData(self):
+        all_branch_repos = []
+        default_branch_repos = []
+        try:
+            cmd = 'wget -N -P %s %s' % (self.code_base_path, self.white_box_yaml)
+            os.system(cmd)
+
+            # 解析yaml
+            file_name = str(self.white_box_yaml).split('/')[-1]
+            file = self.code_base_path + file_name
+            datas = yaml.safe_load_all(open(file, encoding='UTF-8')).__next__()
+            for data in datas['users']:
+                if 'repos' in data and data['repos']:
+                    default_branch_repos.extend(data['repos'])
+                if 'repos_all_branches' in data and data['repos_all_branches']:
+                    all_branch_repos.extend(data['repos_all_branches'])
+
+            # 去重
+            all_branch_repos_res = set(all_branch_repos)
+            default_branch_repos_res = set(default_branch_repos)
+            repos_in_all_branch = all_branch_repos_res.intersection(default_branch_repos_res)
+            default_branch_repos_res = default_branch_repos_res - repos_in_all_branch
+            return list(all_branch_repos_res), list(default_branch_repos_res)
+        except Exception:
+            return all_branch_repos, default_branch_repos
+
+    # 获取white box指定仓库的commit
+    def getCommitWhiteBox(self, repos, branch=''):
+        for repo in repos:
+            items = repo.split('/')
+            platform = items[2].replace('.com', '')
+            owner = items[3]
+            repo_name = items[4]
+            branch_name = branch
+            self.getLog(platform, owner, repo_name, branch_name)
