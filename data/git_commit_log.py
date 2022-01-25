@@ -16,6 +16,7 @@ from data.common import ESClient
 
 GITEE_BASE = "gitee.com"
 GITHUB_BASE = "github.com"
+DEFAULT_BRANCH_HEAD = "  origin/HEAD ->"
 
 
 class GitCommitLog(object):
@@ -123,6 +124,11 @@ class GitCommitLog(object):
 
         # 如果指定分支为default，则指定分支为默认分支
         default_branch = str(repo.active_branch)
+        branchs = repo.git.branch('-r').split('\n')
+        for b in branchs:
+            if b.startswith(DEFAULT_BRANCH_HEAD):
+                default_branch = b.replace(DEFAULT_BRANCH_HEAD, '').split('/', 1)[1]
+                break
         if branch_name == 'default':
             branch_name = default_branch
         if branch_name != '':
@@ -136,10 +142,10 @@ class GitCommitLog(object):
             self.parse_commits(no_merge_commits, platform, owner, branch_name, remote_repo, 0, default_branch, repo_name)
         else:
             # 遍历所有分支，获取数据
-            for branch in repo.git.branch('-r').split('\n'):
-                if branch.startswith('  origin/HEAD ->'):
+            for branch in branchs:
+                if branch.startswith(DEFAULT_BRANCH_HEAD):
                     continue
-                branch_name = branch.split('/')[1]
+                branch_name = branch.split('/', 1)[1]
                 print('*** start %s repo: %s/%s; branch: %s ***' % (platform, owner, repo_name, branch_name))
                 repo.git.checkout(branch_name)
                 repo.remote().pull()
