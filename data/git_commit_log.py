@@ -123,7 +123,7 @@ class GitCommitLog(object):
             return
 
         # 如果指定分支为default，则指定分支为默认分支
-        default_branch = str(repo.active_branch)
+        default_branch = 'master'
         branchs = repo.git.branch('-r').split('\n')
         for b in branchs:
             if b.startswith(DEFAULT_BRANCH_HEAD):
