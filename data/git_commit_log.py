@@ -138,7 +138,8 @@ class GitCommitLog(object):
             # checkout到指定分支获取数据
             print('*** start %s repo: %s/%s; branch: %s ***' % (platform, owner, repo_name, branch_name))
             repo.git.checkout(branch_name)
-            repo.remote().pull()
+            cmd_pull = 'cd %s;git pull' % code_path
+            os.system(cmd_pull)
             merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, merges=True))
             self.parse_commits(merge_commits, platform, owner, branch_name, remote_repo, 1, default_branch, repo_name)
             no_merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, no_merges=True))
@@ -151,7 +152,8 @@ class GitCommitLog(object):
                 branch_name = branch.split('/', 1)[1]
                 print('*** start %s repo: %s/%s; branch: %s ***' % (platform, owner, repo_name, branch_name))
                 repo.git.checkout(branch_name)
-                repo.remote().pull()
+                cmd_pull = 'cd %s;git pull' % code_path
+                os.system(cmd_pull)
                 merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, merges=True))
                 self.parse_commits(merge_commits, platform, owner, branch_name, remote_repo, 1, default_branch, repo_name)
                 no_merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, no_merges=True))
@@ -266,7 +268,7 @@ class GitCommitLog(object):
                 for item in items:
                     ele = item.strip()
                     co_author.append(re.findall(r'.*<', ele)[0].replace('<', '').strip())
-                    co_author_email.append(re.findall(r'<.*@\w*.\w*>', ele)[0].replace('<', '').replace('>', ''))
+                    co_author_email.append(re.findall(r'<.*>', ele)[0].replace('<', '').replace('>', ''))
             except Exception:
                 print('*** Co-authored parse failed ')
         return co_author, co_author_email
