@@ -84,7 +84,10 @@ class GitCommitLog(object):
                 if not str(repo).__contains__('->'):
                     continue
                 rb = repo.split('->')
-                self.getLog(platform, owner, repo_name=rb[0], branch_name=rb[1])
+                try:
+                    self.getLog(platform, owner, repo_name=rb[0], branch_name=rb[1])
+                except Exception:
+                    print('*** platform: %s, owner: %s, repo: %s, fail ***' % (platform, owner, repo))
 
     def getLog(self, platform, owner, repo_name, branch_name):
         # 本地仓库目录
@@ -342,4 +345,7 @@ class GitCommitLog(object):
             owner = items[3]
             repo_name = items[4]
             branch_name = branch
-            self.getLog(platform, owner, repo_name, branch_name)
+            try:
+                self.getLog(platform, owner, repo_name, branch_name)
+            except Exception:
+                print('*** platform: %s, owner: %s, repo: %s, fail ***' % (platform, owner, repo))
