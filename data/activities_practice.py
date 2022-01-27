@@ -99,7 +99,7 @@ class ActivitiesPractice(object):
                 res['before_assign_users'] = before_assign_users
 
                 parse_dict = self.parse_issue_body(body=source['body'])
-                res['score'] = re.match(r'\d+', parse_dict['任务分值']).group(0)
+                res['score'] = int(re.match(r'\d+', parse_dict['任务分值']).group(0))
                 res['background_desc'] = parse_dict['背景描述']
                 res['requirement'] = parse_dict['需求描述']
                 res['env_require'] = parse_dict['环境要求']
