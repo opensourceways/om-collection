@@ -68,7 +68,7 @@ BACKEND_MAPPING = {
     'questionnaire': 'data.questionnaire.Questionnaire',
     'git_commit_log': 'data.git_commit_log.GitCommitLog',
     'collect_data_new': 'data.collect_data_new.CollectData',
-
+    'gitee_event_new': 'data.gitee_event_new.GiteeEvent',
 }
 
 
