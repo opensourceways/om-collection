@@ -39,7 +39,7 @@ BACKEND_MAPPING = {
     'users': 'data.combine.users.Users',
     'huaweicloud': 'data.huaweicloud.HuaweiCloud',
     'bilibili': 'data.bilibili.BILIBILI',
-    'collect_data': 'data.collect_data_new.CollectData',
+    'collect_data': 'data.collect_data.CollectData',
     'transform_data': 'data.transform_data.TransformData',
     'git_commit': 'data.git_commit.GitCommit',
     'cloc': 'data.cloc.ClocCode',
@@ -64,7 +64,9 @@ BACKEND_MAPPING = {
     'gitee_github_combine': 'data.combine.gitee_github_combine.GiteeGithubCombine',
     'surveys_tencent': 'data.surveys_tencent.SurveysTencent',
     'gitee_developer': 'data.gitee_developer.GiteeDeveloper',
-    'gitee_event_v5': 'data.gitee_event_v5.GiteeEvent'
+    'activities_practice': 'data.activities_practice.ActivitiesPractice',
+    'questionnaire': 'data.questionnaire.Questionnaire',
+    'git_commit_log': 'data.git_commit_log.GitCommitLog'
 }
 
 
