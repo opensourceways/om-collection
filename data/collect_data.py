@@ -45,7 +45,7 @@ class CollectData(object):
         self.sigs_url = config.get('sigs_url')
         self.index_name_sigs = config.get('index_name_sigs')
         self.index_name_sigs_repos = config.get('index_name_sigs_repos')
-        self.is_gitee_enterprise=config.get("is_gitee_enterprise")
+        self.is_gitee_enterprise = config.get("is_gitee_enterprise")
         self.gitee_token = config.get('gitee_token')
         self.sigs_source = config.get('sigs_source')
         self.headers = {'Content-Type': 'application/json', "Authorization": config.get('authorization')}
@@ -85,12 +85,12 @@ class CollectData(object):
 
         if self.index_name_sigs and self.sig_mark:
             self.get_sigs()
-            # last_maintainers = self.esClient.get_sig_maintainers(self.index_name_sigs_repos)
-            # maintainer_sigs_dict = self.get_sigs_original()
-            # self.reindex_maintainer_gitee_all(last_maintainers, maintainer_sigs_dict)
-            # self.get_sig_pr_issue()
-            # self.get_sigs_total()
-            # self.get_sigs_committer_total()
+            last_maintainers = self.esClient.get_sig_maintainers(self.index_name_sigs_repos)
+            maintainer_sigs_dict = self.get_sigs_original()
+            self.reindex_maintainer_gitee_all(last_maintainers, maintainer_sigs_dict)
+            self.get_sig_pr_issue()
+            self.get_sigs_total()
+            self.get_sigs_committer_total()
         elif self.index_name_sigs and self.is_gitee_api_get:
             self.gte_enterprise_committers()
         elif self.index_name_sigs:
@@ -112,7 +112,7 @@ class CollectData(object):
                 self.get_pypi_system(startTime, sig)
 
     def untar(self, fname, dirs='./'):
-        cmd = 'tar -zxvf %s -C %s' %(fname, dirs)
+        cmd = 'tar -zxvf %s -C %s' % (fname, dirs)
         res = os.popen(cmd)
         return res.read()
 
@@ -211,7 +211,7 @@ class CollectData(object):
 
             while True:
                 datenow = datetime.datetime.strptime(datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d"),
-                                                  "%Y-%m-%d")
+                                                     "%Y-%m-%d")
                 # if datei == datenow:
                 #     break
                 # dateii = datei + datetime.timedelta(days=1)
@@ -316,7 +316,7 @@ class CollectData(object):
         while True:
             datenow = datetime.datetime.strptime(datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d"),
                                                  "%Y-%m-%d")
-            if dateii == datenow+datetime.timedelta(days=1):
+            if dateii == datenow + datetime.timedelta(days=1):
                 break
             dateiise = dateii
             dateii += datetime.timedelta(days=1)
@@ -373,7 +373,8 @@ class CollectData(object):
         url = self.url + '/' + self.index_name_committers + '/_search'
         index_name = self.index_name_committers
         if self.start_time_total_committer:
-            date = self.start_time_total_committer[:4] + '-' + self.start_time_total_committer[4:6] + '-' + self.start_time_total_committer[6:]
+            date = self.start_time_total_committer[:4] + '-' + self.start_time_total_committer[
+                                                               4:6] + '-' + self.start_time_total_committer[6:]
         else:
             date = self.from_data[:4] + '-' + self.from_data[4:6] + '-' + self.from_data[6:]
         macth = ',"must": [ { "match": { "is_committer": 1 }} ]'
@@ -385,7 +386,8 @@ class CollectData(object):
         url = self.url + '/' + self.index_name_maillist + '/_search'
         index_name = self.index_name_maillist
         if self.start_time_total_maillist:
-            date = self.start_time_total_maillist[:4] + '-' + self.start_time_total_maillist[4:6] + '-' + self.start_time_total_maillist[6:]
+            date = self.start_time_total_maillist[:4] + '-' + self.start_time_total_maillist[
+                                                              4:6] + '-' + self.start_time_total_maillist[6:]
         else:
             date = self.from_data[:4] + '-' + self.from_data[4:6] + '-' + self.from_data[6:]
         macth = ''
@@ -397,7 +399,8 @@ class CollectData(object):
         url = self.url + '/' + self.index_name_vpcdownload + '/_search'
         index_name = self.index_name_vpcdownload
         if self.start_time_total_download:
-            date = self.start_time_total_download[:4] + '-' + self.start_time_total_download[4:6] + '-' + self.start_time_total_download[6:]
+            date = self.start_time_total_download[:4] + '-' + self.start_time_total_download[
+                                                              4:6] + '-' + self.start_time_total_download[6:]
         else:
             date = self.from_data[:4] + '-' + self.from_data[4:6] + '-' + self.from_data[6:]
         macth = ''
@@ -423,7 +426,8 @@ class CollectData(object):
             Without_Mirrors = self.get_data_num_pypi(overall, "without_mirrors")
             Total = self.get_data_num_pypi(overall, "Total", True)
             dataw = {"With_Mirrors": With_Mirrors, "Without_Mirrors": Without_Mirrors, "Total": Total,
-                     "package": package+"_overall_download", "created_at": datei.strftime("%Y-%m-%d")+"T23:00:00+08:00"}
+                     "package": package + "_overall_download",
+                     "created_at": datei.strftime("%Y-%m-%d") + "T23:00:00+08:00"}
             print(dataw)
             ID = package + "_pypi_overall_" + datei.strftime("%Y-%m-%d")
             data = self.getSingleAction(self.index_name_pypi, ID, dataw)
@@ -448,9 +452,10 @@ class CollectData(object):
             null = self.get_data_num_pypi(major, "null")
             Total = self.get_data_num_pypi(major, "Total", True)
             dataw = {"Python3": Python3, "Others(null)": null, "Total": Total,
-                     "package": package+"_python_major_download", "created_at": datei.strftime("%Y-%m-%d")+"T23:00:00+08:00"}
+                     "package": package + "_python_major_download",
+                     "created_at": datei.strftime("%Y-%m-%d") + "T23:00:00+08:00"}
             print(dataw)
-            ID = package+"_pypi_python_major_" + datei.strftime("%Y-%m-%d")
+            ID = package + "_pypi_python_major_" + datei.strftime("%Y-%m-%d")
             data = self.getSingleAction(self.index_name_pypi, ID, dataw)
             self.safe_put_bulk(data)
             datei += datetime.timedelta(days=1)
@@ -473,9 +478,10 @@ class CollectData(object):
             null = self.get_data_num_pypi(minor, "null")
             Total = self.get_data_num_pypi(minor, "Total", True)
             dataw = {"Python37": Python37, "Others(null)": null, "Total": Total,
-                     "package": package+"_python_minor_download", "created_at": datei.strftime("%Y-%m-%d")+"T23:00:00+08:00"}
+                     "package": package + "_python_minor_download",
+                     "created_at": datei.strftime("%Y-%m-%d") + "T23:00:00+08:00"}
             print(dataw)
-            ID = package+"_pypi_python_minor_" + datei.strftime("%Y-%m-%d")
+            ID = package + "_pypi_python_minor_" + datei.strftime("%Y-%m-%d")
             data = self.getSingleAction(self.index_name_pypi, ID, dataw)
             self.safe_put_bulk(data)
             datei += datetime.timedelta(days=1)
@@ -499,9 +505,10 @@ class CollectData(object):
             null = self.get_data_num_pypi(system, "null")
             Total = self.get_data_num_pypi(system, "Total", True)
             dataw = {"Windows": Windows, "Others(null)": null, "Linux": Linux, "Total": Total,
-                     "package": package+"_system_download", "created_at": datei.strftime("%Y-%m-%d")+"T23:00:00+08:00"}
+                     "package": package + "_system_download",
+                     "created_at": datei.strftime("%Y-%m-%d") + "T23:00:00+08:00"}
             print(dataw)
-            ID = package+"_pypi_system_" + datei.strftime("%Y-%m-%d")
+            ID = package + "_pypi_system_" + datei.strftime("%Y-%m-%d")
             data = self.getSingleAction(self.index_name_pypi, ID, dataw)
             self.safe_put_bulk(data)
             datei += datetime.timedelta(days=1)
@@ -726,8 +733,10 @@ class CollectData(object):
             try:
                 for key, val in onwers.items():
                     for onwer in val:
-                        search = '"must": [{ "match": { "sig_name":"%s"}},{ "match": { "committer":"%s"}}]' %(dir, onwer)
-                        ID_list = [r['_id'] for r in self.esClient.searchEsList("openeuler_sigs_committers_20210318", search)]
+                        search = '"must": [{ "match": { "sig_name":"%s"}},{ "match": { "committer":"%s"}}]' % (
+                        dir, onwer)
+                        ID_list = [r['_id'] for r in
+                                   self.esClient.searchEsList("openeuler_sigs_committers_20210318", search)]
                         times_onwer = None
                         for r in rs2:
                             # if re.search(r'\+\s*-\s*%s' % onwer, r):
@@ -873,7 +882,7 @@ class CollectData(object):
     def gte_enterprise_committers(self):
         self.gitee.getEnterpriseUser()
         self.gitee.internalUsers = self.gitee.getItselfUsers(self.gitee.internal_users)
-        infos =self.get_repos(self.org)
+        infos = self.get_repos(self.org)
         for info in infos:
             client = GiteeClient(self.org, info['path'], self.gitee_token)
             datas = common.getGenerator(client.collaborators())
@@ -882,11 +891,11 @@ class CollectData(object):
                 ID = self.org + '_' + str(data['id']) + '_' + data['name']
                 admin = 1 if data['permissions']['admin'] else 0
                 dataw = {"repo_name": info['path'],
-                    "committer_name": data['name'],
-                    "committer_login": data['login'],
-                    "created_at": '2020-08-09',
-                    "is_enterprise_committer": 1,
-                    "is_admin": admin}
+                         "committer_name": data['name'],
+                         "committer_login": data['login'],
+                         "created_at": '2020-08-09',
+                         "is_enterprise_committer": 1,
+                         "is_admin": admin}
                 userExtra = self.esClient.getUserInfo(data['login'])
                 dataw.update(userExtra)
                 datac = self.getSingleAction(self.index_name_sigs, ID, dataw)
@@ -1027,7 +1036,8 @@ class CollectData(object):
         # pr
         url = self.url + '/' + self.sigs_source + '/_search'
         if self.start_time_sig_pr:
-            start_time = self.start_time_sig_pr[:4] + '-' + self.start_time_sig_pr[4:6] + '-' + self.start_time_sig_pr[6:]
+            start_time = self.start_time_sig_pr[:4] + '-' + self.start_time_sig_pr[4:6] + '-' + self.start_time_sig_pr[
+                                                                                                6:]
         else:
             start_time = self.from_data[:4] + '-' + self.from_data[4:6] + '-' + self.from_data[6:]
         datei = datetime.datetime.strptime(start_time, "%Y-%m-%d")
@@ -1062,14 +1072,10 @@ class CollectData(object):
                 repo = i['_source']['gitee_repo'].split('/')[-2] + '/' + i['_source']['gitee_repo'].split('/')[-1]
                 if self.get_repo_name_without_sig:
                     repo = i['_source']['gitee_repo'].split('/')[-1]
-                # for sig in sigs_data['sigs']:
-                #     if repo in sig['repositories']:
                 for sig in sigs_data:
                     if repo in sigs_data[sig]:
                         body = i['_source']
                         body['is_sig_pr'] = 1
-                        # body['sig_name'] = sig['name']
-                        # ID = sig['name'] + i['_id']
                         body['sig_name'] = sig
                         ID = sig + i['_id']
                         if "pull_state" in body:
@@ -1080,15 +1086,13 @@ class CollectData(object):
                             if body['pull_state'] == "open":
                                 body['is_pull_open'] = 1
                         data = self.getSingleAction(self.index_name_sigs, ID, body)
-                        # print("data:%s" % data)
                         self.safe_put_bulk(data)
-            # self.safe_put_bulk(datar)
-            # print("data:%s" % datar)
 
         # issue
         url = self.url + '/' + self.sigs_source + '/_search'
         if self.start_time_sig_issue:
-            start_time = self.start_time_sig_issue[:4] + '-' + self.start_time_sig_issue[4:6] + '-' + self.start_time_sig_issue[6:]
+            start_time = self.start_time_sig_issue[:4] + '-' + self.start_time_sig_issue[
+                                                               4:6] + '-' + self.start_time_sig_issue[6:]
         else:
             start_time = self.from_data[:4] + '-' + self.from_data[4:6] + '-' + self.from_data[6:]
         datei = datetime.datetime.strptime(start_time, "%Y-%m-%d")
@@ -1122,14 +1126,10 @@ class CollectData(object):
                 repo = i['_source']['gitee_repo'].split('/')[-2] + '/' + i['_source']['gitee_repo'].split('/')[-1]
                 if self.get_repo_name_without_sig:
                     repo = i['_source']['gitee_repo'].split('/')[-1]
-                # for sig in sigs_data['sigs']:
-                #     if repo.strip() in sig['repositories']:
                 for sig in sigs_data:
                     if repo.strip() in sigs_data[sig]:
                         body = i['_source']
                         body['is_sig_issue'] = 1
-                        # body['sig_name'] = sig['name']
-                        # ID = sig['name'] + i['_id']
                         body['sig_name'] = sig
                         ID = sig + i['_id']
                         if "issue_state" in body:
@@ -1158,7 +1158,7 @@ class CollectData(object):
         datenow = datetime.datetime.strptime(datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d"),
                                              "%Y-%m-%d")
         while True:
-            if dateii == datenow+datetime.timedelta(days=1):
+            if dateii == datenow + datetime.timedelta(days=1):
                 break
             dateii += datetime.timedelta(days=1)
             stime = datetime.datetime.strftime(dateii, "%Y-%m-%d")
@@ -1189,11 +1189,10 @@ class CollectData(object):
             re = json.loads(r)
             num = re["aggregations"]["agg_count"]["value"]
 
-            body = {'created_at': stime+'T00:00:00.000+0800', totalmark: 1, 'tatol_num': num}
+            body = {'created_at': stime + 'T00:00:00.000+0800', totalmark: 1, 'tatol_num': num}
             ID = id + stime
             data = self.getSingleAction(index_name, ID, body)
             self.safe_put_bulk(data)
-            # print(data)
 
     def get_count_base(self, url, index_name, date, mactch, totalmark, id, created_at='created_at'):
         datei = datetime.datetime.strptime(date, "%Y-%m-%d")
@@ -1229,7 +1228,6 @@ class CollectData(object):
             ID = id + stime
             data = self.getSingleAction(index_name, ID, body)
             self.safe_put_bulk(data)
-            print(data)
 
     def get_sigs_committer_total(self):
         url = self.url + '/' + self.index_name_sigs + '/_search'
