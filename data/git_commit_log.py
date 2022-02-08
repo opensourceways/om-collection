@@ -38,6 +38,9 @@ class GitCommitLog(object):
         self.esClient = ESClient(config)
         self.email_orgs_dict = {}
         self.white_box_yaml = config.get('white_box_yaml')
+        self.upstream_yaml = config.get('upstream_yaml')
+        self.user_yaml = config.get('user_yaml')
+        self.company_yaml = config.get('company_yaml')
 
     def run(self, from_time):
         print("Git commit log collect: start")
@@ -48,9 +51,13 @@ class GitCommitLog(object):
         if self.start_date is None and self.before_days:
             self.start_date = datetime.date.today() + datetime.timedelta(days=-int(self.before_days))
 
-        # white box指定仓库commits
-        if self.white_box_yaml:
-            all_branch_repos, default_branch_repos = self.getYamlData()
+        if self.white_box_yaml:  # white box 指定仓库
+            all_branch_repos, default_branch_repos = self.getReposFromYaml(yaml_file=self.white_box_yaml)
+            self.getCommitWhiteBox(default_branch_repos, 'default')  # 只是获取默认分支commit
+            self.getCommitWhiteBox(all_branch_repos)  # 获取全部分支commit
+        elif self.upstream_yaml:  # upstream 指定仓库
+            self.email_orgs_dict = self.getUpstreamCompany(user_yaml=self.user_yaml, company_yaml=self.company_yaml)
+            all_branch_repos, default_branch_repos = self.getReposFromYaml(yaml_file=self.upstream_yaml)
             self.getCommitWhiteBox(default_branch_repos, 'default')  # 只是获取默认分支commit
             self.getCommitWhiteBox(all_branch_repos)  # 获取全部分支commit
         else:
@@ -313,15 +320,15 @@ class GitCommitLog(object):
         return data
 
     # get repos from white box yaml
-    def getYamlData(self):
+    def getReposFromYaml(self, yaml_file):
         all_branch_repos = []
         default_branch_repos = []
         try:
-            cmd = 'wget -N -P %s %s' % (self.code_base_path, self.white_box_yaml)
+            cmd = 'wget -N -P %s %s' % (self.code_base_path, yaml_file)
             os.system(cmd)
 
             # 解析yaml
-            file_name = str(self.white_box_yaml).split('/')[-1]
+            file_name = str(yaml_file).split('/')[-1]
             file = self.code_base_path + file_name
             datas = yaml.safe_load_all(open(file, encoding='UTF-8')).__next__()
             for data in datas['users']:
@@ -351,3 +358,38 @@ class GitCommitLog(object):
                 self.getLog(platform, owner, repo_name, branch_name)
             except Exception:
                 print('*** platform: %s, owner: %s, repo: %s, fail ***' % (platform, owner, repo))
+
+    # upstream 需要从yaml中获取组织
+    def getUpstreamCompany(self, user_yaml, company_yaml):
+        email_org_dict = {}
+        try:
+            cmd = 'wget -N -P %s %s' % (self.code_base_path, user_yaml)
+            os.system(cmd)
+            user_file_name = str(user_yaml).split('/')[-1]
+            user_file = self.code_base_path + user_file_name
+
+            cmd = 'wget -N -P %s %s' % (self.code_base_path, company_yaml)
+            os.system(cmd)
+            company_file_name = str(company_yaml).split('/')[-1]
+            company_file = self.code_base_path + company_file_name
+
+            # 企业别名和企业名称
+            company_datas = yaml.safe_load_all(open(company_file, encoding='UTF-8')).__next__()
+            aliases_company_dict = {}
+            for company in company_datas['companies']:
+                company_name = company['company_name']
+                for alias in company['aliases']:
+                    aliases_company_dict.update({alias: company_name})
+
+            # 用户邮箱和组织
+            user_datas = yaml.safe_load_all(open(user_file, encoding='UTF-8')).__next__()
+            for user in user_datas['users']:
+                user_company = user['companies'][0]['company_name']
+                if user_company in aliases_company_dict:
+                    user_company = aliases_company_dict[user_company]
+                for email in user['emails']:
+                    email_org_dict.update({email: user_company})
+
+            return email_org_dict
+        except Exception:
+            return email_org_dict
