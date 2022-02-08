@@ -37,6 +37,7 @@ class GitCommitLog(object):
         self.write_bulk = int(config.get('write_bulk', 1000))
         self.esClient = ESClient(config)
         self.email_orgs_dict = {}
+        self.domain_orgs_dict = {}
         self.white_box_yaml = config.get('white_box_yaml')
         self.upstream_yaml = config.get('upstream_yaml')
         self.user_yaml = config.get('user_yaml')
@@ -56,7 +57,7 @@ class GitCommitLog(object):
             self.getCommitWhiteBox(default_branch_repos, 'default')  # 只是获取默认分支commit
             self.getCommitWhiteBox(all_branch_repos)  # 获取全部分支commit
         elif self.upstream_yaml:  # upstream 指定仓库
-            self.email_orgs_dict = self.getUpstreamCompany(user_yaml=self.user_yaml, company_yaml=self.company_yaml)
+            self.email_orgs_dict, self.domain_orgs_dict = self.getUpstreamCompany(user_yaml=self.user_yaml, company_yaml=self.company_yaml)
             all_branch_repos, default_branch_repos = self.getReposFromYaml(yaml_file=self.upstream_yaml)
             self.getCommitWhiteBox(default_branch_repos, 'default')  # 只是获取默认分支commit
             self.getCommitWhiteBox(all_branch_repos)  # 获取全部分支commit
@@ -179,8 +180,11 @@ class GitCommitLog(object):
 
             company = 'independent'
             email = commit.author.email
+            email_domain = email.split('@')[-1]
             if self.email_orgs_dict and email in self.email_orgs_dict:
                 company = self.email_orgs_dict[email]
+            elif self.domain_orgs_dict and email_domain in self.domain_orgs_dict:
+                company = self.domain_orgs_dict[email_domain]
 
             mess = commit.message
             action = {
@@ -362,6 +366,7 @@ class GitCommitLog(object):
     # upstream 需要从yaml中获取组织
     def getUpstreamCompany(self, user_yaml, company_yaml):
         email_org_dict = {}
+        domain_org_dict = {}
         try:
             cmd = 'wget -N -P %s %s' % (self.code_base_path, user_yaml)
             os.system(cmd)
@@ -380,6 +385,8 @@ class GitCommitLog(object):
                 company_name = company['company_name']
                 for alias in company['aliases']:
                     aliases_company_dict.update({alias: company_name})
+                for domain in company['domains']:
+                    domain_org_dict.update({domain: company_name})
 
             # 用户邮箱和组织
             user_datas = yaml.safe_load_all(open(user_file, encoding='UTF-8')).__next__()
@@ -390,6 +397,6 @@ class GitCommitLog(object):
                 for email in user['emails']:
                     email_org_dict.update({email: user_company})
 
-            return email_org_dict
+            return email_org_dict, domain_org_dict
         except Exception:
-            return email_org_dict
+            return email_org_dict, domain_org_dict
