@@ -407,7 +407,6 @@ class SigMaintainer(object):
                                      "created_at": times,
                                      "committer_time": times_onwer,
                                      "is_sig_repo_committer": 1,
-                                     "is_sig_original": 1,
                                      "owner_type": key}
                             if onwer in giteeid_company_dict:
                                 company = giteeid_company_dict.get(onwer)
@@ -497,6 +496,7 @@ class SigMaintainer(object):
             action = {
                 "sig_name": dir,
                 "repos": repositories,
+                "is_sig_original": 1,
                 "maintainers": maintainers,
             }
             indexData = {"index": {"_index": self.index_name_sigs_repos, "_id": dir}}
