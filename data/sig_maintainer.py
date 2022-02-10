@@ -48,8 +48,8 @@ class SigMaintainer(object):
             self.get_sigs()
             last_maintainers = self.esClient.get_sig_maintainers(self.index_name_sigs_repos)
             maintainer_sigs_dict = self.get_sigs_original()
-            time.sleep(20)
-            self.reindex_maintainer_gitee_all(last_maintainers, maintainer_sigs_dict)
+            # time.sleep(20)
+            # self.reindex_maintainer_gitee_all(last_maintainers, maintainer_sigs_dict)
 
     def safe_put_bulk(self, bulk_json, header=None, url=None):
         """Bulk items to a target index `url`. In case of UnicodeEncodeError,
@@ -383,7 +383,6 @@ class SigMaintainer(object):
                                      "created_at": times,
                                      "committer_time": times_onwer,
                                      "is_sig_repo_committer": 1,
-                                     "is_sig_original": 1,
                                      "owner_type": key}
                             if onwer in giteeid_company_dict:
                                 company = giteeid_company_dict.get(onwer)
@@ -407,7 +406,6 @@ class SigMaintainer(object):
                                      "created_at": times,
                                      "committer_time": times_onwer,
                                      "is_sig_repo_committer": 1,
-                                     "is_sig_original": 1,
                                      "owner_type": key}
                             if onwer in giteeid_company_dict:
                                 company = giteeid_company_dict.get(onwer)
