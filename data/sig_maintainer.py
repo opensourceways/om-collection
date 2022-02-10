@@ -43,13 +43,13 @@ class SigMaintainer(object):
         self.from_data = config.get("from_data")
         self.sig_mark = config.get("sig_mark")
 
-    def run(self, time=None):
+    def run(self, starttime=None):
         if self.index_name_sigs and self.sig_mark:
             self.get_sigs()
-            # last_maintainers = self.esClient.get_sig_maintainers(self.index_name_sigs_repos)
-            # maintainer_sigs_dict = self.get_sigs_original()
-            # time.sleep(20)
-            # self.reindex_maintainer_gitee_all(last_maintainers, maintainer_sigs_dict)
+            last_maintainers = self.esClient.get_sig_maintainers(self.index_name_sigs_repos)
+            maintainer_sigs_dict = self.get_sigs_original()
+            time.sleep(20)
+            self.reindex_maintainer_gitee_all(last_maintainers, maintainer_sigs_dict)
 
     def safe_put_bulk(self, bulk_json, header=None, url=None):
         """Bulk items to a target index `url`. In case of UnicodeEncodeError,
