@@ -499,6 +499,7 @@ class SigMaintainer(object):
                 "repos": repositories,
                 "is_sig_original": 1,
                 "maintainers": maintainers,
+                "created_at": "2021-12-01T00:00:00+08:00"
             }
             indexData = {"index": {"_index": self.index_name_sigs_repos, "_id": dir}}
             actions += json.dumps(indexData) + '\n'
