@@ -33,7 +33,6 @@ class SigMaintainer(object):
         self.sigs_dir = config.get('sigs_dir')
         self.sigs_url = config.get('sigs_url')
         self.index_name_sigs = config.get('index_name_sigs')
-        self.index_name_sigs_repos = config.get('index_name_sigs_repos')
 
         self.gitee_token = config.get('gitee_token')
         self.sigs_source = config.get('sigs_source')
@@ -46,7 +45,7 @@ class SigMaintainer(object):
     def run(self, starttime=None):
         if self.index_name_sigs and self.sig_mark:
             self.get_sigs()
-            last_maintainers = self.esClient.get_sig_maintainers(self.index_name_sigs_repos)
+            last_maintainers = self.esClient.get_sig_maintainers(self.index_name_sigs)
             maintainer_sigs_dict = self.get_sigs_original()
             # time.sleep(20)
             # self.reindex_maintainer_gitee_all(last_maintainers, maintainer_sigs_dict)
@@ -94,7 +93,7 @@ class SigMaintainer(object):
     def reindex_maintainer_gitee_all(self, history_maintainers, maintainer_sigs_dict):
         dic = self.esClient.getOrgByGiteeID()
         giteeid_company_dict = dic[0]
-        maintainers = self.esClient.get_sig_maintainers(self.index_name_sigs_repos)
+        maintainers = self.esClient.get_sig_maintainers(self.index_name_sigs)
         print('giteeid_company_dict = ', len(giteeid_company_dict))
         print('maintainers = ', maintainers)
         actions = ''
@@ -501,7 +500,7 @@ class SigMaintainer(object):
                 "maintainers": maintainers,
                 "created_at": "2021-12-01T00:00:00+08:00"
             }
-            indexData = {"index": {"_index": self.index_name_sigs_repos, "_id": dir}}
+            indexData = {"index": {"_index": self.index_name_sigs, "_id": dir}}
             actions += json.dumps(indexData) + '\n'
             actions += json.dumps(action) + '\n'
         self.safe_put_bulk(actions)
