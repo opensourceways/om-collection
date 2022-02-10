@@ -76,6 +76,7 @@ class ESClient(object):
         self.giteeid_company_change_dict = defaultdict(dict)
         if self.authorization:
             self.default_headers['Authorization'] = self.authorization
+        self.sig_repo_index = config.get('sig_repo_index')
 
     def getObsAllPackageName(self):
         search_json = '''{
@@ -171,7 +172,7 @@ class ESClient(object):
 
     def getRepoSigs(self):
         dict_comb = defaultdict(dict)
-        if self.sig_index:
+        if self.sig_repo_index:
             search = '''{
   "size": 10000,
   "query": {
@@ -186,7 +187,7 @@ class ESClient(object):
     }
   }
 }'''
-            res = requests.get(self.getSearchUrl(index_name=self.sig_index), data=search,
+            res = requests.get(self.getSearchUrl(index_name=self.sig_repo_index), data=search,
                                headers=self.default_headers, verify=False)
             if res.status_code != 200:
                 print("The index not exist")

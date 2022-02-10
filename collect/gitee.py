@@ -197,18 +197,33 @@ class GiteeClient():
         pull_files = self.urijoin("pulls", str(pr_number), "files")
         return self.fetch_items(pull_files, {})
 
-    def events(self, page=1):
+    # def events(self, page=1):
+    #     """Fetch the pull requests from the repository.
+    #     The method retrieves, from a Gitee repository, the pull requests
+    #     updated since the given date.
+    #     """
+    #     payload = {
+    #         'per_page': self.max_items,
+    #         'page': page,
+    #     }
+    #
+    #     path = self.urijoin("events")
+    #     return self.fetch_items(path, payload)
+
+    def events(self, prev_id, page=1):
         """Fetch the pull requests from the repository.
         The method retrieves, from a Gitee repository, the pull requests
         updated since the given date.
         """
         payload = {
-            'per_page': self.max_items,
+            'prev_id': prev_id,
+            'limit': self.max_items,
             'page': page,
         }
 
         path = self.urijoin("events")
         return self.fetch_items(path, payload)
+
 
     def events_prev_id(self, prev_id):
         """Fetch the pull requests from the repository.
