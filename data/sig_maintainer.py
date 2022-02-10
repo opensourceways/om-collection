@@ -48,7 +48,7 @@ class SigMaintainer(object):
             self.get_sigs()
             last_maintainers = self.esClient.get_sig_maintainers(self.index_name_sigs_repos)
             maintainer_sigs_dict = self.get_sigs_original()
-            time.sleep(20)
+            # time.sleep(20)
             # self.reindex_maintainer_gitee_all(last_maintainers, maintainer_sigs_dict)
 
     def safe_put_bulk(self, bulk_json, header=None, url=None):
