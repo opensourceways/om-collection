@@ -142,12 +142,9 @@ class ActivitiesPractice(object):
                 res['pr_commit_repo'] = parse_dict['PR提交地址']
                 res['expected_completion_date'] = self.expected_completion_date(date_str=parse_dict['期望完成时间'])
                 res['develop_guidance'] = parse_dict['开发指导']
-                tutor = re.split(r'[ ,，\n]+', parse_dict['导师及邮箱'])
-                if len(tutor) < 2:
-                    res['tutor_login'] = re.sub(r'[^a-zA-Z0-9_]', '', tutor[0])
-                else:
-                    res['tutor_login'] = re.sub(r'[^a-zA-Z0-9_]', '', tutor[0])
-                    res['tutor_email'] = re.sub(r'[^a-zA-Z0-9_@]', '', tutor[1])
+                tutor_login, tutor_email = self.getTutorInfo(parse_dict['导师及邮箱'])
+                res['tutor_login'] = tutor_login
+                res['tutor_email'] = tutor_email
                 res['remark'] = parse_dict['备注'].strip()
 
                 _id = source['repository'] + '_' + source['issue_number']
@@ -164,7 +161,7 @@ class ActivitiesPractice(object):
         if body is None:
             return self.model_dict
         parse_dict = self.model_dict
-        items = re.split(r'\n【', body)
+        items = re.split(r'\n.*【', body)
         for item in items:
             if item is None or item == '':
                 continue
@@ -174,6 +171,21 @@ class ActivitiesPractice(object):
                 continue
             parse_dict.update({i[0].replace('【', ''): i[1].strip()})
         return parse_dict
+
+    def getTutorInfo(self, tutor_str):
+        gitee_id = ''
+        email = ''
+        emails = re.findall(r'[A-Za-z0-9.\-+_]+@[a-z0-9.\-+_]+\.[a-z]+', tutor_str)
+        if emails:
+            email = emails[0]
+            tutor_str = tutor_str.split(email)[0]
+        if tutor_str.__contains__('https://gitee.com'):
+            ids = re.findall(r'https://gitee\.com/[a-zA-Z0-9_]+', tutor_str)
+            if ids:
+                gitee_id = ids[0].replace('https://gitee.com/', '')
+        else:
+            gitee_id = re.sub(r'[^a-zA-Z0-9_]', '', tutor_str)
+        return gitee_id, email
 
     def expected_completion_date(self, date_str):
         ymd = re.findall(r'\d+', date_str)
