@@ -266,6 +266,24 @@ class SigMaintainer(object):
                     sig_repo_list.append(repo_name)
         return sig_repo_list
 
+    def get_sig_repos_opengauss(self):
+        sig_yaml_path = self.sigs_dir +  self.sig_repo_name + '/sigs.yaml'
+        data = yaml.load_all(open(sig_yaml_path), Loader=yaml.Loader).__next__()['sigs']
+        sig_repos_dict = {}
+        for d in data:
+            repos = d['repositories']
+            repositories = []
+            for repo in repos:
+                if str(repo).__contains__('/'):
+                    repositories = repos
+                    break
+                else:
+                    repositories.append(self.org + '/' + repo)
+            sig_repos_dict.update({d['name']: repositories})
+
+        return sig_repos_dict
+
+
     def get_sigs(self):
 
         path = self.sigs_dir
@@ -288,6 +306,14 @@ class SigMaintainer(object):
         giteeid_company_dict = dic[0]
 
         dirs = os.walk(self.sigs_dirs_path).__next__()[1]
+        sig_repos_dict = {}
+        if self.org == 'openeuler':
+            for dir in dirs:
+                sig_repo_list = self.get_sig_repos(dir)
+                sig_repos_dict.update({dir: sig_repo_list})
+        if self.org == 'opengauss':
+            sig_repos_dict = self.get_sig_repos_opengauss()
+
         for dir in dirs:
             repo_path = self.sigs_dirs_path + '/' + dir
             cmdlog = 'cd %s;git log -p README.md' % repo_path
@@ -306,8 +332,8 @@ class SigMaintainer(object):
                 # if re.search(r'.*README.md', r):
                 if re.search(r'^commit .*', r):
                     date = re.search(r'Date: (.*)\n', r).group(1)
-                    # time_struct = time.strptime(date[2:], '%a %b %d %H:%M:%S %Y')
-                    time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
+                    time_struct = time.strptime(date[2:], '%a %b %d %H:%M:%S %Y')
+                    # time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
                     times = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
                     break
 
@@ -339,41 +365,17 @@ class SigMaintainer(object):
                         for r in rs2:
                             if re.search(r'\+\s*-\s*%s' % onwer, r):
                                 date = re.search(r'Date:\s*(.*)\n', r).group(1)
-                                # time_struct = time.strptime(date, '%a %b %d %H:%M:%S %Y')
-                                time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
+                                time_struct = time.strptime(date, '%a %b %d %H:%M:%S %Y')
+                                # time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
                                 times_onwer = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
 
                         repo_mark = True
-                        # repos = []
-                        # sig_repo_path = self.sigs_dirs_path + '/' + dir
-                        # # print('sig_repo_path = ', sig_repo_path)
-                        # repo_path_dirs = os.walk(sig_repo_path).__next__()[1]
-                        #
-                        # if 'openeuler' in repo_path_dirs:
-                        #     repo_path_dir = sig_repo_path + '/' + 'openeuler'
-                        #     repo_paths = os.walk(repo_path_dir).__next__()[1]
-                        #     for repo_path in repo_paths:
-                        #         yaml_dir_path = repo_path_dir + '/' + repo_path
-                        #         yaml_dir = os.walk(yaml_dir_path).__next__()[2]
-                        #         for file in yaml_dir:
-                        #             yaml_path = yaml_dir_path + '/' + file
-                        #             repo_name = 'openeuler/' + yaml.load_all(
-                        #                 open(yaml_path), Loader=yaml.Loader).__next__()['name']
-                        #             repos.append(repo_name)
-                        #
-                        # if 'src-openeuler' in repo_path_dirs:
-                        #     repo_path_dir = sig_repo_path + '/' + 'src-openeuler'
-                        #     repo_paths = os.walk(repo_path_dir).__next__()[1]
-                        #     for repo_path in repo_paths:
-                        #         yaml_dir_path = repo_path_dir + '/' + repo_path
-                        #         yaml_dir = os.walk(yaml_dir_path).__next__()[2]
-                        #         for file in yaml_dir:
-                        #             yaml_path = yaml_dir_path + '/' + file
-                        #             repo_name = 'src-openeuler/' + yaml.load_all(
-                        #                 open(yaml_path), Loader=yaml.Loader).__next__()['name']
-                        #             repos.append(repo_name)
 
-                        repos = self.get_sig_repos(dir)
+                        # repos = self.get_sig_repos(dir)
+                        repos = []
+                        if dir in sig_repos_dict:
+                            repos = sig_repos_dict.get(dir)
+
                         for repo in repos:
                             ID = self.org + '_' + dir + '_' + repo + '_' + key + '_' + onwer
                             # if ID in ID_list:
@@ -433,38 +435,12 @@ class SigMaintainer(object):
     def get_sigs_original(self):
         dirs = os.walk(self.sigs_dirs_path).__next__()[1]
         sig_repos_dict = {}
-        for dir in dirs:
-            # sig_repo_list = []
-            # sig_repo_path = self.sigs_dirs_path + '/' + dir
-            # repo_path_dirs = os.walk(sig_repo_path).__next__()[1]
-            #
-            # if 'openeuler' in repo_path_dirs:
-            #     repo_path_dir = sig_repo_path + '/' + 'openeuler'
-            #     repo_paths = os.walk(repo_path_dir).__next__()[1]
-            #     for repo_path in repo_paths:
-            #         yaml_dir_path = repo_path_dir + '/' + repo_path
-            #         yaml_dir = os.walk(yaml_dir_path).__next__()[2]
-            #         for file in yaml_dir:
-            #             yaml_path = yaml_dir_path + '/' + file
-            #             repo_name = 'openeuler/' + yaml.load_all(open(yaml_path),
-            #                                                      Loader=yaml.Loader).__next__()['name']
-            #             sig_repo_list.append(repo_name)
-            #
-            # if 'src-openeuler' in repo_path_dirs:
-            #     repo_path_dir = sig_repo_path + '/' + 'src-openeuler'
-            #     repo_paths = os.walk(repo_path_dir).__next__()[1]
-            #     for repo_path in repo_paths:
-            #         yaml_dir_path = repo_path_dir + '/' + repo_path
-            #         yaml_dir = os.walk(yaml_dir_path).__next__()[2]
-            #         for file in yaml_dir:
-            #             yaml_path = yaml_dir_path + '/' + file
-            #             repo_name = 'src-openeuler/' + yaml.load_all(open(yaml_path),
-            #                                                          Loader=yaml.Loader).__next__()['name']
-            #             sig_repo_list.append(repo_name)
-
-            sig_repo_list = self.get_sig_repos(dir)
-            sig_repos_dict.update({dir: sig_repo_list})
-        # print(sig_repos_dict)
+        if self.org == 'openeuler':
+            for dir in dirs:
+                sig_repo_list = self.get_sig_repos(dir)
+                sig_repos_dict.update({dir: sig_repo_list})
+        if self.org == 'opengauss':
+            sig_repos_dict = self.get_sig_repos_opengauss()
 
         actions = ''
         dict_comb = defaultdict(dict)
@@ -472,13 +448,14 @@ class SigMaintainer(object):
             # get repos
             repositories = []
             if dir in sig_repos_dict:
-                repos = sig_repos_dict.get(dir)
-                for repo in repos:
-                    if str(repo).__contains__('/'):
-                        repositories = repos
-                        break
-                    else:
-                        repositories.append(self.org + '/' + repo)
+                repositories = sig_repos_dict.get(dir)
+                # repos = sig_repos_dict.get(dir)
+                # for repo in repos:
+                #     if str(repo).__contains__('/'):
+                #         repositories = repos
+                #         break
+                #     else:
+                #         repositories.append(self.org + '/' + repo)
             # get maintainers
             try:
                 onwer_file = self.sigs_dirs_path + '/' + dir + '/' + 'OWNERS'
