@@ -1,9 +1,14 @@
 import calendar
 import datetime
 import json
+import os
 import re
+import time
 import types
 from json import JSONDecodeError
+
+import xlrd
+
 from collect.gitee import GiteeClient
 from data.common import ESClient
 
@@ -14,15 +19,22 @@ class ActivitiesPractice(object):
         self.orgs = config.get('orgs')
         self.esClient = ESClient(config)
         self.index_name = config.get('index_name')
+        self.student_index_name = config.get('student_index_name')
         self.gitee_index_name = config.get('gitee_index_name')
         self.scroll_duration = config.get('scroll_duration')
         self.gitee_token = config.get('gitee_token')
+        self.intern_assign = config.get('intern_assign')
         self.success_assign = config.get('success_assign')
+        self.freed_assign = config.get('freed_assign').split(';')
         self.model_keys = config.get('model_keys')
+        self.student_excel_url = config.get('student_excel_url')
+        self.student_excel = config.get('student_excel')
+        self.student_excel_sheet = config.get('student_excel_sheet')
         self.model_dict = {}
 
     def run(self, from_time):
         print("activities practice collect: start")
+        self.getStudentFromExcel()
         self.get_model_dict()
         self.intern_issue()
 
@@ -76,6 +88,7 @@ class ActivitiesPractice(object):
                 res['repository'] = source['repository']
                 res['issue_state'] = source['issue_state']
                 res['issue_url'] = source['issue_url']
+                res['sig_names'] = source['sig_names']
                 res['is_removed'] = 0
 
                 ownerRepo = str(source['repository']).split('/')
@@ -87,16 +100,38 @@ class ActivitiesPractice(object):
                 comments = self.get_data(client.issue_comments(source['issue_number']))
                 current_assign_user = ''
                 before_assign_users = []
+                is_assign = 0
+                is_pass_assign = 0
+                assign_time = None
                 for comment in comments:
                     body = comment['body']
+                    if body and self.intern_assign in body:
+                        is_assign = 1
                     if body is None or self.success_assign not in body:
                         continue
                     assign_user = re.findall('^@(.*) , ', body)[0]
                     before_assign_users.append(assign_user)
                     current_assign_user = assign_user
-                    res['assign_time'] = comment['created_at']
+                    is_pass_assign = 1
+                    assign_time = comment['created_at']
+                    # res['assign_time'] = comment['created_at']
+
+                if comments:
+                    last_commtnt_body = comments[-1]['body']
+                    if last_commtnt_body:
+                        for freed in self.freed_assign:
+                            if freed in last_commtnt_body:
+                                is_assign = 0
+                                is_pass_assign = 0
+                                current_assign_user = ''
+                                assign_time = None
+
+                res['is_assign'] = is_assign
+                res['is_pass_assign'] = is_pass_assign
                 res['current_assign_user'] = current_assign_user
                 res['before_assign_users'] = before_assign_users
+                if assign_time:
+                    res['assign_time'] = assign_time
 
                 parse_dict = self.parse_issue_body(body=source['body'])
                 res['score'] = int(re.match(r'\d+', parse_dict['任务分值']).group(0))
@@ -107,12 +142,9 @@ class ActivitiesPractice(object):
                 res['pr_commit_repo'] = parse_dict['PR提交地址']
                 res['expected_completion_date'] = self.expected_completion_date(date_str=parse_dict['期望完成时间'])
                 res['develop_guidance'] = parse_dict['开发指导']
-                tutor = re.split(r'[ ,，\n]+', parse_dict['导师及邮箱'])
-                if len(tutor) < 2:
-                    res['tutor_login'] = re.sub(r'[^a-zA-Z0-9_]', '', tutor[0])
-                else:
-                    res['tutor_login'] = re.sub(r'[^a-zA-Z0-9_]', '', tutor[0])
-                    res['tutor_email'] = re.sub(r'[^a-zA-Z0-9_@]', '', tutor[1])
+                tutor_login, tutor_email = self.getTutorInfo(parse_dict['导师及邮箱'])
+                res['tutor_login'] = tutor_login
+                res['tutor_email'] = tutor_email
                 res['remark'] = parse_dict['备注'].strip()
 
                 _id = source['repository'] + '_' + source['issue_number']
@@ -129,7 +161,7 @@ class ActivitiesPractice(object):
         if body is None:
             return self.model_dict
         parse_dict = self.model_dict
-        items = re.split(r'\n【', body)
+        items = re.split(r'\n.*【', body)
         for item in items:
             if item is None or item == '':
                 continue
@@ -139,6 +171,21 @@ class ActivitiesPractice(object):
                 continue
             parse_dict.update({i[0].replace('【', ''): i[1].strip()})
         return parse_dict
+
+    def getTutorInfo(self, tutor_str):
+        gitee_id = ''
+        email = ''
+        emails = re.findall(r'[A-Za-z0-9.\-+_]+@[a-z0-9.\-+_]+\.[a-z]+', tutor_str)
+        if emails:
+            email = emails[0]
+            tutor_str = tutor_str.split(email)[0]
+        if tutor_str.__contains__('https://gitee.com'):
+            ids = re.findall(r'https://gitee\.com/[a-zA-Z0-9_]+', tutor_str)
+            if ids:
+                gitee_id = ids[0].replace('https://gitee.com/', '')
+        else:
+            gitee_id = re.sub(r'[^a-zA-Z0-9_]', '', tutor_str)
+        return gitee_id, email
 
     def expected_completion_date(self, date_str):
         ymd = re.findall(r'\d+', date_str)
@@ -180,3 +227,41 @@ class ActivitiesPractice(object):
             return data
 
         return data
+
+    def getStudentFromExcel(self):
+        now = time.strftime('%Y-%m-%dT%H:%M:%S+08:00')
+
+        cmd = 'wget -N -P %s %s' % (self.student_excel, self.student_excel_url)
+        os.system(cmd)
+        file_name = self.student_excel_url.split('/')[-1]
+        file = self.student_excel + file_name
+
+        wb = xlrd.open_workbook(file)
+        sh = wb.sheet_by_name(self.student_excel_sheet)
+
+        cell_name_index_dict = {}
+        for i in range(sh.ncols):
+            cell_name = sh.cell_value(0, i)
+            cell_name_index_dict.update({cell_name: i})
+
+        actions = ''
+        for r in range(1, sh.nrows):
+            giteeid = self.getCellValue(r, 'giteeid', sh, cell_name_index_dict)
+            email = self.getCellValue(r, 'email', sh, cell_name_index_dict)
+            status = self.getCellValue(r, 'status(1:新增；2：删除)', sh, cell_name_index_dict)
+            action = {'student_giteeid': giteeid,
+                      'email': email,
+                      'status': status,
+                      'created_at': now}
+
+            index_data = {"index": {"_index": self.student_index_name, "_id": giteeid}}
+            actions += json.dumps(index_data) + '\n'
+            actions += json.dumps(action) + '\n'
+
+        self.esClient.safe_put_bulk(actions)
+
+    def getCellValue(self, row_index, cell_name, sheet, cell_name_index_dict):
+        if cell_name not in cell_name_index_dict:
+            return ''
+        cell_value = sheet.cell_value(row_index, cell_name_index_dict.get(cell_name))
+        return cell_value
