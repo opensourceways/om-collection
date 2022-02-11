@@ -75,7 +75,7 @@ class Gitee(object):
         self.is_set_collect = config.get('is_set_collect')
         self.yaml_url = config.get('yaml_url')
         self.yaml_path = config.get('yaml_path')
-        self.maintainer_index = config.get('maintain_index')
+        # self.maintainer_index = config.get('maintain_index')
         self.sig_index = config.get('sig_index')
         self.versiontimemapping = config.get('versiontimemapping')
         self.internal_company_name = config.get('internal_company_name', 'internal_company')
@@ -121,7 +121,7 @@ class Gitee(object):
                 # self.writeData(self.writeContributeForSingleRepo, from_time)
                 self.writeData(self.writePullSingleRepo, from_time)
                 self.writeData(self.writeIssueSingleRepo, from_time)
-                #self.writeData(self.writeRepoSingleRepo, from_time)
+                self.writeData(self.writeRepoSingleRepo, from_time)
                 self.writeData(self.writeForkSingleRepo, from_time)
             elif self.is_set_issue == 'true':
                 self.writeData(self.writeIssueSingleRepo, from_time)
@@ -591,7 +591,8 @@ class Gitee(object):
         userExtra = self.esClient.getUserInfo(repo_data['owner']['login'])
         repo_detail.update(userExtra)
 
-        maintainerdata = self.esClient.getRepoMaintainer(self.maintainer_index, repo_data["full_name"])
+        maintainerdata = self.esClient.getRepoMaintainer(self.sig_index, repo_data["full_name"])
+        # maintainerdata = self.esClient.getRepoMaintainer(self.maintainer_index, repo_data["full_name"])
         repo_detail.update(maintainerdata)
         sigcount = self.esClient.getRepoSigCount(self.sig_index, repo_data["full_name"])
         repo_detail.update(sigcount)
