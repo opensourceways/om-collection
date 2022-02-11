@@ -332,8 +332,8 @@ class SigMaintainer(object):
                 # if re.search(r'.*README.md', r):
                 if re.search(r'^commit .*', r):
                     date = re.search(r'Date: (.*)\n', r).group(1)
-                    time_struct = time.strptime(date[2:], '%a %b %d %H:%M:%S %Y')
-                    # time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
+                    # time_struct = time.strptime(date[2:], '%a %b %d %H:%M:%S %Y')
+                    time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
                     times = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
                     break
 
@@ -365,8 +365,8 @@ class SigMaintainer(object):
                         for r in rs2:
                             if re.search(r'\+\s*-\s*%s' % onwer, r):
                                 date = re.search(r'Date:\s*(.*)\n', r).group(1)
-                                time_struct = time.strptime(date, '%a %b %d %H:%M:%S %Y')
-                                # time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
+                                # time_struct = time.strptime(date, '%a %b %d %H:%M:%S %Y')
+                                time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
                                 times_onwer = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
 
                         repo_mark = True
