@@ -1216,7 +1216,7 @@ class ESClient(object):
                            url=None, index_name=None, query=None, query_index_name=None):
         if query:
             if field:
-                agg_json = '''"aggs": {"2": {"terms": {"field": "%s","size": 20000,"min_doc_count": 1}}}''' % field
+                agg_json = '''"aggs": {"2": {"terms": {"field": "%s","size": 100000,"min_doc_count": 1}}}''' % field
             else:
                 agg_json = '''"aggs": {"2": {"date_histogram": {"interval": "10000d","field": "created_at","min_doc_count": 0}}}'''
 
@@ -1721,7 +1721,7 @@ class ESClient(object):
                 "group_by_login": {
                 "terms": {
                     "field": "%s",
-                    "size": 20000
+                    "size": 100000
                 },
                 "aggs": {
                     "login_start": {"top_hits": {"size": 1, "sort": [{"created_at": {"order": "asc"}}]}}
@@ -1783,9 +1783,9 @@ class ESClient(object):
                 }
                 if key:
                     gitee_id = key.split(".keyword")[0]
-                    id = item[0]["_source"].get(gitee_id) + "_is_" + key_prefix
+                    id = str(item[0]["_source"].get(gitee_id)) + "_is_" + key_prefix
                 else:
-                    id = item[0].get("_id") + "_is_" + key_prefix
+                    id = str(item[0].get("_id")) + "_is_" + key_prefix
                 action = getSingleAction(self.index_name, id, user)
                 actions += action
 
