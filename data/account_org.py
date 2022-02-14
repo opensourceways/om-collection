@@ -25,6 +25,7 @@ class AccountOrg(object):
         print("Collect AccountOrg data: start")
         self.csv_data = self.getEmailGiteeDict()
         self.getDataFromCla()
+        self.getDataFromCsv()
         print("Collect AccountOrg data: finished")
 
     def getDataFromCla(self):
@@ -84,7 +85,8 @@ class AccountOrg(object):
             'Content-Type': 'application/json',
             'Authorization': self.email_gitee_authorization
         }
-        hits = self.esClient.searchEmailGitee(url=self.email_gitee_es, headers=header, index_name=self.email_gitee_index, search=search)
+        hits = self.esClient.searchEmailGitee(url=self.email_gitee_es, headers=header,
+                                              index_name=self.email_gitee_index, search=search)
         data = {}
         if hits is not None and len(hits) > 0:
             for hit in hits:
@@ -137,14 +139,41 @@ class AccountOrg(object):
 
             self.esClient.safe_put_bulk(actions)
 
+    # def getDataFromCsv(self):
+    #     result = {}
+    #     csvFile = open("email_userid.csv", "r")
+    #     reader = csv.reader(csvFile)
+    #     for item in reader:
+    #         if reader.line_num == 1:
+    #             continue
+    #         result[item[0]] = item[4]
+    #     csvFile.close()
+    #     return result
+
     def getDataFromCsv(self):
-        result = {}
-        csvFile = open("email_userid.csv", "r")
+        actions = ""
+        csvFile = open("/home/wcp/openEuler_maintainer_org.csv", "r")
         reader = csv.reader(csvFile)
         for item in reader:
             if reader.line_num == 1:
                 continue
-            result[item[0]] = item[1]
+            organization = item[3]
+            if organization == '':
+                continue
+            email = item[1]
+            id = email
+            if email == '':
+                id = item[0]
+            action = {
+                "email": email,
+                "organization": organization,
+                "gitee_id": item[0],
+                "domain": None,
+                "created_at": '1999-01-01',
+                "is_cla": 1
+            }
+            index_data = {"index": {"_index": self.index_name, "_id": id}}
+            actions += json.dumps(index_data) + '\n'
+            actions += json.dumps(action) + '\n'
+        self.esClient.safe_put_bulk(actions)
         csvFile.close()
-
-        return result
