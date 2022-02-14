@@ -19,6 +19,7 @@ class AccountOrg(object):
         self.email_gitee_index = config.get('email_gitee_index')
         self.data_yaml_url = config.get('data_yaml_url', 'data.yaml')
         self.company_yaml_url = config.get('company_yaml_url', 'company.yaml')
+        self.csv_url = config.get('csv_url')
         self.csv_data = {}
 
     def run(self, from_time):
@@ -152,7 +153,7 @@ class AccountOrg(object):
 
     def getDataFromCsv(self):
         actions = ""
-        csvFile = open("/home/wcp/openEuler_maintainer_org.csv", "r")
+        csvFile = open(self.csv_url, "r")
         reader = csv.reader(csvFile)
         for item in reader:
             if reader.line_num == 1:
