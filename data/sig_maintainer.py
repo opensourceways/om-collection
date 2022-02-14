@@ -267,7 +267,7 @@ class SigMaintainer(object):
         return sig_repo_list
 
     def get_sig_repos_opengauss(self):
-        sig_yaml_path = self.sigs_dir +  self.sig_repo_name + '/sigs.yaml'
+        sig_yaml_path = self.sigs_dir + self.sig_repo_name + '/sigs.yaml'
         data = yaml.load_all(open(sig_yaml_path), Loader=yaml.Loader).__next__()['sigs']
         sig_repos_dict = {}
         for d in data:
