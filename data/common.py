@@ -64,7 +64,7 @@ class ESClient(object):
         self.is_gitee_enterprise = config.get('is_gitee_enterprise')
         self.enterpriseUsers = []
         self.gitee_token = config.get('gitee_token')
-        self.is_update_tag_company = config.get('is_update_tag_company', 'false')
+        self.is_update_tag_company = config.get('is_update_tag_company', 'true')
         self.is_update_tag_company_cla = config.get('is_update_tag_company_cla', 'false')
         self.data_yaml_url = config.get('data_yaml_url')
         self.data_yaml_path = config.get('data_yaml_path')

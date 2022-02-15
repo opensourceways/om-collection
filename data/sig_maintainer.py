@@ -303,7 +303,9 @@ class SigMaintainer(object):
 
         # sigs
         dic = self.esClient.getOrgByGiteeID()
-        giteeid_company_dict = dic[0]
+        # giteeid_company_dict = dic[0]
+        self.esClient.giteeid_company_dict = dic[0]
+        self.gitee.internalUsers = self.gitee.getItselfUsers(self.gitee.internal_users)
 
         dirs = os.walk(self.sigs_dirs_path).__next__()[1]
         sig_repos_dict = {}
@@ -348,26 +350,26 @@ class SigMaintainer(object):
                     rs2.append('\n'.join(ownerslist[n2:index]))
                     n2 = index
             rs2.append('\n'.join(ownerslist[n2:]))
-            onwer_file = repo_path + '/' + 'OWNERS'
-            onwers = yaml.load_all(open(onwer_file), Loader=yaml.Loader).__next__()
+            owner_file = repo_path + '/' + 'OWNERS'
+            owner_logins = yaml.load_all(open(owner_file), Loader=yaml.Loader).__next__()
             datas = ''
             try:
-                for key, val in onwers.items():
+                for key, val in owner_logins.items():
                     key = key.lower()
                     if key == "committer":
                         key = "committers"
-                    for onwer in val:
+                    for owner in val:
                         # search = '"must": [{ "match": { "sig_name":"%s"}},{ "match": { "committer":"%s"}}]' % (
-                        # dir, onwer)
+                        # dir, owner)
                         # ID_list = [r['_id'] for r in
                         #            self.esClient.searchEsList("openeuler_sigs_committers_20210318", search)]
-                        times_onwer = None
+                        times_owner = None
                         for r in rs2:
-                            if re.search(r'\+\s*-\s*%s' % onwer, r):
+                            if re.search(r'\+\s*-\s*%s' % owner, r):
                                 date = re.search(r'Date:\s*(.*)\n', r).group(1)
                                 # time_struct = time.strptime(date, '%a %b %d %H:%M:%S %Y')
                                 time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
-                                times_onwer = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
+                                times_owner = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
 
                         repo_mark = True
 
@@ -377,46 +379,41 @@ class SigMaintainer(object):
                             repos = sig_repos_dict.get(dir)
 
                         for repo in repos:
-                            ID = self.org + '_' + dir + '_' + repo + '_' + key + '_' + onwer
+                            ID = self.org + '_' + dir + '_' + repo + '_' + key + '_' + owner
                             # if ID in ID_list:
                             #     ID_list.remove(ID)
                             dataw = {"sig_name": dir,
                                      "repo_name": repo,
-                                     "committer": onwer,
+                                     "committer": owner,
                                      "created_at": times,
-                                     "committer_time": times_onwer,
+                                     "committer_time": times_owner,
                                      "is_sig_repo_committer": 1,
                                      "owner_type": key}
-                            if onwer in giteeid_company_dict:
-                                company = giteeid_company_dict.get(onwer)
-                            else:
-                                company = 'independent'
-                            internal_user = 1 if company == "huawei" else 0
-                            userExtra = {"tag_user_company": company,
-                                         "is_project_internal_user": internal_user}
+                            # if owner in giteeid_company_dict:
+                            #     company = giteeid_company_dict.get(owner)
+                            # else:
+                            #     company = 'independent'
+                            # internal_user = 1 if company == "huawei" else 0
+                            # userExtra = {"tag_user_company": company,
+                            #              "is_project_internal_user": internal_user}
+                            userExtra = self.esClient.getUserInfo(owner)
                             dataw.update(userExtra)
                             datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
                             datas += datar
                             repo_mark = False
 
                         if repo_mark:
-                            ID = self.org + '_' + dir + '_null_' + key + '_' + onwer
+                            ID = self.org + '_' + dir + '_null_' + key + '_' + owner
                             # if ID in ID_list:
                             #     ID_list.remove(ID)
                             dataw = {"sig_name": dir,
                                      "repo_name": None,
-                                     "committer": onwer,
+                                     "committer": owner,
                                      "created_at": times,
-                                     "committer_time": times_onwer,
+                                     "committer_time": times_owner,
                                      "is_sig_repo_committer": 1,
                                      "owner_type": key}
-                            if onwer in giteeid_company_dict:
-                                company = giteeid_company_dict.get(onwer)
-                            else:
-                                company = 'independent'
-                            internal_user = 1 if company == "huawei" else 0
-                            userExtra = {"tag_user_company": company,
-                                         "is_project_internal_user": internal_user}
+                            userExtra = self.esClient.getUserInfo(owner)
                             dataw.update(userExtra)
                             datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
                             datas += datar
