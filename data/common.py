@@ -1796,6 +1796,7 @@ class ESClient(object):
         res = requests.get(url=url, headers=self.default_headers, verify=False, data=search.encode('utf-8'))
         if res.status_code != 200:
             print('requests error')
+            return
         res_data = res.json()
         data = res_data['hits']['hits']
         print('scroll data count: %s' % len(data))

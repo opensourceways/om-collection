@@ -2,19 +2,14 @@ import os
 from collections import defaultdict
 from bs4 import BeautifulSoup
 import re
-import git
-import datetime
 import json
 import requests
 import time
 import yaml
 from configparser import ConfigParser
-from data import common
 from data.common import ESClient
 from data.gitee import Gitee
-import pypistats
 import traceback
-from collect.gitee import GiteeClient
 import subprocess
 
 
@@ -41,9 +36,11 @@ class SigMaintainer(object):
         self.sigs_dirs_path = config.get('sigs_dirs_path')
         self.from_data = config.get("from_data")
         self.sig_mark = config.get("sig_mark")
+        self.exists_ids = []
 
     def run(self, starttime=None):
         if self.index_name_sigs and self.sig_mark:
+            self.get_all_id()
             self.get_sigs()
             last_maintainers = self.esClient.get_sig_maintainers(self.index_name_sigs)
             maintainer_sigs_dict = self.get_sigs_original()
@@ -283,17 +280,89 @@ class SigMaintainer(object):
 
         return sig_repos_dict
 
+    def get_id_func(self, hit):
+        for data in hit:
+            self.exists_ids.append(data['_id'])
+
+    def get_all_id(self):
+        search = '''{
+                      "size": 10000,
+                      "_source": {
+                        "includes": [
+                          "committer"
+                        ]
+                      },
+                      "query": {
+                        "bool": {
+                          "must": [
+                            {
+                              "term": {
+                                "is_sig_repo_committer": 1
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }'''
+        self.esClient.scrollSearch(self.index_name_sigs, search=search, func=self.get_id_func)
+
+    def mark_removed_ids(self):
+        for removed_id in self.exists_ids:
+            mark = '''{
+                            "script": {
+                                "source":"ctx._source['is_removed']=1"
+                            },
+                            "query": {
+                                "term": {
+                                    "_id":"%s"
+                                }
+                            }
+                        }''' % removed_id
+            url = self.url + '/' + self.index_name_sigs + '/_update_by_query'
+            requests.post(url, headers=self.esClient.default_headers, verify=False, data=mark)
+
+    def get_readme_log(self, repo_path):
+        cmdlog = 'cd %s;git log -p README.md' % repo_path
+        log_popen = subprocess.Popen(cmdlog, stdout=subprocess.PIPE, shell=True)
+        log = bytes.decode(log_popen.stdout.read(), encoding="utf-8", errors='ignore')
+        loglist = log.split('\n')
+        n = 0
+        rs = []
+        for index in range(len(loglist)):
+            if re.search(r'^commit .*', loglist[index]):
+                rs.append('\n'.join(loglist[n:index]))
+                n = index
+        rs.append('\n'.join(loglist[n:]))
+        times = None
+        for r in rs:
+            if re.search(r'^commit .*', r):
+                date = re.search(r'Date: (.*)\n', r).group(1)
+                time_struct = time.strptime(date[2:], '%a %b %d %H:%M:%S %Y')
+                # time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
+                times = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
+                break
+        return times
+
+    def get_owner_log(self, repo_path):
+        cmdowner = 'cd %s;git log -p OWNERS' % repo_path
+        owners_popen = subprocess.Popen(cmdowner, stdout=subprocess.PIPE, shell=True)
+        owners = bytes.decode(owners_popen.stdout.read(), encoding="utf-8")
+        ownerslist = owners.split('\n')
+        n = 0
+        rs = []
+        for index in range(len(ownerslist)):
+            if re.search(r'^commit .*', ownerslist[index]):
+                rs.append('\n'.join(ownerslist[n:index]))
+                n = index
+        rs.append('\n'.join(ownerslist[n:]))
+        return rs
 
     def get_sigs(self):
-
         path = self.sigs_dir
         url = self.sigs_url
-
         if not os.path.exists(path):
             os.makedirs(path)
-
         gitpath = path + self.sig_repo_name
-
         if not os.path.exists(gitpath):
             cmdclone = 'cd %s;git clone %s' % (path, url)
             os.system(cmdclone)
@@ -303,7 +372,6 @@ class SigMaintainer(object):
 
         # sigs
         dic = self.esClient.getOrgByGiteeID()
-        # giteeid_company_dict = dic[0]
         self.esClient.giteeid_company_dict = dic[0]
         self.gitee.internalUsers = self.gitee.getItselfUsers(self.gitee.internal_users)
 
@@ -318,38 +386,8 @@ class SigMaintainer(object):
 
         for dir in dirs:
             repo_path = self.sigs_dirs_path + '/' + dir
-            cmdlog = 'cd %s;git log -p README.md' % repo_path
-            log_popen = subprocess.Popen(cmdlog, stdout=subprocess.PIPE, shell=True)
-            log = bytes.decode(log_popen.stdout.read(), encoding="utf-8", errors='ignore')
-            loglist = log.split('\n')
-            n = 0
-            rs = []
-            for index in range(len(loglist)):
-                if re.search(r'^commit .*', loglist[index]):
-                    rs.append('\n'.join(loglist[n:index]))
-                    n = index
-            rs.append('\n'.join(loglist[n:]))
-            times = None
-            for r in rs:
-                # if re.search(r'.*README.md', r):
-                if re.search(r'^commit .*', r):
-                    date = re.search(r'Date: (.*)\n', r).group(1)
-                    # time_struct = time.strptime(date[2:], '%a %b %d %H:%M:%S %Y')
-                    time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
-                    times = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
-                    break
-
-            cmdowner = 'cd %s;git log -p OWNERS' % repo_path
-            owners_popen = subprocess.Popen(cmdowner, stdout=subprocess.PIPE, shell=True)
-            owners = bytes.decode(owners_popen.stdout.read(), encoding="utf-8")
-            ownerslist = owners.split('\n')
-            n2 = 0
-            rs2 = []
-            for index in range(len(ownerslist)):
-                if re.search(r'^commit .*', ownerslist[index]):
-                    rs2.append('\n'.join(ownerslist[n2:index]))
-                    n2 = index
-            rs2.append('\n'.join(ownerslist[n2:]))
+            times = self.get_readme_log(repo_path)
+            rs = self.get_owner_log(repo_path)
             owner_file = repo_path + '/' + 'OWNERS'
             owner_logins = yaml.load_all(open(owner_file), Loader=yaml.Loader).__next__()
             datas = ''
@@ -359,29 +397,23 @@ class SigMaintainer(object):
                     if key == "committer":
                         key = "committers"
                     for owner in val:
-                        # search = '"must": [{ "match": { "sig_name":"%s"}},{ "match": { "committer":"%s"}}]' % (
-                        # dir, owner)
-                        # ID_list = [r['_id'] for r in
-                        #            self.esClient.searchEsList("openeuler_sigs_committers_20210318", search)]
                         times_owner = None
-                        for r in rs2:
+                        for r in rs:
                             if re.search(r'\+\s*-\s*%s' % owner, r):
                                 date = re.search(r'Date:\s*(.*)\n', r).group(1)
-                                # time_struct = time.strptime(date, '%a %b %d %H:%M:%S %Y')
-                                time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
+                                time_struct = time.strptime(date, '%a %b %d %H:%M:%S %Y')
+                                # time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
                                 times_owner = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
 
                         repo_mark = True
-
-                        # repos = self.get_sig_repos(dir)
                         repos = []
                         if dir in sig_repos_dict:
                             repos = sig_repos_dict.get(dir)
 
                         for repo in repos:
                             ID = self.org + '_' + dir + '_' + repo + '_' + key + '_' + owner
-                            # if ID in ID_list:
-                            #     ID_list.remove(ID)
+                            if ID in self.exists_ids:
+                                self.exists_ids.remove(ID)
                             dataw = {"sig_name": dir,
                                      "repo_name": repo,
                                      "committer": owner,
@@ -389,13 +421,6 @@ class SigMaintainer(object):
                                      "committer_time": times_owner,
                                      "is_sig_repo_committer": 1,
                                      "owner_type": key}
-                            # if owner in giteeid_company_dict:
-                            #     company = giteeid_company_dict.get(owner)
-                            # else:
-                            #     company = 'independent'
-                            # internal_user = 1 if company == "huawei" else 0
-                            # userExtra = {"tag_user_company": company,
-                            #              "is_project_internal_user": internal_user}
                             userExtra = self.esClient.getUserInfo(owner)
                             dataw.update(userExtra)
                             datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
@@ -404,8 +429,8 @@ class SigMaintainer(object):
 
                         if repo_mark:
                             ID = self.org + '_' + dir + '_null_' + key + '_' + owner
-                            # if ID in ID_list:
-                            #     ID_list.remove(ID)
+                            if ID in self.exists_ids:
+                                self.exists_ids.remove(ID)
                             dataw = {"sig_name": dir,
                                      "repo_name": None,
                                      "committer": owner,
@@ -417,17 +442,12 @@ class SigMaintainer(object):
                             dataw.update(userExtra)
                             datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
                             datas += datar
-                        # for id in ID_list:
-                        #     data = '''{"size":10000,"query": {"bool": {"match": [{ "term": { "_id":"%s"}}]}}}''' % id
-                        #     self.esClient.post_delete_delete_by_query(data, self.index_name_sigs)
-                        #     print('delete ID: %s' % id)
                 self.safe_put_bulk(datas)
                 print("this sig done: %s" % dir)
-                time.sleep(1)
             except:
                 print(traceback.format_exc())
-
         # self.mark_removed_sigs(dirs=dirs)
+        self.mark_removed_ids()
 
     def get_sigs_original(self):
         dirs = os.walk(self.sigs_dirs_path).__next__()[1]
@@ -446,18 +466,11 @@ class SigMaintainer(object):
             repositories = []
             if dir in sig_repos_dict:
                 repositories = sig_repos_dict.get(dir)
-                # repos = sig_repos_dict.get(dir)
-                # for repo in repos:
-                #     if str(repo).__contains__('/'):
-                #         repositories = repos
-                #         break
-                #     else:
-                #         repositories.append(self.org + '/' + repo)
             # get maintainers
             try:
-                onwer_file = self.sigs_dirs_path + '/' + dir + '/' + 'OWNERS'
-                onwers = yaml.load_all(open(onwer_file), Loader=yaml.Loader).__next__()
-                maintainers = onwers['maintainers']
+                owner_file = self.sigs_dirs_path + '/' + dir + '/' + 'OWNERS'
+                owners = yaml.load_all(open(owner_file), Loader=yaml.Loader).__next__()
+                maintainers = owners['maintainers']
             except FileNotFoundError:
                 maintainers = []
             # get maintainer sigs dict
