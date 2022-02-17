@@ -1426,7 +1426,7 @@ class Gitee(object):
         users = []
         for line in f.readlines():
             if line != "\n":
-                users.append(line.split('\n')[0].lower())
+                users.append(line.split('\n')[0])
         print(users)
         print(len(users))
         return users
