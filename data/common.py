@@ -389,12 +389,19 @@ class ESClient(object):
 
         return giteeid_company_dict
 
+    def users_lower(self):
+        users = []
+        for user in self.internalUsers:
+            users.append(user.lower())
+        return users
+
     def getUserInfo(self, login):
         login = login.lower()
         giteeid_company_dict_copy = {}
         keys = self.giteeid_company_dict.keys()
         for k in keys:
             giteeid_company_dict_copy.update({k.lower(): self.giteeid_company_dict.get(k)})
+        internalUsers_copy = self.users_lower()
         userExtra = {}
         if self.is_gitee_enterprise == 'true':
             if login in self.enterpriseUsers:
@@ -404,7 +411,7 @@ class ESClient(object):
                 userExtra["tag_user_company"] = "independent"
                 userExtra["is_project_internal_user"] = 0
         else:
-            if login in self.internalUsers:
+            if login in internalUsers_copy:
                 userExtra["tag_user_company"] = self.internal_company_name
                 userExtra["is_project_internal_user"] = 1
             else:
