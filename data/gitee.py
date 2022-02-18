@@ -217,11 +217,11 @@ class Gitee(object):
                 #     for t in threads:
                 #         t.join()
                 #     threads = []
-            if reposName is not None and len(reposName) > 0:
-                self.updateRemovedData(reposName, 'repo', [{
-                    "name": "is_gitee_repo",
-                    "value": 1,
-                }])
+            # if reposName is not None and len(reposName) > 0:
+            #     self.updateRemovedData(reposName, 'repo', [{
+            #         "name": "is_gitee_repo",
+            #         "value": 1,
+            #     }])
             # for t in threads:
             #     t.join()
             # threads = []
@@ -745,14 +745,14 @@ class Gitee(object):
             client.pulls(state='all', once_update_num_of_pr=once_update_num_of_pr, direction='desc',
                          sort='updated'))
         print(('collection %d pulls' % (len(pull_data))))
-        self.updateRemovedData(pull_data, 'pr', [{
-            "name": "is_gitee_pull_request",
-            "value": 1,
-        },
-            {
-                "name": "gitee_repo.keyword",
-                "value": "https://gitee.com/" + owner + "/" + repo,
-            }])
+        # self.updateRemovedData(pull_data, 'pr', [{
+        #     "name": "is_gitee_pull_request",
+        #     "value": 1,
+        # },
+        #     {
+        #         "name": "gitee_repo.keyword",
+        #         "value": "https://gitee.com/" + owner + "/" + repo,
+        #     }])
         for x in pull_data:
             print(x['number'])
             if common.str_to_datetime(x['updated_at']) < from_date:
@@ -899,14 +899,14 @@ class Gitee(object):
             actions += json.dumps(issue_item) + '\n'
 
         self.esClient.safe_put_bulk(actions)
-        self.updateRemovedData(issue_data, 'issue', [{
-            "name": "is_gitee_issue",
-            "value": 1,
-        },
-            {
-                "name": "gitee_repo.keyword",
-                "value": "https://gitee.com/" + owner + "/" + repo,
-            }])
+        # self.updateRemovedData(issue_data, 'issue', [{
+        #     "name": "is_gitee_issue",
+        #     "value": 1,
+        # },
+        #     {
+        #         "name": "gitee_repo.keyword",
+        #         "value": "https://gitee.com/" + owner + "/" + repo,
+        #     }])
         endTime = datetime.datetime.now()
         print("Collect repo(%s/%s) issue data finished, spend %s seconds" % (
             owner, repo, (endTime - startTime).total_seconds()))

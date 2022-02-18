@@ -67,7 +67,8 @@ BACKEND_MAPPING = {
     'activities_practice': 'data.activities_practice.ActivitiesPractice',
     'questionnaire': 'data.questionnaire.Questionnaire',
     'git_commit_log': 'data.git_commit_log.GitCommitLog',
-    'sig_maintainer': 'data.sig_maintainer.SigMaintainer'
+    'sig_maintainer': 'data.sig_maintainer.SigMaintainer',
+    'tag_removed_gitee': 'data.combine.tag_remove_gitee.TagRemovedGitee'
 }
 
 
