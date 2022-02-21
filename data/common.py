@@ -392,15 +392,22 @@ class ESClient(object):
     def users_lower(self):
         users = []
         for user in self.internalUsers:
-            users.append(user.lower())
+            if isinstance(user, str) is True:
+                user = user.lower()
+            users.append(user)
         return users
 
     def getUserInfo(self, login):
-        login = login.lower()
+        if isinstance(login, str) is True:
+            login = login.lower()
         giteeid_company_dict_copy = {}
         keys = self.giteeid_company_dict.keys()
         for k in keys:
-            giteeid_company_dict_copy.update({k.lower(): self.giteeid_company_dict.get(k)})
+            if isinstance(k, str) is True:
+                k1 = k.lower()
+            else:
+                k1 = k
+            giteeid_company_dict_copy.update({k1: self.giteeid_company_dict.get(k)})
         internalUsers_copy = self.users_lower()
         userExtra = {}
         if self.is_gitee_enterprise == 'true':
