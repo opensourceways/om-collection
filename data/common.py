@@ -64,7 +64,7 @@ class ESClient(object):
         self.is_gitee_enterprise = config.get('is_gitee_enterprise')
         self.enterpriseUsers = []
         self.gitee_token = config.get('gitee_token')
-        self.is_update_tag_company = config.get('is_update_tag_company', 'false')
+        self.is_update_tag_company = config.get('is_update_tag_company', 'true')
         self.is_update_tag_company_cla = config.get('is_update_tag_company_cla', 'false')
         self.data_yaml_url = config.get('data_yaml_url')
         self.data_yaml_path = config.get('data_yaml_path')
@@ -389,7 +389,19 @@ class ESClient(object):
 
         return giteeid_company_dict
 
+    def users_lower(self):
+        users = []
+        for user in self.internalUsers:
+            users.append(user.lower())
+        return users
+
     def getUserInfo(self, login):
+        login = login.lower()
+        giteeid_company_dict_copy = {}
+        keys = self.giteeid_company_dict.keys()
+        for k in keys:
+            giteeid_company_dict_copy.update({k.lower(): self.giteeid_company_dict.get(k)})
+        internalUsers_copy = self.users_lower()
         userExtra = {}
         if self.is_gitee_enterprise == 'true':
             if login in self.enterpriseUsers:
@@ -399,17 +411,17 @@ class ESClient(object):
                 userExtra["tag_user_company"] = "independent"
                 userExtra["is_project_internal_user"] = 0
         else:
-            if login in self.internalUsers:
+            if login in internalUsers_copy:
                 userExtra["tag_user_company"] = self.internal_company_name
                 userExtra["is_project_internal_user"] = 1
             else:
                 userExtra["tag_user_company"] = "independent"
                 userExtra["is_project_internal_user"] = 0
-        if self.is_update_tag_company == 'true' and login in self.giteeid_company_dict:
-            if self.giteeid_company_dict.get(login) is None:
+        if self.is_update_tag_company == 'true' and login in giteeid_company_dict_copy:
+            if giteeid_company_dict_copy.get(login) is None:
                 userExtra["tag_user_company"] = 'independent'
             else:
-                sp = self.giteeid_company_dict.get(login).split("_adminAdded_", 1)
+                sp = giteeid_company_dict_copy.get(login).split("_adminAdded_", 1)
                 company = sp[0]
                 userExtra["tag_user_company"] = company
                 if len(sp) == 2:
@@ -1796,6 +1808,7 @@ class ESClient(object):
         res = requests.get(url=url, headers=self.default_headers, verify=False, data=search.encode('utf-8'))
         if res.status_code != 200:
             print('requests error')
+            return
         res_data = res.json()
         data = res_data['hits']['hits']
         print('scroll data count: %s' % len(data))
