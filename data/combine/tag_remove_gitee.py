@@ -83,10 +83,12 @@ class TagRemovedGitee(object):
 
     def tag_removed_issue_thread(self, hits):
         with ThreadPoolExecutor(max_workers=self.thread_pool_max) as executor:
-            tasks = [executor.submit(self.tag_removed_issue_func, hit) for hit in hits]
-            for task in as_completed(tasks):
-                data = task.result()
-                print(data)
+            executor.map(self.tag_removed_issue_func, hits)
+
+            # tasks = [executor.submit(self.tag_removed_issue_func, hit) for hit in hits]
+            # for task in as_completed(tasks, timeout=2):
+            #     data = task.result()
+            #     print(data)
 
     def tag_removed_issue_func(self, hit):
         _id = hit['_id']
@@ -104,9 +106,11 @@ class TagRemovedGitee(object):
                           }
                         }''' % url
             self.esClient.updateByQuery(query)
-            return 'tag removed issue: %s' % url
+            print('tag removed issue: %s' % url)
+            # return 'tag removed issue: %s' % url
         else:
-            return 'issue id: %s; is exist' % _id
+            print('issue id: %s; is exist' % _id)
+            # return 'issue id: %s; is exist' % _id
 
     def get_removed_repos(self):
         self.get_old_repos()  # 库中已有的repos

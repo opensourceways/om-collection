@@ -177,6 +177,7 @@ class BlueZoneUser(object):
                         "includes": [
                           "created_at",
                           "issue_title",
+                          "body",
                           "issue_state",
                           "gitee_repo",
                           "issue_id",
@@ -216,6 +217,7 @@ class BlueZoneUser(object):
         actions = ''
         for hit in hits:
             source = hit['_source']
+            body = source['body'] if 'body' in source else ''
             repo_data = {
                 'created_at': source['created_at'],
                 'issue_title': source['issue_title'],
@@ -223,7 +225,7 @@ class BlueZoneUser(object):
                 'repo': source['gitee_repo'],
                 'is_issue': source['is_gitee_issue'],
                 'issue_id': source['issue_id'],
-                'issue_body': '',
+                'issue_body': body,
                 'url': source['url'],
             }
             repo_data.update(self.user)
@@ -248,6 +250,7 @@ class BlueZoneUser(object):
                           "url",
                           "issue_url",
                           "pull_url",
+                          "body",
                           "is_gitee_comment"
                         ]
                       },
@@ -296,12 +299,13 @@ class BlueZoneUser(object):
                 parent = 'issue_comment'
             if 'pull_id' in source:
                 parent = 'pr_comment'
+            body = source['body'] if 'body' in source else ''
             repo_data = {
                 'created_at': source['created_at'],
                 'id': source['id'],
                 'repo': source['gitee_repo'],
                 'is_comment': source['is_gitee_comment'],
-                'comment_body': '',
+                'comment_body': body,
                 'url': url,
             }
             repo_data.update(self.user)
@@ -447,6 +451,7 @@ class BlueZoneUser(object):
                           "created_at",
                           "issue_title",
                           "issue_state",
+                          "issue_body",
                           "github_repo",
                           "issue_id",
                           "html_url",
@@ -492,7 +497,7 @@ class BlueZoneUser(object):
                 'repo': 'https://github.com/' + source['github_repo'],
                 'is_issue': source['is_github_issue'],
                 'issue_id': source['issue_id'],
-                'issue_body': '',
+                'issue_body': source['issue_body'],
                 'url': source['html_url'],
             }
             repo_data.update(self.user)
@@ -515,6 +520,8 @@ class BlueZoneUser(object):
                           "id",
                           "github_repo",
                           "html_url",
+                          "pr_comment_body",
+                          "issue_comment_body",
                           "is_github_comment"
                         ]
                       },
@@ -550,17 +557,19 @@ class BlueZoneUser(object):
         actions = ''
         for hit in hits:
             source = hit['_source']
-            parent = ''
+            parent = body = ''
             if 'issue_id' in source:
                 parent = 'issue_comment'
+                body = source['issue_comment_body']
             if 'pr_id' in source:
                 parent = 'pr_comment'
+                body = source['pr_comment_body']
             repo_data = {
                 'created_at': source['created_at'],
                 'id': source['id'],
                 'repo': 'https://github.com/' + source['github_repo'],
                 'is_comment': source['is_github_comment'],
-                'comment_body': '',
+                'comment_body': body,
                 'url': source['html_url'],
             }
             repo_data.update(self.user)
