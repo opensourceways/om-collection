@@ -1068,7 +1068,7 @@ class Gitee(object):
             rich_pr['issue_body'] = issue_data[0]['body']
             rich_pr['is_pr_associate_issue'] = 1
 
-        #rich_pr['issue_title'] = pull_request['title']
+        rich_pr['pull_title'] = pull_request['title']
         #rich_pr['issue_title_analyzed'] = pull_request['title']
         rich_pr['pull_state'] = pull_request['state']
         if (rich_pr['pull_state'] == 'open'):
