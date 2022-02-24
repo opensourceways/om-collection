@@ -44,8 +44,8 @@ class SigMaintainer(object):
             self.get_sigs()
             last_maintainers = self.esClient.get_sig_maintainers(self.index_name_sigs)
             maintainer_sigs_dict = self.get_sigs_original()
-            # time.sleep(20)
-            # self.reindex_maintainer_gitee_all(last_maintainers, maintainer_sigs_dict)
+            time.sleep(20)
+            self.reindex_maintainer_gitee_all(last_maintainers, maintainer_sigs_dict)
 
     def safe_put_bulk(self, bulk_json, header=None, url=None):
         """Bulk items to a target index `url`. In case of UnicodeEncodeError,
@@ -89,10 +89,9 @@ class SigMaintainer(object):
 
     def reindex_maintainer_gitee_all(self, history_maintainers, maintainer_sigs_dict):
         dic = self.esClient.getOrgByGiteeID()
-        giteeid_company_dict = dic[0]
+        self.esClient.giteeid_company_dict = dic[0]
+        self.gitee.internalUsers = self.gitee.getItselfUsers(self.gitee.internal_users)
         maintainers = self.esClient.get_sig_maintainers(self.index_name_sigs)
-        print('giteeid_company_dict = ', len(giteeid_company_dict))
-        print('maintainers = ', maintainers)
         actions = ''
         for maintainer in maintainers:
             reindex_json = '''{
@@ -112,30 +111,13 @@ class SigMaintainer(object):
             data_num = self.esClient.reindex(reindex_json)
             print('reindex: %s -> %d' % (maintainer, data_num))
             if data_num == 0:
-                # search = '"must": { "match": { "committer":"%s"}}' % (maintainer)
-                # res = self.esClient.searchEsList(self.index_name_sigs, search)
-                # print('res = ', res)
-                # for r in res:
-                #     r_data = r['_source']
-                #     action = {
-                #         "user_login": maintainer,
-                #         "tag_user_company": r_data['tag_user_company'],
-                #         "is_project_internal_user": r_data['is_project_internal_user'],
-                #         "is_no_contribute_before": 1,
-                #         "created_at": r_data['created_at']
-                #     }
-                if maintainer in giteeid_company_dict:
-                    company = giteeid_company_dict.get(maintainer)
-                else:
-                    company = 'independent'
-                internal_user = 1 if company == "huawei" else 0
                 action = {
                     "user_login": maintainer,
-                    "tag_user_company": company,
-                    "is_project_internal_user": internal_user,
                     "is_no_contribute_before": 1,
                     "created_at": "2022-02-08T00:00:00+08:00"
                 }
+                userExtra = self.esClient.getUserInfo(maintainer)
+                action.update(userExtra)
                 indexData = {"index": {"_index": self.index_name, "_id": maintainer}}
                 actions += json.dumps(indexData) + '\n'
                 actions += json.dumps(action) + '\n'
@@ -175,7 +157,6 @@ class SigMaintainer(object):
 
             self.esClient.updateByQuery(query=query)
             print('%s: %s' % (maintainer, sigs))
-        print('maintainers size = ', len(maintainers))
 
     def mark_removed_sigs(self, dirs):
         search = '''{
@@ -446,7 +427,7 @@ class SigMaintainer(object):
                 print("this sig done: %s" % dir)
             except:
                 print(traceback.format_exc())
-        # self.mark_removed_sigs(dirs=dirs)
+        self.mark_removed_sigs(dirs=dirs)
         self.mark_removed_ids()
 
     def get_sigs_original(self):
