@@ -599,7 +599,7 @@ class GiteeClient():
             print('Get data error, API: %s' % url)
 
         max_count = int(req.headers['commit_count'])
-        last_page = math.ceil(max_count / per_page)
+        last_page = 1 if max_count == 0 else math.ceil(max_count / per_page)
         payload['page'] = last_page
         last_req = self.fetch(url=url, payload=payload)
         last_count = len(last_req.json())
