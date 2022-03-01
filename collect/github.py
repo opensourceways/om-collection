@@ -318,6 +318,32 @@ class GithubClient(object):
         self.get_data(url=url, params=params, current_page=1, datas=datas)
         return datas
 
+    def get_commit_count(self, owner, repo):
+        url = self.urijoin(BASE_URL, 'repos', owner, repo, 'commits')
+        params = {
+            'per_page': 10
+        }
+        return self.commit_count(url=url, params=params)
+
+    def commit_count(self, url, params):
+        per_page = params['per_page']
+        req = self.http_req(url=url, params=params)
+        if req.status_code != 200:
+            print('Get data error, API: %s' % url)
+
+        if 'last' in req.links:
+            url_last = req.links['last']['url']
+            req_last = self.http_req(url=url_last, params=params)
+            if req_last.status_code != 200:
+                print('Get data error, API: %s' % url_last)
+            last_page_len = len(req_last.json())
+            last_page = int(url_last.split('page=')[-1])
+            total_count = (last_page - 1) * per_page + last_page_len
+        else:
+            total_count = len(req.json())
+
+        return total_count
+
     def get_data(self, url, params, current_page, datas):
         print('****** Data page: %i ******' % current_page)
         req = self.http_req(url=url, params=params)

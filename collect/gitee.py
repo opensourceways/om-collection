@@ -12,8 +12,7 @@
 # See the Mulan PSL v2 for more details.
 # Create: 2020-05
 #
-
-
+import math
 import os
 import signal
 import yaml
@@ -585,6 +584,33 @@ class GiteeClient():
         commit_url = self.urijoin(self.base_url, 'repos', self.owner, repo, 'commits')
 
         return self.fetch(url=commit_url, payload=payload)
+
+    def get_commit_count(self, owner, repo):
+        url = self.urijoin(self.base_url, 'repos', owner, repo, 'commits')
+        payload = {
+            'per_page': PER_PAGE
+        }
+        return self.commit_count(url, payload)
+
+    def commit_count(self, url, payload):
+        per_page = payload['per_page']
+        req = self.fetch(url=url, payload=payload)
+        if req.status_code != 200:
+            print('Get data error, API: %s' % url)
+
+        max_count = int(req.headers['commit_count'])
+        last_page = math.ceil(max_count / per_page)
+        payload['page'] = last_page
+        last_req = self.fetch(url=url, payload=payload)
+        last_count = len(last_req.json())
+
+        while last_count == per_page:
+            last_page += 1
+            payload['page'] = last_page
+            last_req = self.fetch(url=url, payload=payload)
+            last_count = len(last_req.json())
+
+        return (last_page - 1) * per_page + last_count
 
     def is_exists_issue(self, url):
         req = requests.get(url)
