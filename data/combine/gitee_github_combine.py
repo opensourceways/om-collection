@@ -68,6 +68,7 @@ class GiteeGithubCombine(object):
         actions = ''
         for repo in repos:
             try:
+                commits_count = self.repo_commit_count(org, repo['name'], platform)
                 full_name = repo['full_name']
                 repo_data = {
                     'org': org,
@@ -78,6 +79,7 @@ class GiteeGithubCombine(object):
                     'stargazers_count': repo['stargazers_count'],
                     'forks_count': repo['forks_count'],
                     'watchers_count': repo['watchers_count'],
+                    'commits_count': commits_count,
                     'platform': platform,
                 }
                 index_data = {"index": {"_index": self.index_name, "_id": platform + full_name}}
@@ -87,6 +89,15 @@ class GiteeGithubCombine(object):
                 print("****** not found project, owner: %s *****" % owner)
 
         self.esClient.safe_put_bulk(actions)
+
+    def repo_commit_count(self, org, repo, platform):
+        if platform == GITHUB:
+            client = GithubClient(org=org, repository=repo, token=self.github_token)
+            total_count = client.get_commit_count(org, repo)
+        else:
+            client = GiteeClient(org, repo, self.gitee_token)
+            total_count = client.get_commit_count(org, repo)
+        return total_count
 
     def get_generator(self, response):
         data = []
