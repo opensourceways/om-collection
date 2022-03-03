@@ -12,15 +12,17 @@
 # See the Mulan PSL v2 for more details.
 # Create: 2021-05
 #
-import csv
+
+
+
 import json
+import requests
 import logging
-import os
+
+
 import threading
 import time
 from configparser import ConfigParser
-
-import requests
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +30,6 @@ GITEE_API_URL = "https://api.gitee.com/enterprises"
 
 MAX_CATEGORY_ITEMS_PER_PAGE = 100
 PER_PAGE = 100
-
-MEMBERS_DATA_FILE = f"enterprise_members_data.csv"
-
-MAXIMUM_TIME = 31536000  # One year Unit second
 
 # Default sleep time and retries to deal with connection/server problems
 DEFAULT_SLEEP_TIME = 1
@@ -92,6 +90,7 @@ def globalExceptionHandler(func):
 
 class GiteeClient():
 
+
     def __init__(self, org, token, max_items=MAX_CATEGORY_ITEMS_PER_PAGE):
         self.org = org
         if token:
@@ -116,7 +115,6 @@ class GiteeClient():
             raise e
 
         if result.status_code != 200:
-            print(result)
             return enterprise_id
 
         # parse result, get enterprise_id
@@ -134,6 +132,7 @@ class GiteeClient():
         path = "projects"
         if not access_token:
             access_token = self.access_token
+
 
         total_page_flag = False
         data = []
@@ -266,70 +265,3 @@ class GiteeClient():
         else:
             total_page = int(total_count / per_page) + 1
         return total_page
-
-    def get_enterprise_members(self):
-        """
-        Get enterprise member list
-        :return: True
-        """
-        flag = True
-        request_url = f"https://api.gitee.com/enterprises/{self.enterpriseId}/members"
-        response = self.fetch(url=request_url)
-
-        if response.status_code != 200:
-            print("Gitee api get error: ", response.text)
-            flag = False
-        else:
-            with open(os.path.join(os.getcwd(), MEMBERS_DATA_FILE), "w+", encoding='utf-8', newline="") as csv_file_obj:
-                csv_writer = csv.writer(csv_file_obj)
-
-                csv_writer.writerow(["id", "username", "name", "remark",
-                                     "phone", "email", "role_id", "role_name", "update_time"])
-
-                response_body = response.json()
-                ret_data = response_body.get('data')
-
-                for row in ret_data:
-                    user_id = row.get("id")
-                    username = row.get("username")
-                    name = row.get("name")
-                    remark = row.get("remark")
-                    phone = row.get("phone")
-                    email = row.get("email")
-                    role_id = row.get("enterprise_role").get("id")
-                    role_name = row.get("enterprise_role").get("name")
-
-                    updated_at = row.get("user").get("updated_at")
-                    update_time = updated_at.split("+")[0].replace("T", " ")
-                    time_stamp = int(time.mktime(time.strptime(update_time, "%Y-%m-%d %H:%M:%S")))
-                    current_time_stamp = int(time.time()) - time_stamp
-
-                    # This place can be changed according to actual needs
-                    if current_time_stamp > MAXIMUM_TIME:  # The user has not been updated for more than one year
-                        csv_writer.writerow([user_id, username, name, remark, phone,
-                                             email, role_id, role_name, update_time])
-        return flag
-
-    def refresh_access_token(self):
-        """Send a refresh post access to the Gitee Server"""
-        if self.access_token:
-            url = "https://gitee.com/oauth/token"
-            params = {
-                'grant_type': 'refresh_token',
-                'refresh_token': self.access_token
-            }
-            logger.info("Refresh the access_token for Gitee API")
-            res = self.session.post(url, json=params, headers=None, stream=False, auth=None)
-
-            print(res.json())
-            return res
-
-
-if __name__ == "__main__":
-    org = 'openEuler'
-    token = ''
-    g = GiteeClient(org, token)
-
-    id = g.getEnterpriseId()
-    print(id)
-    print(g.access_token)
