@@ -47,6 +47,7 @@ COMMENT_TYPE = 'comment'
 ISSUE_COMMENT_TYPE = 'issue_comment'
 REVIEW_COMMENT_TYPE = 'review_comment'
 REPOSITORY_TYPE = 'repository'
+COMMIT_TYPE = 'commit'
 
 
 class Gitee(object):
@@ -765,6 +766,7 @@ class Gitee(object):
             pull_code_diff = self.getGenerator(client.pull_code_diff(pr_number))
             pull_action_logs = self.getGenerator(client.pull_action_logs(pr_number))
             pull_review_comments = self.getGenerator(client.pull_review_comments(pr_number))
+            pull_commits = self.getGenerator(client.pull_commits(pr_number))
 
             codediffadd = 0
             codediffdelete = 0
@@ -781,6 +783,14 @@ class Gitee(object):
             x['codediffadd'] = codediffadd
             x['codediffdelete'] = codediffdelete
             eitem = self.__get_rich_pull(x, merged_item)
+
+            ecommits = self.get_rich_pull_commits(pull_commits, eitem, owner)
+            for ec in ecommits:
+                ec['sig_names'] = sig_names
+                indexData = {
+                    "index": {"_index": self.index_name, "_id": 'commit_' + ec['sha']}}
+                actions += json.dumps(indexData) + '\n'
+                actions += json.dumps(ec) + '\n'
 
             ecomments = self.get_rich_pull_reviews(pull_review_comments, eitem, owner)
             firstreplyprtime = ""
@@ -1003,6 +1013,67 @@ class Gitee(object):
             ecomments.append(ecomment)
 
         return ecomments
+
+    def get_rich_pull_commits(self, commits, eitem, owner=None):
+        ecommits = []
+        for commit in commits:
+            ecommit = {}
+            # Copy data from the enriched pull
+            ecommit['pull_labels'] = eitem['pull_labels']
+            ecommit['pull_id'] = eitem['pull_id']
+            ecommit['pull_id_in_repo'] = eitem['pull_id_in_repo']
+            ecommit['issue_id_in_repo'] = eitem['issue_id_in_repo']
+            ecommit['issue_title'] = eitem['issue_title']
+            ecommit['issue_url'] = eitem['issue_url']
+            ecommit['pull_url'] = eitem['pull_url']
+            ecommit['pull_state'] = eitem['pull_state']
+            ecommit['pull_created_at'] = eitem['pull_created_at']
+            ecommit['pull_updated_at'] = eitem['pull_updated_at']
+
+            ecommit['base_label'] = eitem['base_label']
+            ecommit['base_label_ref'] = eitem['base_label_ref']
+            ecommit['head_label'] = eitem['head_label']
+            ecommit['head_label_ref'] = eitem['head_label_ref']
+
+            if 'pull_merged_at' in eitem:
+                ecommit['pull_merged_at'] = eitem['pull_merged_at']
+            if 'pull_closed_at' in eitem:
+                ecommit['pull_closed_at'] = eitem['pull_closed_at']
+            # ecommit['pull_merged'] = eitem['pull_merged']
+            ecommit['pull_state'] = eitem['pull_state']
+            ecommit['gitee_repo'] = eitem['gitee_repo']
+            ecommit['repository'] = eitem['repository']
+            ecommit['item_type'] = COMMIT_TYPE
+            ecommit['org_name'] = owner
+
+            # Copy data from the raw commit
+            ecommit['url'] = commit['html_url']
+            ecommit['commit_url'] = commit['html_url']
+            ecommit['sha'] = commit['sha']
+
+            committer = commit.get('committer', None)
+            author = commit.get('author', None)
+            if len(committer) == 0:
+                continue
+            if author is not None and author:
+                ecommit['author_name'] = author['name']
+            if committer is not None and committer:
+                ecommit['committer_name'] = committer['name']
+                ecommit['user_login'] = committer['login']
+                ecommit['user_id'] = committer['id']
+                ecommit["user_domain"] = None
+
+            ecommit['created_at'] = commit['commit']['committer']['date']
+
+            # due to backtrack compatibility, `is_gitee2_*` is replaced with `is_gitee_*`
+            ecommit['is_gitee_{}'.format(COMMIT_TYPE)] = 1
+            ecommit['is_gitee_commit'] = 1
+
+            userExtra = self.esClient.getUserInfo(ecommit['user_login'])
+            ecommit.update(userExtra)
+            ecommits.append(ecommit)
+
+        return ecommits
 
     def __get_rich_pull(self, item, merged_item):
         rich_pr = {}
@@ -1402,6 +1473,8 @@ class Gitee(object):
             "value": user,
         }]
         data = self.esClient.getItemsByMatchs(matchs, size=0)
+        if len(data) == 0:
+            return []
         all_count = data["hits"]["total"]["value"]
         print("get %d items from user %s" % (all_count, user))
         if all_count < 1:
