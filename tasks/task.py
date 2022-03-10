@@ -17,6 +17,7 @@
 import logging
 import threading
 import sys
+
 import time
 from configparser import ConfigParser
 
@@ -68,7 +69,8 @@ BACKEND_MAPPING = {
     'questionnaire': 'data.questionnaire.Questionnaire',
     'git_commit_log': 'data.git_commit_log.GitCommitLog',
     'sig_maintainer': 'data.sig_maintainer.SigMaintainer',
-    'tag_removed_gitee': 'data.combine.tag_remove_gitee.TagRemovedGitee'
+    'tag_removed_gitee': 'data.combine.tag_remove_gitee.TagRemovedGitee',
+    'gitlab_pr_issue_commit': 'data.gitlab_pr_issue_commit.GitlabPRISSCOM'
 }
 
 
