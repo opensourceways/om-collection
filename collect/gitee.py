@@ -350,7 +350,7 @@ class GiteeClient():
 
         branch = str(branch).replace("/", "%2")
         url = 'https://gitee.com/%s/%s/raw/%s/%s' % (org, repo, branch, spec_file)
-        res = requests.get(url)
+        res = requests.get(url, timeout=60)
         if res.status_code == 200:
             rs_text = res.text
             pa = re.search(r'%package([\s\S]*)Source|patch', rs_text)
@@ -613,7 +613,7 @@ class GiteeClient():
         return (last_page - 1) * per_page + last_count
 
     def is_exists_issue(self, url):
-        req = requests.get(url)
+        req = requests.get(url, timeout=60)
         if req.status_code != 200:
             return False
         else:
