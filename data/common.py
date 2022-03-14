@@ -93,7 +93,7 @@ class ESClient(object):
          }
        }'''
         res = requests.get(self.getSearchUrl(index_name=self.index_name), data=search_json,
-                           headers=self.default_headers, verify=False)
+                           headers=self.default_headers, verify=False, timeout=60)
         if res.status_code != 200:
             print("The index not exist")
             return {}
@@ -163,7 +163,7 @@ class ESClient(object):
                       }
                     }''' % (current_month_first_date, packagename)
         res = requests.get(self.getSearchUrl(index_name=self.index_name), data=search_json,
-                           headers=self.default_headers, verify=False)
+                           headers=self.default_headers, verify=False, timeout=60)
         if res.status_code != 200:
             print("The index not exist")
             return {}
@@ -187,7 +187,7 @@ class ESClient(object):
   }
 }'''
             res = requests.get(self.getSearchUrl(index_name=self.sig_index), data=search,
-                               headers=self.default_headers, verify=False)
+                               headers=self.default_headers, verify=False, timeout=60)
             if res.status_code != 200:
                 print("The index not exist")
                 return dict_comb
@@ -220,7 +220,7 @@ class ESClient(object):
   }
 }'''
         res = requests.get(self.getSearchUrl(index_name=self.index_name), data=search_json,
-                           headers=self.default_headers, verify=False)
+                           headers=self.default_headers, verify=False, timeout=60)
         if res.status_code != 200:
             print("The index not exist")
             return {}
@@ -252,7 +252,7 @@ class ESClient(object):
                           }
                         }'''
         res = requests.get(self.getSearchUrl(index_name=self.index_name_org), data=search_json,
-                           headers=self.default_headers, verify=False)
+                           headers=self.default_headers, verify=False, timeout=60)
         if res.status_code != 200:
             print("The index not exist")
             return {}
@@ -291,7 +291,7 @@ class ESClient(object):
                           }
                         }'''
         res = requests.get(self.getSearchUrl(index_name=self.index_name_org), data=search_json,
-                           headers=self.default_headers, verify=False)
+                           headers=self.default_headers, verify=False, timeout=60)
         if res.status_code != 200:
             print("The index not exist")
             return {}
@@ -342,7 +342,7 @@ class ESClient(object):
                           }
                         }'''
         res = requests.get(self.getSearchUrl(index_name=self.index_name_cla), data=search_json,
-                           headers=self.default_headers, verify=False)
+                           headers=self.default_headers, verify=False, timeout=60)
         if res.status_code != 200:
             print("The index not exist")
             return {}
@@ -577,7 +577,9 @@ class ESClient(object):
         data = '''{"size":10000,"query": {"bool": {%s}}}''' % search
         try:
             res = json.loads(
-                requests.get(url=url, headers=self.default_headers, verify=False, data=data.encode('utf-8')).content)
+                requests.get(url=url, headers=self.default_headers,
+                             verify=False, data=data.encode('utf-8'),
+                             timeout=60).content)
         except:
             print(traceback.format_exc())
         return res['hits']['hits']
@@ -619,7 +621,8 @@ class ESClient(object):
 }''' % repo
         try:
             res = json.loads(
-                requests.get(url=url, headers=self.default_headers, verify=False, data=data.encode('utf-8')).content)
+                requests.get(url=url, headers=self.default_headers, verify=False,
+                             data=data.encode('utf-8'), timeout=60).content)
         except:
             print(traceback.format_exc())
         maintainerdata = res['aggregations']['2']['buckets']
@@ -674,7 +677,7 @@ class ESClient(object):
         try:
             res = json.loads(
                 requests.get(url=url, headers=self.default_headers, verify=False,
-                             data=querystr.encode('utf-8')).content)
+                             data=querystr.encode('utf-8'), timeout=60).content)
             resultdata = res['aggregations']['2']['buckets']
             count = 0
             for re in resultdata:
@@ -700,7 +703,7 @@ class ESClient(object):
         try:
             res = json.loads(
                 requests.get(url=url, headers=self.default_headers, verify=False,
-                             data=querystr.encode('utf-8')).content)
+                             data=querystr.encode('utf-8'), timeout=60).content)
             resultdata = res['hits']['hits']
             restr = ''
             for re in resultdata:
@@ -720,7 +723,8 @@ class ESClient(object):
     def geTimeofVersion(self, version, repo, index):
         url = self.url + '/' + index + '/_doc/' + repo + version
         try:
-            res = requests.get(url=url, headers=self.default_headers, verify=False)
+            res = requests.get(url=url, headers=self.default_headers,
+                               verify=False, timeout=60)
             if res.status_code == 404:
                 return None
             else:
@@ -796,7 +800,8 @@ class ESClient(object):
         data = '''{"size":10000,"query": {"bool": {%s}}}''' % search
         try:
             res = json.loads(
-                requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
+                requests.get(url=url, headers=headers, verify=False,
+                             data=data.encode('utf-8'), timeout=60).content)
             return res['hits']['hits']
         except:
             print(traceback.format_exc())
@@ -807,7 +812,9 @@ class ESClient(object):
         data = '''{"size":10000,"query": {"bool": {%s}}}''' % search
         try:
             res = json.loads(
-                requests.get(url=url, headers=self.default_headers, verify=False, data=data.encode('utf-8')).content)
+                requests.get(url=url, headers=self.default_headers,
+                             verify=False, data=data.encode('utf-8'),
+                             timeout=60).content)
             return res['hits']['hits']
         except:
             print(traceback.format_exc())
@@ -840,7 +847,8 @@ class ESClient(object):
             { "size": 0, %s
             } ''' % data_agg
         res = requests.get(self.getSearchUrl(), data=data_json,
-                           headers=self.default_headers, verify=False)
+                           headers=self.default_headers, verify=False,
+                           timeout=60)
         if res.status_code != 200:
             print("The field (%s) not exist." % field)
             return None
@@ -871,7 +879,8 @@ class ESClient(object):
             'Content-Type': 'application/json'
         }
         res = requests.get(self.getSearchUrl(), data=data_json,
-                           headers=self.default_headers, verify=False)
+                           headers=self.default_headers, verify=False,
+                           timeout=60)
         if res.status_code != 200:
             print("The resource not exist")
             return False
@@ -925,7 +934,8 @@ class ESClient(object):
         }
         data = requests.get(self.getSearchUrl(),
                             data=data_json,
-                            headers=self.default_headers, verify=False)
+                            headers=self.default_headers,
+                            verify=False, timeout=60)
         res = data.json()
         print(res)
 
@@ -991,7 +1001,8 @@ class ESClient(object):
                      }''' % (field, size)
         print(data_json)
         res = requests.get(self.getSearchUrl(), data=data_json,
-                           headers=self.default_headers, verify=False)
+                           headers=self.default_headers,
+                           verify=False, timeout=60)
         if res.status_code != 200:
             print("The author name not exist")
             return []
@@ -1044,7 +1055,8 @@ class ESClient(object):
             { "size": 2, %s  %s
             } ''' % (data_query, data_agg)
         res = requests.get(self.getSearchUrl(), data=data_json,
-                           headers=self.default_headers, verify=False)
+                           headers=self.default_headers,
+                           verify=False, timeout=60)
         res = res.json()
         result_num = res['hits']['total']['value']
         if result_num == 0:
@@ -1057,7 +1069,8 @@ class ESClient(object):
         data_json = '''{"size": 1, "query": {"bool": {"must": [{"match": {"user_login.keyword": "%s"}}, {"match": {"created_at": "%s"}}]}}}''' % (
             user_login, created_at_value)
         res = requests.get(self.getSearchUrl(), data=data_json,
-                           headers=self.default_headers, verify=False)
+                           headers=self.default_headers,
+                           verify=False, timeout=60)
 
         if res.status_code != 200:
             print("get user(%s) id  fail" % user_login)
@@ -1090,7 +1103,8 @@ class ESClient(object):
         } ''' % (data_query)
 
         res = requests.get(self.getSearchUrl(), data=data_json,
-                           headers=self.default_headers, verify=False)
+                           headers=self.default_headers,
+                           verify=False, timeout=60)
         if res.status_code != 200:
             return
         res = res.json()
@@ -1193,7 +1207,7 @@ class ESClient(object):
          }''' % (from_date, to_date, field)
 
         res = requests.get(self.getSearchUrl(url, index_name), data=data_json,
-                           headers=self.default_headers, verify=False)
+                           headers=self.default_headers, verify=False, timeout=60)
         if res.status_code != 200:
             print("The field (%s) not exist from time(%s) to (%s)"
                   % (field, from_date, to_date))
@@ -1227,7 +1241,7 @@ class ESClient(object):
             }''' % repo_full_name
         self.setFirstItem()
         res = requests.get(self.getSearchUrl(index_name=self.index_name), data=data_json,
-                           headers=self.default_headers, verify=False)
+                           headers=self.default_headers, verify=False, timeout=60)
         if res.status_code != 200:
             return 0
         max_id = res.json()['aggregations']['max_id']['value']
@@ -1311,7 +1325,7 @@ class ESClient(object):
         if query_index_name is None:
             query_index_name = index_name
         res = requests.get(self.getSearchUrl(url, query_index_name), data=data_json,
-                           headers=self.default_headers, verify=False)
+                           headers=self.default_headers, verify=False, timeout=60)
         if res.status_code != 200:
             print("The field (%s) not exist from time(%s) to (%s), err=%s"
                   % (field, from_date, to_date, res))
@@ -1391,7 +1405,8 @@ class ESClient(object):
 
         print(data_json)
         res = requests.get(self.getSearchUrl(), data=data_json,
-                           headers=self.default_headers, verify=False)
+                           headers=self.default_headers,
+                           verify=False, timeout=60)
         if res.status_code != 200:
             print("Get result error:", res.status_code)
             return None
@@ -1428,7 +1443,8 @@ class ESClient(object):
             return {}
 
         res = requests.get(self.url + '/my_index/_doc/my_id',
-                           headers=self.default_headers, verify=False)
+                           headers=self.default_headers,
+                           verify=False, timeout=60)
         if r.status_code != 200:
             print("get location failed, err=", r.text)
             return {}
@@ -1499,7 +1515,8 @@ class ESClient(object):
             } ''' % (size, data_query)
         data = requests.get(self.getSearchUrl(),
                             data=data_json.encode('utf-8'),
-                            headers=self.default_headers, verify=False)
+                            headers=self.default_headers,
+                            verify=False, timeout=60)
         if data.status_code != 200:
             print("match data failed, err=", data.text)
             return {}
@@ -1567,7 +1584,7 @@ class ESClient(object):
                                to.strftime("%Y-%m-%dT23:59:59+00:00"), query, count_key)
 
         res = requests.get(self.getSearchUrl(query_index_url, query_index_name), data=data_json,
-                           headers=self.default_headers, verify=False)
+                           headers=self.default_headers, verify=False, timeout=60)
         if res.status_code != 200:
             return 0
         data = res.json()
@@ -1756,7 +1773,7 @@ class ESClient(object):
         if query_index_name is None:
             query_index_name = self.index_name
         res = requests.get(self.getSearchUrl(index_name=query_index_name), data=data_json,
-                           headers=self.default_headers, verify=False)
+                           headers=self.default_headers, verify=False, timeout=60)
         if res.status_code != 200:
             print("get First Item By Key(%s), err=%s"
                   % (key, res))
@@ -1816,7 +1833,8 @@ class ESClient(object):
 
     def scrollSearch(self, index_name, search=None, scroll_duration='1m', func=None):
         url = self.url + '/' + index_name + '/_search?scroll=' + scroll_duration
-        res = requests.get(url=url, headers=self.default_headers, verify=False, data=search.encode('utf-8'))
+        res = requests.get(url=url, headers=self.default_headers, verify=False,
+                           data=search.encode('utf-8'), timeout=60)
         if res.status_code != 200:
             print('requests error')
             return
@@ -1832,7 +1850,9 @@ class ESClient(object):
                           "scroll": "%s",
                           "scroll_id": "%s"
                         }''' % (scroll_duration, scroll_id)
-            res = requests.get(url=url, headers=self.default_headers, verify=False, data=search.encode('utf-8'))
+            res = requests.get(url=url, headers=self.default_headers,
+                               verify=False, data=search.encode('utf-8'),
+                               timeout=60)
             if res.status_code != 200:
                 print('requests error')
             res_data = res.json()
