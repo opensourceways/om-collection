@@ -143,6 +143,7 @@ class GitlabClient(object):
     def get_whole_project_commit_count(self, project_url, project_id, per_page=1000):
         start_page = 1
         commit_total_count = 0
+        total_page = 1
 
         api_url = f'{project_url}/api/v4/projects/{project_id}/repository/commits'
         while True:
@@ -157,7 +158,9 @@ class GitlabClient(object):
                 return commit_total_count
 
             if response.text == '[]':
-                total_page = start_page - 1
+                if start_page > 1:
+                    total_page = start_page - 1
+
                 is_last_page = True
                 break
             print(f'Function name: {sys._getframe().f_code.co_name}. '

@@ -39,7 +39,6 @@ class Gitlab(object):
     @common.show_spend_seconds_of_this_function
     def process_all_project_star_fork_commit(self, group_path):
         last_slash_pos = group_path.rfind('/')
-        group_name = group_path[last_slash_pos + 1:]
         boot_url = group_path[:last_slash_pos]
 
         project_basicInfo_list = self.gitlabClient.get_all_project_basicInfo(boot_url)
