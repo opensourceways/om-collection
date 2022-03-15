@@ -71,7 +71,8 @@ BACKEND_MAPPING = {
     'sig_maintainer': 'data.sig_maintainer.SigMaintainer',
     'tag_removed_gitee': 'data.combine.tag_remove_gitee.TagRemovedGitee',
     'giteev8_token': 'data.giteev8_token.GiteeToken',
-    'gitlab_pr_issue_commit': 'data.gitlab_pr_issue_commit.GitlabPRISSCOM'
+    'gitlab_pr_issue_commit': 'data.gitlab_pr_issue_commit.GitlabPRISSCOM',
+    'gitlab': 'data.gitlab.Gitlab'
 }
 
 
