@@ -339,7 +339,7 @@ class BlueZoneUser(object):
                             },
                             {
                               "term": {
-                                "is_merged": 0
+                                "is_merge": 0
                               }
                             },
                             {

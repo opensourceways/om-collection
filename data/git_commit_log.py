@@ -42,6 +42,7 @@ class GitCommitLog(object):
         self.upstream_yaml = config.get('upstream_yaml')
         self.user_yaml = config.get('user_yaml')
         self.company_yaml = config.get('company_yaml')
+        self.all_repo_default_branch = config.get('all_repo_default_branch', 'false')
 
     def run(self, from_time):
         print("Git commit log collect: start")
@@ -92,8 +93,11 @@ class GitCommitLog(object):
                 if not str(repo).__contains__('->'):
                     continue
                 rb = repo.split('->')
+                branch_name = rb[1]
+                if self.all_repo_default_branch == 'true':
+                    branch_name = 'default'
                 try:
-                    self.getLog(platform, owner, repo_name=rb[0], branch_name=rb[1])
+                    self.getLog(platform, owner, repo_name=rb[0], branch_name=branch_name)
                 except Exception:
                     print('*** platform: %s, owner: %s, repo: %s, fail ***' % (platform, owner, repo))
 
