@@ -25,6 +25,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 GITEE_API_URL = "https://api.gitee.com/enterprises"
+GITEE_TOKEN_URL = "https://gitee.com/oauth"
 
 MAX_CATEGORY_ITEMS_PER_PAGE = 100
 PER_PAGE = 100
@@ -308,4 +309,17 @@ class GiteeClient():
                         csv_writer.writerow([user_id, username, name, remark, phone,
                                              email, role_id, role_name, update_time])
         return flag
+
+    def refresh_token(self, refresh_token):
+        """Send a refresh post access to the Gitee Server"""
+        if refresh_token:
+            url = self.urijoin(GITEE_TOKEN_URL, 'token')
+            _header = {'Content-Type': 'application/json;charset=UTF-8'}
+            params = {
+                'grant_type': 'refresh_token',
+                'refresh_token': refresh_token
+            }
+            print("Refresh the access_token for Gitee API")
+            res = self.session.post(url, json=params, headers=_header, stream=False, auth=None)
+            return res
    

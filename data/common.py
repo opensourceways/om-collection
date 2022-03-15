@@ -1872,6 +1872,38 @@ class ESClient(object):
             return None
         return json.loads(req.content)
 
+    def get_access_token(self, index_name_token):
+        url = self.url + '/' + index_name_token + '/' + '_search'
+        _headers = {'Content-Type': 'application/json;charset=UTF-8', 'Authorization': self.authorization}
+        query = '''{
+            "query": {
+                "bool": {
+                    "must": [
+                        {
+                            "match_all": {}
+                        }
+                    ],
+                    "must_not": [],
+                    "should": []
+                }
+            },
+            "from": 0,
+            "size": 1,
+            "sort": {
+                "created_at": {
+                    "order": "desc"
+                }
+            },
+            "aggs": {}
+        }'''
+        res = requests.get(url=url, headers=_headers, verify=False, data=query, timeout=60)
+        if res.status_code != 200:
+            # print('The index not exist')
+            return []
+        token = res.json()
+        cur_token = token['hits']['hits'][0]['_source']
+        return cur_token['access_token'], cur_token['refresh_token']
+
 
 def create_log_dir(dest_dir):
     '''
