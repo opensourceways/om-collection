@@ -18,7 +18,7 @@ from collect import gitlab
 from data import common
 
 
-class GitlabPRISSCOM(object):
+class Gitlab(object):
     def __init__(self, config=None):
         self.config = config
         self.org = config.get('org')
