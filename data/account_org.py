@@ -140,17 +140,6 @@ class AccountOrg(object):
 
             self.esClient.safe_put_bulk(actions)
 
-    # def getDataFromCsv(self):
-    #     result = {}
-    #     csvFile = open("email_userid.csv", "r")
-    #     reader = csv.reader(csvFile)
-    #     for item in reader:
-    #         if reader.line_num == 1:
-    #             continue
-    #         result[item[0]] = item[4]
-    #     csvFile.close()
-    #     return result
-
     def getDataFromCsv(self):
         actions = ""
         csvFile = open(self.csv_url, "r")
@@ -158,7 +147,7 @@ class AccountOrg(object):
         for item in reader:
             if reader.line_num == 1:
                 continue
-            organization = item[3]
+            organization = item[2]
             if organization == '':
                 continue
             email = item[1]

@@ -447,6 +447,52 @@ class ESClient(object):
 
         return userExtra
 
+    def tagUserOrgChanged(self):
+        if len(self.giteeid_company_change_dict) == 0:
+            return
+        for key, vMap in self.giteeid_company_change_dict.items():
+            vMap.keys()
+            times = sorted(vMap.keys())
+            for i in range(1, len(times) + 1):
+                if i == 1:
+                    startTime = '1990-01-01'
+                else:
+                    startTime = times[i - 1]
+                if i == len(times):
+                    endTime = '2222-01-01'
+                else:
+                    endTime = times[i]
+                company = vMap.get(times[i - 1])
+                # is_project_internal_user = 0
+                # if company == self.internal_company_name:
+                #     is_project_internal_user = 1
+
+                query = '''{
+                            	"script": {
+                            		"source": "ctx._source['tag_user_company']='%s'"
+                            	},
+                            	"query": {
+                            		"bool": {
+                            			"must": [
+                            				{
+                            					"range": {
+                            						"created_at": {
+                            							"gte": "%s",
+                            							"lt": "%s"
+                            						}
+                            					}
+                            				},
+                            				{
+                            					"term": {
+                            						"user_login.keyword": "%s"
+                            					}
+                            				}
+                            			]
+                            		}
+                            	}
+                            }''' % (company, startTime, endTime, key)
+                self.updateByQuery(query=query.encode('utf-8'))
+
     def getItselfUsers(self, filename="users"):
         try:
             f = open(filename, 'r', encoding="utf-8")
