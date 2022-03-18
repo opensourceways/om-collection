@@ -264,6 +264,16 @@ class GiteeClient():
 
         return self.fetch_items(url, payload)
 
+    def org_repos_count(self):
+        url = self.urijoin(self.base_url, 'orgs', self.owner, 'repos')
+        payload = {
+            'type': 'all',
+            'page': 1,
+            'per_page': 20,
+        }
+        res = self.fetch(url, payload)
+        return res.headers.get('total_count')
+
     def org(self):
         """Get repository data"""
         commit_url = self.urijoin('orgs', self.owner, 'repos')
