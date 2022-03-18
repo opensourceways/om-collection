@@ -144,7 +144,8 @@ class Gitee(object):
             if self.is_set_sigs_star == 'true':
                 self.getSartUsersList()
 
-            self.tagUserOrgChanged()
+            # self.tagUserOrgChanged()
+            self.esClient.tagUserOrgChanged()
         endTime = time.time()
         spent_time = time.strftime("%H:%M:%S",
                                    time.gmtime(endTime - startTime))
@@ -317,7 +318,7 @@ class Gitee(object):
             if f in path:
                 return False
 
-            if is_public == False:
+            if not is_public:
                 return False
         return True
 
@@ -337,7 +338,7 @@ class Gitee(object):
         repos = []
         for repo in org_data:
             path = repo['path']
-            if self.checkIsCollectRepo(path, repo['public']) == True:
+            if self.checkIsCollectRepo(path, repo['public']):
                 print(repo['path'])
                 repos.append(repo)
 
@@ -1501,55 +1502,53 @@ class Gitee(object):
             if line != "\n":
                 users.append(line.split('\n')[0])
         print(users)
-        print(len(users))
         return users
 
-    def tagUserOrgChanged(self):
-        if len(self.esClient.giteeid_company_change_dict) == 0:
-            return
-
-        for key, vMap in self.esClient.giteeid_company_change_dict.items():
-            vMap.keys()
-            times = sorted(vMap.keys())
-            for i in range(1, len(times) + 1):
-                if i == 1:
-                    startTime = '1990-01-01'
-                else:
-                    startTime = times[i - 1]
-                if i == len(times):
-                    endTime = '2222-01-01'
-                else:
-                    endTime = times[i]
-                company = vMap.get(times[i - 1])
-                # is_project_internal_user = 0
-                # if company == self.internal_company_name:
-                #     is_project_internal_user = 1
-
-                query = '''{
-                            	"script": {
-                            		"source": "ctx._source['tag_user_company']='%s'"
-                            	},
-                            	"query": {
-                            		"bool": {
-                            			"must": [
-                            				{
-                            					"range": {
-                            						"created_at": {
-                            							"gte": "%s",
-                            							"lt": "%s"
-                            						}
-                            					}
-                            				},
-                            				{
-                            					"term": {
-                            						"user_login.keyword": "%s"
-                            					}
-                            				}
-                            			]
-                            		}
-                            	}
-                            }''' % (company, startTime, endTime, key)
-                self.esClient.updateByQuery(query=query.encode('utf-8'))
+    # def tagUserOrgChanged(self):
+    #     if len(self.esClient.giteeid_company_change_dict) == 0:
+    #         return
+    #     for key, vMap in self.esClient.giteeid_company_change_dict.items():
+    #         vMap.keys()
+    #         times = sorted(vMap.keys())
+    #         for i in range(1, len(times) + 1):
+    #             if i == 1:
+    #                 startTime = '1990-01-01'
+    #             else:
+    #                 startTime = times[i - 1]
+    #             if i == len(times):
+    #                 endTime = '2222-01-01'
+    #             else:
+    #                 endTime = times[i]
+    #             company = vMap.get(times[i - 1])
+    #             # is_project_internal_user = 0
+    #             # if company == self.internal_company_name:
+    #             #     is_project_internal_user = 1
+    #
+    #             query = '''{
+    #                         	"script": {
+    #                         		"source": "ctx._source['tag_user_company']='%s'"
+    #                         	},
+    #                         	"query": {
+    #                         		"bool": {
+    #                         			"must": [
+    #                         				{
+    #                         					"range": {
+    #                         						"created_at": {
+    #                         							"gte": "%s",
+    #                         							"lt": "%s"
+    #                         						}
+    #                         					}
+    #                         				},
+    #                         				{
+    #                         					"term": {
+    #                         						"user_login.keyword": "%s"
+    #                         					}
+    #                         				}
+    #                         			]
+    #                         		}
+    #                         	}
+    #                         }''' % (company, startTime, endTime, key)
+    #             self.esClient.updateByQuery(query=query.encode('utf-8'))
 
     def tagHistoryUsers(self):
         if self.giteeid_company_dict_last == self.esClient.giteeid_company_dict:

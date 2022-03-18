@@ -19,11 +19,15 @@ class GiteeEvent(object):
 
     def run(self, from_time):
         start_time = time.time()
+        dic = self.esClient.getOrgByGiteeID()
+        self.esClient.giteeid_company_dict = dic[0]
+        self.esClient.giteeid_company_change_dict = dic[1]
         print("Collect gitee event data: start", start_time)
         self.getEventFromRepo(self.owners)
+        self.esClient.tagUserOrgChanged()
         end_time = time.time()
         print("Collect gitee event data: finished", end_time)
-        print(int(end_time - start_time))
+        print("Cost time: ", int(end_time - start_time))
 
     def getEventFromSingleRepo(self, owner, repo):
         page = 1
@@ -78,9 +82,9 @@ class GiteeEvent(object):
                         e[is_type] = 1
                         index_id = index_id + e.get('type')
                     is_inner_user = self.esClient.getUserInfo(e.get('actor')['login'])
-                    e.update(is_inner_user)
                     index_data_survey = {"index": {"_index": self.index_name, "_id": index_id}}
                     action = {
+                        'user_login': e.get('actor')['login'],
                         'id': prev_id,
                         'created_at': created_at,
                         'type': is_type,
