@@ -39,6 +39,11 @@ class TagRemovedGitee(object):
             self.tag_removed_repo()
             self.tag_removed_issue()
 
+            self.index_name = None
+            self.gitee_token = None
+            self.orgs = []
+            self.old_repos = []
+
     # 标记已经删除的仓库，和跟仓库有关的贡献
     def tag_removed_repo(self):
         removed_repos = self.get_removed_repos()
@@ -116,9 +121,17 @@ class TagRemovedGitee(object):
         self.get_old_repos()  # 库中已有的repos
 
         gitee_repos = []  # gitee获取到的repos
+        repo_count = 0
         for org in self.orgs:
+            client = GiteeClient(org, None, self.gitee_token)
+            repo_count += int(client.org_repos_count())
+
             repos = self.gitee_repos(org, self.gitee_token)
             gitee_repos.extend(repos)
+
+        if len(gitee_repos) != repo_count:
+            print('*** len(gitee_repos): %d; repo_count: %d', (len(gitee_repos), repo_count))
+            return []
 
         removed_repos = set(self.old_repos).difference(set(gitee_repos))  # 已经删除的repos
         return removed_repos
