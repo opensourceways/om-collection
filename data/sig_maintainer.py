@@ -37,47 +37,16 @@ class SigMaintainer(object):
         self.from_data = config.get("from_data")
         self.sig_mark = config.get("sig_mark")
         self.exists_ids = []
+        self.index_name_maintainer_info = config.get('index_name_maintainer_info')
 
-    def run(self, starttime=None):
+    def run(self, from_time):
+        if self.index_name_maintainer_info and self.sig_mark:
+            self.get_sig_info()
+            self.get_sig_maintainerInfo()
         if self.index_name_sigs and self.sig_mark:
             self.get_all_id()
             self.get_sigs()
-            last_maintainers = self.esClient.get_sig_maintainers(self.index_name_sigs)
             maintainer_sigs_dict = self.get_sigs_original()
-            # time.sleep(20)
-            # self.reindex_maintainer_gitee_all(last_maintainers, maintainer_sigs_dict)
-
-    def safe_put_bulk(self, bulk_json, header=None, url=None):
-        """Bulk items to a target index `url`. In case of UnicodeEncodeError,
-        the bulk is encoded with iso-8859-1.
-
-        :param header:
-        :param url: target index where to bulk the items
-        :param bulk_json: str representation of the items to upload
-        """
-        if not bulk_json:
-            return
-        _header = {
-            "Content-Type": 'application/x-ndjson',
-            'Authorization': self.authorization
-        }
-        if header:
-            _header = header
-
-        _url = self.url
-        if url:
-            _url = url
-
-        try:
-            res = requests.post(_url + "/_bulk", data=bulk_json,
-                                headers=_header, verify=False)
-            res.raise_for_status()
-        except UnicodeEncodeError:
-
-            # Related to body.encode('iso-8859-1'). mbox data
-            bulk_json = bulk_json.encode('iso-8859-1', 'ignore')
-            res = requests.put(url, data=bulk_json, headers=_header)
-            res.raise_for_status()
 
     def getSingleAction(self, index_name, id, body, act="index"):
         action = ""
@@ -121,7 +90,7 @@ class SigMaintainer(object):
                 indexData = {"index": {"_index": self.index_name, "_id": maintainer}}
                 actions += json.dumps(indexData) + '\n'
                 actions += json.dumps(action) + '\n'
-        self.safe_put_bulk(actions)
+        self.esClient.safe_put_bulk(actions)
 
         # tag removed maintainers
         removed_maintainers = set(history_maintainers).difference(set(maintainers))
@@ -158,7 +127,8 @@ class SigMaintainer(object):
             self.esClient.updateByQuery(query=query)
             print('%s: %s' % (maintainer, sigs))
 
-    def mark_removed_sigs(self, dirs):
+    def mark_removed_sigs(self, dirs, index):
+        time.sleep(5)
         search = '''{
                     	"size": 0,
                     	"query": {
@@ -187,7 +157,7 @@ class SigMaintainer(object):
                     		}
                     	}
                     }'''
-        url = self.url + '/' + self.index_name_sigs + '/_search'
+        url = self.url + '/' + index + '/_search'
         res = requests.post(url, headers=self.esClient.default_headers, verify=False, data=search)
         data = res.json()
 
@@ -208,10 +178,9 @@ class SigMaintainer(object):
                                 }
                             } 
                         }''' % s
-            url = self.url + '/' + self.index_name_sigs + '/_update_by_query'
+            url = self.url + '/' + index + '/_update_by_query'
             requests.post(url, headers=self.esClient.default_headers, verify=False, data=mark)
             print('<%s> has been marked for removal' % s)
-        print(res)
 
     def get_sig_repos(self, dir):
         sig_repo_list = []
@@ -425,11 +394,11 @@ class SigMaintainer(object):
                             dataw.update(userExtra)
                             datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
                             datas += datar
-                self.safe_put_bulk(datas)
+                self.esClient.safe_put_bulk(datas)
                 print("this sig done: %s" % dir)
             except:
                 print(traceback.format_exc())
-        self.mark_removed_sigs(dirs=dirs)
+        self.mark_removed_sigs(dirs=dirs, index=self.index_name_sigs)
         self.mark_removed_ids()
 
     def get_sigs_original(self):
@@ -473,5 +442,90 @@ class SigMaintainer(object):
             indexData = {"index": {"_index": self.index_name_sigs, "_id": dir}}
             actions += json.dumps(indexData) + '\n'
             actions += json.dumps(action) + '\n'
-        self.safe_put_bulk(actions)
+        self.esClient.safe_put_bulk(actions)
         return dict_comb
+
+    def get_sig_maintainerInfo(self):
+        dirs = os.walk(self.sigs_dirs_path).__next__()[1]
+        actions = ''
+        for dir in dirs:
+            print('start sig: ', dir)
+            maintainers = []
+            committers = []
+            repos = []
+            try:
+                sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
+                info = yaml.load_all(open(sig_info), Loader=yaml.Loader).__next__()
+                sig_action = {}
+                for i in info:
+                    if i == 'maintainers' or i == 'committers' or i == 'repositories':
+                        continue
+                    sig_action.update({i: info.get(i)})
+                if 'maintainers' in info and info['maintainers'] is not None:
+                    maintainers = info['maintainers']
+                if 'committers' in info and info['committers'] is not None:
+                    committers = info['committers']
+                if 'repositories' in info and info['repositories'] is not None:
+                    repos = info['repositories']
+                sig_repos = []
+                for repo in repos:
+                    sig_repos.append(repo['repo'])
+                actions += self.get_single_maintainer(dir, sig_repos, maintainers, 'maintainers', sig_action)
+                actions += self.get_single_maintainer(dir, sig_repos, committers, 'committers', sig_action)
+                print('sig done: ', dir)
+            except FileNotFoundError:
+                print('sig-info.yaml of %s is not exist.' % dir)
+        self.esClient.safe_put_bulk(actions)
+        self.mark_removed_sigs(dirs=dirs, index=self.index_name_maintainer_info)
+
+    def get_single_maintainer(self, sig, sig_repos, users, owner_type, sig_action):
+        actions = ''
+        for user in users:
+            login = user['gitee_id']
+            company = ''
+            email = ''
+            if 'organization' in user:
+                company = user['organization']
+            if 'email' in user:
+                email = user['email']
+            action = {
+                "sig_name": sig,
+                "user_login": login,
+                "repos": sig_repos,
+                "email": email,
+                "tag_user_company": company,
+                "owner_type": owner_type,
+                "is_maintainer_info": 1,
+                "created_at": "2022-03-01T00:00:00+08:00"
+            }
+            action.update(sig_action)
+            indexData = {"index": {"_index": self.index_name_maintainer_info, "_id": sig + '_' + login}}
+            actions += json.dumps(indexData) + '\n'
+            actions += json.dumps(action) + '\n'
+        return actions
+
+    def get_sig_info(self):
+        dirs = os.walk(self.sigs_dirs_path).__next__()[1]
+        actions = ''
+        for dir in dirs:
+            print('start collect sig info: ', dir)
+            try:
+                sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
+                info = yaml.load_all(open(sig_info), Loader=yaml.Loader).__next__()
+                action = {}
+                for i in info:
+                    action.update({i: info.get(i)})
+                extra = {
+                    "sig_name": dir,
+                    "is_sig_info": 1,
+                    "created_at": "2022-03-01T00:00:00+08:00"
+                }
+                action.update(extra)
+                indexData = {"index": {"_index": self.index_name_maintainer_info, "_id": dir}}
+                actions += json.dumps(indexData) + '\n'
+                actions += json.dumps(action) + '\n'
+                print('sig done: ', dir)
+            except FileNotFoundError:
+                print('sig-info.yaml of %s is not exist.' % dir)
+        self.esClient.safe_put_bulk(actions)
+        self.mark_removed_sigs(dirs=dirs, index=self.index_name_maintainer_info)
