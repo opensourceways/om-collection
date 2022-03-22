@@ -40,9 +40,6 @@ class SigMaintainer(object):
         self.index_name_maintainer_info = config.get('index_name_maintainer_info')
 
     def run(self, from_time):
-        if self.index_name_maintainer_info and self.sig_mark:
-            self.get_sig_info()
-            self.get_sig_maintainerInfo()
         if self.index_name_sigs and self.sig_mark:
             self.get_all_id()
             self.get_sigs()
@@ -439,6 +436,16 @@ class SigMaintainer(object):
                 "maintainers": maintainers,
                 "created_at": "2021-12-01T00:00:00+08:00"
             }
+            try:
+                sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
+                info = yaml.load_all(open(sig_info), Loader=yaml.Loader).__next__()
+                for i in info:
+                    if i == 'description':
+                        action.update({i: info.get(i)})
+                    if i == 'maintainers':
+                        action.update({'maintainer_info': info.get(i)})
+            except FileNotFoundError:
+                print('sig-info.yaml of %s is not exist.' % dir)
             indexData = {"index": {"_index": self.index_name_sigs, "_id": dir}}
             actions += json.dumps(indexData) + '\n'
             actions += json.dumps(action) + '\n'
@@ -503,29 +510,3 @@ class SigMaintainer(object):
             actions += json.dumps(indexData) + '\n'
             actions += json.dumps(action) + '\n'
         return actions
-
-    def get_sig_info(self):
-        dirs = os.walk(self.sigs_dirs_path).__next__()[1]
-        actions = ''
-        for dir in dirs:
-            print('start collect sig info: ', dir)
-            try:
-                sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
-                info = yaml.load_all(open(sig_info), Loader=yaml.Loader).__next__()
-                action = {}
-                for i in info:
-                    action.update({i: info.get(i)})
-                extra = {
-                    "sig_name": dir,
-                    "is_sig_info": 1,
-                    "created_at": "2022-03-01T00:00:00+08:00"
-                }
-                action.update(extra)
-                indexData = {"index": {"_index": self.index_name_maintainer_info, "_id": dir}}
-                actions += json.dumps(indexData) + '\n'
-                actions += json.dumps(action) + '\n'
-                print('sig done: ', dir)
-            except FileNotFoundError:
-                print('sig-info.yaml of %s is not exist.' % dir)
-        self.esClient.safe_put_bulk(actions)
-        self.mark_removed_sigs(dirs=dirs, index=self.index_name_maintainer_info)
