@@ -86,7 +86,7 @@ class GiteeScore(object):
 
             content_body = {}
             content_body['issue_number'] = issue_number
-            content_body['issue_author'] = issue_author
+            content_body['user_login'] = issue_author
             content_body['scoring_admin'] = author_username
             content_body['score'] = score
             action = common.getSingleAction(self.index_name, issue_number, content_body)
