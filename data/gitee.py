@@ -733,7 +733,8 @@ class Gitee(object):
     def writePullData(self, owner, repo, public, from_date=None, once_update_num_of_pr=200, sig_names=None):
         startTime = datetime.datetime.now()
         from_date = self.getFromDate(from_date, [
-            {"name": "is_gitee_pull_request", "value": 1}])
+            {"name": "is_gitee_pull_request", "value": 1},
+            {"name": "gitee_repo.keyword", "value": "https://gitee.com/" + owner + "/" + repo}])
         print("Start collect %s pull data from %s" % (repo, from_date))
 
         client = GiteeClient(owner, repo, self.gitee_token)
