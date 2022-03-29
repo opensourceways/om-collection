@@ -12,13 +12,11 @@
 # See the Mulan PSL v2 for more details.
 # Create: 2022-03
 #
-import os
 import platform
 import re
 import sys
 
 import requests
-import yaml
 
 from data import common
 from data.gitee import Gitee
@@ -46,26 +44,19 @@ class GiteeScore(object):
     def run(self, from_date):
 
         self.score_admins = self.get_score_admins()
+        if not self.score_admins:
+            return
+
         self.process_gitee_score()
 
         print(f'Function name: {sys._getframe().f_code.co_name} has run over.')
 
     def get_score_admins(self):
-        score_admins = None
-        if self.platform_name == 'linux':  ## Get data.yaml and company.yaml from Gitee in linux.
-            cmd = 'wget -N %s' % self.score_admin_file_path
-            local_file_name = self.score_admin_file_path.split('/')[-1]
-            p = os.popen(cmd.replace('=', ''))
-            p.read()
-            yaml_dict = yaml.safe_load(open(local_file_name, encoding='UTF-8'))
-            score_admins_str = yaml_dict.get('score_admins')
-            score_admins = [username.strip() for username in score_admins_str.split()]
-        elif self.platform_name == 'windows':  ###Test in windows without wget command
-            yaml_response = requests.get(self.score_admin_file_path)
-            if yaml_response.status_code != 200:
-                print('Cannot fetch online yaml file.')
-                return
-            score_admins = [username.strip() for username in yaml_response.text.split('\n')[1:]]
+        yaml_response = requests.get(self.score_admin_file_path)
+        if yaml_response.status_code != 200:
+            print('Cannot fetch online yaml file.')
+            return None
+        score_admins = [username.strip() for username in yaml_response.text.split('\n')[1:]]
         return score_admins
 
     @common.show_spend_seconds_of_this_function
