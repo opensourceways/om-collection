@@ -12,13 +12,11 @@
 # See the Mulan PSL v2 for more details.
 # Create: 2022-03
 #
-import os
 import platform
 import re
 import sys
 
 import requests
-import yaml
 
 from data import common
 from data.gitee import Gitee
@@ -46,24 +44,18 @@ class GiteeScore(object):
     def run(self, from_date):
 
         self.score_admins = self.get_score_admins()
+        if not self.score_admins:
+            return
+
         self.process_gitee_score()
 
         print(f'Function name: {sys._getframe().f_code.co_name} has run over.')
 
     def get_score_admins(self):
-        yaml_response = None
-        if self.platform_name == 'linux':  ## Get data.yaml and company.yaml from Gitee in linux.
-            cmd = 'wget -N %s' % self.score_admin_file_path
-            p = os.popen(cmd.replace('=', ''))
-            p.read()
-            yaml_response = yaml.safe_load(open(self.score_admin_file_path, encoding='UTF-8'))
-        elif self.platform_name == 'windows':  ###Test in windows without wget command
-            yaml_response = requests.get(self.score_admin_file_path)
-
+        yaml_response = requests.get(self.score_admin_file_path)
         if yaml_response.status_code != 200:
             print('Cannot fetch online yaml file.')
-            return
-
+            return None
         score_admins = [username.strip() for username in yaml_response.text.split('\n')[1:]]
         return score_admins
 
@@ -76,6 +68,8 @@ class GiteeScore(object):
         for issue_brief in issue_brief_list:
             issue_number = issue_brief[0]
             issue_author = issue_brief[1]
+            issue_created_at = issue_brief[2]
+
             comment_index = issue_brief_list.index(issue_brief)
             issue_comment_list = self.get_comments_by_issue_number(issue_number)
             author_username, score = self.parse_comment_list(issue_comment_list)
@@ -86,6 +80,7 @@ class GiteeScore(object):
 
             content_body = {}
             content_body['issue_number'] = issue_number
+            content_body['created_at'] = issue_created_at
             content_body['user_login'] = issue_author
             content_body['scoring_admin'] = author_username
             content_body['score'] = score
@@ -117,7 +112,7 @@ class GiteeScore(object):
             res_data_list.extend(page_data_list)
             start_page += 1
 
-        issue_brief_list = [(issue.get('number'), issue.get('user').get('login'))
+        issue_brief_list = [(issue.get('number'), issue.get('user').get('login'), issue.get('created_at'))
                             for issue in res_data_list]
         print(f'Succeed to collect issue numbers: {len(res_data_list)}')
 
