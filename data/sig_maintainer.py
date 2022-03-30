@@ -53,77 +53,6 @@ class SigMaintainer(object):
         action += json.dumps(body) + '\n'
         return action
 
-    def reindex_maintainer_gitee_all(self, history_maintainers, maintainer_sigs_dict):
-        dic = self.esClient.getOrgByGiteeID()
-        self.esClient.giteeid_company_dict = dic[0]
-        self.gitee.internalUsers = self.gitee.getItselfUsers(self.gitee.internal_users)
-        maintainers = self.esClient.get_sig_maintainers(self.index_name_sigs)
-        actions = ''
-        for maintainer in maintainers:
-            reindex_json = '''{
-                                  "source": {
-                                    "index": "%s",
-                                    "query": {
-                                      "term": {
-                                        "user_login.keyword": "%s"
-                                      }
-                                    }
-                                  },
-                                  "dest": {
-                                    "index": "%s"
-                                  }
-                                }''' % (self.sigs_source, maintainer, self.index_name)
-            # copy self.sigs_source to self.index_name
-            data_num = self.esClient.reindex(reindex_json)
-            print('reindex: %s -> %d' % (maintainer, data_num))
-            if data_num == 0:
-                action = {
-                    "user_login": maintainer,
-                    "is_no_contribute_before": 1,
-                    "created_at": "2022-02-08T00:00:00+08:00"
-                }
-                userExtra = self.esClient.getUserInfo(maintainer)
-                action.update(userExtra)
-                indexData = {"index": {"_index": self.index_name, "_id": maintainer}}
-                actions += json.dumps(indexData) + '\n'
-                actions += json.dumps(action) + '\n'
-        self.esClient.safe_put_bulk(actions)
-
-        # tag removed maintainers
-        removed_maintainers = set(history_maintainers).difference(set(maintainers))
-        for maintainer in removed_maintainers:
-            query = """{
-                          "script": {
-                            "source": "ctx._source['is_removed_maintainer']=1"
-                          },
-                          "query": {
-                            "term": {
-                              "user_login.keyword": "%s"
-                            }
-                          }
-                        }""" % maintainer
-            self.esClient.updateByQuery(query=query)
-        # tag maintainer`s sigs
-        for maintainer in maintainers:
-            sigs = maintainer_sigs_dict.get(maintainer)
-            query = """{
-                          "script": {
-                            "source": "ctx._source['maintainer_sigs']=params.sig",
-                            "lang": "painless",
-                            "params": {
-                              "sig": %s
-                            }
-                          },
-                          "query": {
-                            "term": {
-                              "user_login.keyword": "%s"
-                            }
-                          }
-                        }""" % (str(sigs).replace("\'", "\""), maintainer)
-
-            self.esClient.updateByQuery(query=query)
-            print('%s: %s' % (maintainer, sigs))
-
     def mark_removed_sigs(self, dirs, index):
         time.sleep(5)
         search = '''{
@@ -304,6 +233,91 @@ class SigMaintainer(object):
         rs.append('\n'.join(ownerslist[n:]))
         return rs
 
+    def get_sig_info_log(self, repo_path):
+        cmdlog = 'cd %s;git log -p sig-info.yaml' % repo_path
+        log_popen = subprocess.Popen(cmdlog, stdout=subprocess.PIPE, shell=True)
+        log = bytes.decode(log_popen.stdout.read(), encoding="utf-8", errors='ignore')
+        loglist = log.split('\n')
+        n = 0
+        rs = []
+        for index in range(len(loglist)):
+            if re.search(r'^commit .*', loglist[index]):
+                rs.append('\n'.join(loglist[n:index]))
+                n = index
+        rs.append('\n'.join(loglist[n:]))
+        return rs
+
+    def get_sig_info(self, owner_type, dir):
+        repo_path = self.sigs_dirs_path + '/' + dir
+        rs = self.get_sig_info_log(repo_path)
+
+        sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
+        info = yaml.load_all(open(sig_info), Loader=yaml.Loader).__next__()
+        datas = ''
+        repositories = info.get('repositories')
+        repos = []
+        for repo in repositories:
+            for r in repo['repo']:
+                repos.append(r)
+        users = []
+        if owner_type in info and info[owner_type] is not None:
+            users_info = info[owner_type]
+            for user in users_info:
+                users.append(user['gitee_id'])
+        for user in users:
+            times_owner = None
+            times = None
+            for r in rs:
+                if re.search(r'^commit .*', r):
+                    date = re.search(r'Date: (.*)\n', r).group(1)
+                    # time_struct = time.strptime(date[2:], '%a %b %d %H:%M:%S %Y')
+                    time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
+                    times = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
+                    break
+            for r in rs:
+                if r == '':
+                    continue
+                if re.search(r'\+-\s*gitee_id:\s*%s\n' % user, r):
+                    date = re.search(r'Date:\s*(.*)\n', r).group(1)
+                    # time_struct = time.strptime(date, '%a %b %d %H:%M:%S %Y')
+                    time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
+                    times_owner = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
+            repo_mark = True
+            for repo in repos:
+                ID = self.org + '_' + dir + '_' + repo + '_' + owner_type + '_' + user
+                if ID in self.exists_ids:
+                    self.exists_ids.remove(ID)
+                dataw = {"sig_name": dir,
+                         "repo_name": repo,
+                         "committer": user,
+                         "user_login": user,
+                         "created_at": times,
+                         "committer_time": times_owner,
+                         "is_sig_repo_committer": 1,
+                         "owner_type": owner_type}
+                userExtra = self.esClient.getUserInfo(user)
+                dataw.update(userExtra)
+                datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
+                datas += datar
+                repo_mark = False
+            if repo_mark:
+                ID = self.org + '_' + dir + '_null_' + owner_type + '_' + user
+                if ID in self.exists_ids:
+                    self.exists_ids.remove(ID)
+                dataw = {"sig_name": dir,
+                         "repo_name": None,
+                         "committer": user,
+                         "user_login": user,
+                         "created_at": times,
+                         "committer_time": times_owner,
+                         "is_sig_repo_committer": 1,
+                         "owner_type": owner_type}
+                userExtra = self.esClient.getUserInfo(user)
+                dataw.update(userExtra)
+                datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
+                datas += datar
+        return datas
+
     def get_sigs(self):
         path = self.sigs_dir
         url = self.sigs_url
@@ -317,7 +331,6 @@ class SigMaintainer(object):
             cmdpull = 'cd %s;git pull' % gitpath
             os.system(cmdpull)
 
-        # sigs
         dic = self.esClient.getOrgByGiteeID()
         self.esClient.giteeid_company_dict = dic[0]
         self.gitee.internalUsers = self.gitee.getItselfUsers(self.gitee.internal_users)
@@ -332,13 +345,13 @@ class SigMaintainer(object):
             sig_repos_dict = self.get_sig_repos_opengauss()
 
         for dir in dirs:
-            repo_path = self.sigs_dirs_path + '/' + dir
-            times = self.get_readme_log(repo_path)
-            rs = self.get_owner_log(repo_path)
-            owner_file = repo_path + '/' + 'OWNERS'
-            owner_logins = yaml.load_all(open(owner_file), Loader=yaml.Loader).__next__()
-            datas = ''
             try:
+                repo_path = self.sigs_dirs_path + '/' + dir
+                owner_file = repo_path + '/' + 'OWNERS'
+                owner_logins = yaml.load_all(open(owner_file), Loader=yaml.Loader).__next__()
+                times = self.get_readme_log(repo_path)
+                rs = self.get_owner_log(repo_path)
+                datas = ''
                 for key, val in owner_logins.items():
                     key = key.lower()
                     if key == "committer":
@@ -356,7 +369,6 @@ class SigMaintainer(object):
                         repos = []
                         if dir in sig_repos_dict:
                             repos = sig_repos_dict.get(dir)
-
                         for repo in repos:
                             ID = self.org + '_' + dir + '_' + repo + '_' + key + '_' + owner
                             if ID in self.exists_ids:
@@ -393,8 +405,13 @@ class SigMaintainer(object):
                             datas += datar
                 self.esClient.safe_put_bulk(datas)
                 print("this sig done: %s" % dir)
-            except:
-                print(traceback.format_exc())
+            except FileNotFoundError:
+                print('OWNER of %s is not exist. Using sig-info.yaml!' % dir)
+                datas = self.get_sig_info('maintainers', dir)
+                datas += self.get_sig_info('committers', dir)
+                self.esClient.safe_put_bulk(datas)
+                print("this sig done: %s" % dir)
+
         self.mark_removed_sigs(dirs=dirs, index=self.index_name_sigs)
         self.mark_removed_ids()
 
@@ -415,25 +432,10 @@ class SigMaintainer(object):
             repositories = []
             if dir in sig_repos_dict:
                 repositories = sig_repos_dict.get(dir)
-            # get maintainers
-            try:
-                owner_file = self.sigs_dirs_path + '/' + dir + '/' + 'OWNERS'
-                owners = yaml.load_all(open(owner_file), Loader=yaml.Loader).__next__()
-                maintainers = owners['maintainers']
-            except FileNotFoundError:
-                maintainers = []
-            # get maintainer sigs dict
-            dt = defaultdict(dict)
-            for maintainer in maintainers:
-                dt.update({maintainer: [dir]})
-            combined_keys = dict_comb.keys() | dt.keys()
-            dict_comb = {key: dict_comb.get(key, []) + dt.get(key, []) for key in combined_keys}
-            # sig actions
             action = {
                 "sig_name": dir,
                 "repos": repositories,
                 "is_sig_original": 1,
-                "maintainers": maintainers,
                 "created_at": "2021-12-01T00:00:00+08:00"
             }
             try:
@@ -443,7 +445,12 @@ class SigMaintainer(object):
                     if i == 'description':
                         action.update({i: info.get(i)})
                     if i == 'maintainers':
+                        maintainer_info = info.get(i)
+                        maintainers = []
+                        for maintainer in maintainer_info:
+                            maintainers.append(maintainer['gitee_id'])
                         action.update({'maintainer_info': info.get(i)})
+                        action.update({"maintainers": maintainers})
             except FileNotFoundError:
                 print('sig-info.yaml of %s is not exist.' % dir)
             indexData = {"index": {"_index": self.index_name_sigs, "_id": dir}}
@@ -451,62 +458,3 @@ class SigMaintainer(object):
             actions += json.dumps(action) + '\n'
         self.esClient.safe_put_bulk(actions)
         return dict_comb
-
-    def get_sig_maintainerInfo(self):
-        dirs = os.walk(self.sigs_dirs_path).__next__()[1]
-        actions = ''
-        for dir in dirs:
-            print('start sig: ', dir)
-            maintainers = []
-            committers = []
-            repos = []
-            try:
-                sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
-                info = yaml.load_all(open(sig_info), Loader=yaml.Loader).__next__()
-                sig_action = {}
-                for i in info:
-                    if i == 'maintainers' or i == 'committers' or i == 'repositories':
-                        continue
-                    sig_action.update({i: info.get(i)})
-                if 'maintainers' in info and info['maintainers'] is not None:
-                    maintainers = info['maintainers']
-                if 'committers' in info and info['committers'] is not None:
-                    committers = info['committers']
-                if 'repositories' in info and info['repositories'] is not None:
-                    repos = info['repositories']
-                sig_repos = []
-                for repo in repos:
-                    sig_repos.append(repo['repo'])
-                actions += self.get_single_maintainer(dir, sig_repos, maintainers, 'maintainers', sig_action)
-                actions += self.get_single_maintainer(dir, sig_repos, committers, 'committers', sig_action)
-                print('sig done: ', dir)
-            except FileNotFoundError:
-                print('sig-info.yaml of %s is not exist.' % dir)
-        self.esClient.safe_put_bulk(actions)
-        self.mark_removed_sigs(dirs=dirs, index=self.index_name_maintainer_info)
-
-    def get_single_maintainer(self, sig, sig_repos, users, owner_type, sig_action):
-        actions = ''
-        for user in users:
-            login = user['gitee_id']
-            company = ''
-            email = ''
-            if 'organization' in user:
-                company = user['organization']
-            if 'email' in user:
-                email = user['email']
-            action = {
-                "sig_name": sig,
-                "user_login": login,
-                "repos": sig_repos,
-                "email": email,
-                "tag_user_company": company,
-                "owner_type": owner_type,
-                "is_maintainer_info": 1,
-                "created_at": "2022-03-01T00:00:00+08:00"
-            }
-            action.update(sig_action)
-            indexData = {"index": {"_index": self.index_name_maintainer_info, "_id": sig + '_' + login}}
-            actions += json.dumps(indexData) + '\n'
-            actions += json.dumps(action) + '\n'
-        return actions
