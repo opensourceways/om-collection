@@ -12,14 +12,14 @@
 # See the Mulan PSL v2 for more details.
 # Create: 2022-03
 #
-import platform
+import json
 import re
 import sys
 
 import requests
 
+from collect.gitee import GiteeClient
 from data import common
-from data.gitee import Gitee
 
 HEADERS = {'Content-Type': 'application/json', 'charset': 'UTF-8'}
 PAYLOAD = {}
@@ -37,8 +37,7 @@ class GiteeScore(object):
         self.issue_state = config.get('issue_state')
         self.score_admin_file_path = config.get('score_admin_file_path')
         self.esClient = common.ESClient(config)
-        self.platform_name = platform.system().lower()
-        self.gitee_api = Gitee(config)
+        self.giteeClient = GiteeClient(owner=self.owner, repository=self.repository, token=self.access_token)
 
     @common.show_spend_seconds_of_this_function
     def run(self, from_date):
@@ -46,7 +45,6 @@ class GiteeScore(object):
         self.score_admins = self.get_score_admins()
         if not self.score_admins:
             return
-
         self.process_gitee_score()
 
         print(f'Function name: {sys._getframe().f_code.co_name} has run over.')
@@ -61,13 +59,13 @@ class GiteeScore(object):
 
     @common.show_spend_seconds_of_this_function
     def process_gitee_score(self):
-        issue_brief_list = self.get_repo_issue_numbers(per_page=100)
+        issue_brief_list = self.get_repo_issue_numbers()
         issue_total_count = len(issue_brief_list)
 
         actions = ''
         for issue_brief in issue_brief_list:
             issue_number = issue_brief[0]
-            issue_author = issue_brief[1]
+            user_login = issue_brief[1]
             issue_created_at = issue_brief[2]
 
             comment_index = issue_brief_list.index(issue_brief)
@@ -81,7 +79,7 @@ class GiteeScore(object):
             content_body = {}
             content_body['issue_number'] = issue_number
             content_body['created_at'] = issue_created_at
-            content_body['user_login'] = issue_author
+            content_body['user_login'] = user_login
             content_body['scoring_admin'] = author_username
             content_body['score'] = score
             action = common.getSingleAction(self.index_name, issue_number, content_body)
@@ -89,58 +87,37 @@ class GiteeScore(object):
         self.esClient.safe_put_bulk(actions)
 
     @common.show_spend_seconds_of_this_function
-    def get_repo_issue_numbers(self, per_page):
-        res_data_list = []
-        start_page = 1
+    def get_repo_issue_numbers(self):
 
-        while True:
-            api_url = f'{API_BASE_URL}/{self.repo_path}/issues?state={self.issue_state}&sort=created&direction=desc&' \
-                      f'page={start_page}&per_page={per_page}&access_token={self.access_token}'
+        issue_generator = self.giteeClient.issues()
+        issue_bodies = []
+        for page_issue in issue_generator:
+            page_issue_list = json.loads(page_issue)
+            page_issue_bodies = []
+            for singe_issue_body in page_issue_list:
+                issue_number = singe_issue_body.get('number')
+                user_login = singe_issue_body.get('user').get('login')
+                created_at = singe_issue_body.get('created_at')
+                page_issue_bodies.append((issue_number, user_login, created_at))
+            issue_bodies.extend(page_issue_bodies)
 
-            res = requests.get(api_url, headers=HEADERS, data=PAYLOAD)
-            if res.status_code != 200:
-                print(f'Failed to fetch data at page: {start_page}')
-                break
-
-            # Remove the special string which cannot be converted to python data structure
-            res_text = res.text.replace('null', 'None').replace('true', 'True').replace('false', 'False')
-            page_data_list = eval(res_text)
-
-            if not page_data_list:  # last page data is []
-                break
-
-            res_data_list.extend(page_data_list)
-            start_page += 1
-
-        issue_brief_list = [(issue.get('number'), issue.get('user').get('login'), issue.get('created_at'))
-                            for issue in res_data_list]
-        print(f'Succeed to collect issue numbers: {len(res_data_list)}')
-
-        return issue_brief_list
+        print(f'Succeed to collect issue numbers: {len(issue_bodies)}')
+        return issue_bodies
 
     def get_comments_by_issue_number(self, issue_number):
-        comment_list = []
-        start_page = 1
-        while True:
-            api_url = f'{API_BASE_URL}/openeuler/docs/issues/{issue_number}/comments?access_token={self.access_token}' \
-                      f'&page={start_page}&per_page=100&order=asc'
-            res = requests.get(api_url, headers=HEADERS, data=PAYLOAD)
+        issue_comment_list = []
+        issue_comment_generator = self.giteeClient.issue_comments(issue_number)
 
-            if res.status_code != 200:
-                print(f'Failed to fetch comments from issue:{issue_number}')
-                break
+        issue_comment_text = [issue_comment for issue_comment in issue_comment_generator][0]
+        issue_comment_text = issue_comment_text.replace('\r', '').replace('\n', '\t').replace('null', 'None'). \
+            replace('true', 'True').replace('false', 'False')
 
-            res_text = res.text.replace('null', 'None').replace('true', 'True').replace('false', 'False')
-            page_data_list = eval(res_text)
+        try:
+            issue_comment_list = eval(issue_comment_text)
+        except Exception as exp:
+            print(f'Failed to fetch comments from issue:{issue_number}. \t Error is {exp.__repr__()}')
 
-            if not page_data_list:  # last page data is []
-                # print(f'Get {start_page - 1} page in all.')
-                break
-
-            comment_list.extend(page_data_list)
-            start_page += 1
-
-        return comment_list
+        return issue_comment_list
 
     def parse_comment_list(self, comment_list):
         global author_username, issue_id, comment_index
@@ -151,7 +128,6 @@ class GiteeScore(object):
             comment_index = comment_list.index(comment)
             issue_id = comment.get('id')
             author_username = comment.get('user').get('login')
-            author_id = comment.get('user').get('id')
             comment_content = comment.get('body')
 
             if author_username in self.score_admins and comment_content.strip().startswith("得分"):
@@ -162,7 +138,6 @@ class GiteeScore(object):
         return username, score
 
     def get_score_from_comment_content(self, comment_content):
-
         comment_line = comment_content.split('\r\n')[0]
         score = None
 
