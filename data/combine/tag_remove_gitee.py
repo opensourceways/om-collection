@@ -99,7 +99,7 @@ class TagRemovedGitee(object):
         _id = hit['_id']
         url = hit['_source']['url']
         res = requests.get(url=url, headers=self.headers, timeout=(6.05, 6.05))
-        if res.status_code != 200:
+        if res.status_code == 404:
             query = '''{
                           "script": {
                             "source": "ctx._source['is_removed']=1"

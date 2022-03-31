@@ -1515,7 +1515,7 @@ class ESClient(object):
             return {}
         return data
 
-    def getItemsByMatchs(self, matchs, size=500, aggs=None):
+    def getItemsByMatchs(self, matchs, size=500, aggs=None, matchs_not=None):
         '''
         {
             "size": 497,
@@ -1539,17 +1539,23 @@ class ESClient(object):
         '''
         if matchs is None:
             matchs = []
+        if matchs_not is None:
+            matchs_not = []
 
         terms = []
         for match in matchs:
             if not match:
                 continue
-            term = '''{"match" : { "%s" : "%s"}}''' % (
-                match['name'], match['value'])
+            term = '''{"match" : { "%s" : "%s"}}''' % (match['name'], match['value'])
             terms.append(term)
+        terms_not = []
+        for match_not in matchs_not:
+            if not match_not:
+                continue
+            term_not = '''{"match" : { "%s" : "%s"}}''' % (match_not['name'], match_not['value'])
+            terms_not.append(term_not)
 
-        data_query = '''"query": {"bool": {"must": [%s]}}''' % (
-            ','.join(terms))
+        data_query = '''"query": {"bool": {"must": [%s], "must_not":[%s]}}''' % (','.join(terms), ','.join(terms_not))
 
         if aggs:
             data_json = '''

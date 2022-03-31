@@ -366,9 +366,10 @@ class Gitee(object):
                 print("[update] set fork(%s) is_removed to 1" % fork['_source']['fork_id'])
                 self.esClient.updateToRemoved(fork['_id'])
 
-    def updateRemovedData(self, newdata, type, matches):
+    def updateRemovedData(self, newdata, type, matches, matchs_not=None):
+        original_ids = []
         if self.is_update_removed_data != "true":
-            return
+            return original_ids
         # 获取gitee中指定仓库的所有issue
         '''matches = [{
             "name": "is_gitee_issue",
@@ -380,8 +381,8 @@ class Gitee(object):
             }
         ]'''
         if newdata is None or len(newdata) == 0 or not isinstance(newdata, list):
-            return
-        data = self.esClient.getItemsByMatchs(matches)
+            return original_ids
+        data = self.esClient.getItemsByMatchs(matches, size=10000, matchs_not=matchs_not)
         newdataids = []
         data_num = data['hits']['total']['value']
         original_datas = data['hits']['hits']
@@ -395,7 +396,7 @@ class Gitee(object):
             for d in newdata:
                 newdataids.append(d['id'])
         if data_num == len(newdata):
-            return
+            return original_ids
 
         for ordata in original_datas:
             if type == 'issue':
@@ -408,15 +409,19 @@ class Gitee(object):
                     self.esClient.updateToRemoved(ordata['_id'])
             elif type == "star":
                 starid = int(ordata['_source']['star_id'].split('star')[1])
+                original_ids.append(starid)
                 if starid not in newdataids:
                     print("[update] set star(%s) is_removed to 1" % ordata['_source']['star_id'])
                     self.esClient.updateToRemoved(ordata['_id'])
             elif type == "fork":
-                if ordata['_source']['fork_id'] not in newdataids:
-                    print("[update] set fork(%s) is_removed to 1" % ordata['_source']['fork_id'])
+                forkid = ordata['_source']['fork_id']
+                original_ids.append(forkid)
+                if forkid not in newdataids:
+                    print("[update] set fork(%s) is_removed to 1" % forkid)
                     self.esClient.updateToRemoved(ordata['_id'])
             elif type == "watch":
                 watchid = ordata['_source']['watch_id'].split('watch')[1]
+                original_ids.append(watchid)
                 if watchid not in newdataids:
                     print("[update] set watch(%s) is_removed to 1" % ordata['_source']['watch_id'])
                     self.esClient.updateToRemoved(ordata['_id'])
@@ -424,6 +429,7 @@ class Gitee(object):
                 if ordata['_source']['repository'] not in newdataids:
                     print("[update] set repository(%s) is_removed to 1" % ordata['_source']['repository'])
                     self.esClient.updateToRemoved(ordata['_id'])
+        return original_ids
 
     def writeForks(self, owner, repo, from_date, sig_names=None):
         startTime = datetime.datetime.now()
@@ -481,18 +487,20 @@ class Gitee(object):
         client = GiteeClient(owner, repo, self.gitee_token)
         star_data = self.getGenerator(client.stars())
         actions = ""
-        self.updateRemovedData(star_data, 'star', [{
+        original_ids = self.updateRemovedData(star_data, 'star', [{
             "name": "is_gitee_star",
             "value": 1,
         },
             {
                 "name": "gitee_repo.keyword",
                 "value": "https://gitee.com/" + owner + "/" + repo,
-            }])
+            }], matchs_not=[{"name": "is_removed", "value": "1"}])
         for star in star_data:
-            star_id = owner + "/" + repo + "_" + "star" + str(star['id'])
-            if self.esClient.checkFieldExist(filter=star_id) == True:
+            if len(original_ids) != 0 and star['id'] in original_ids:
                 continue
+            star_id = owner + "/" + repo + "_" + "star" + str(star['id'])
+            # if self.esClient.checkFieldExist(filter=star_id) == True:
+            #     continue
 
             from_registerd_to_star = None
             user_details = self.getGenerator(client.user(star['login']))
@@ -526,22 +534,24 @@ class Gitee(object):
         client = GiteeClient(owner, repo, self.gitee_token)
 
         watch_data = self.getGenerator(client.watchs())
-        self.updateRemovedData(watch_data, 'watch', [{
+        original_ids = self.updateRemovedData(watch_data, 'watch', [{
             "name": "is_gitee_watch",
             "value": 1,
         },
             {
                 "name": "gitee_repo.keyword",
                 "value": "https://gitee.com/" + owner + "/" + repo,
-            }])
+            }], matchs_not=[{"name": "is_removed", "value": "1"}])
         actions = ""
         for watch in watch_data:
             # if watch['login'] in self.skip_user:
             #     continue
 
             watch_id = owner + "/" + repo + "_" + "watch" + str(watch['id'])
-            if self.esClient.checkFieldExist(filter=[watch_id]) == True:
+            if len(original_ids) != 0 and watch['id'] in original_ids:
                 continue
+            # if self.esClient.checkFieldExist(filter=[watch_id]) == True:
+            #     continue
             action = {
                 "sig_names": sig_names,
                 "user_id": watch["id"],
