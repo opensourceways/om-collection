@@ -31,7 +31,11 @@ class GiteeDeveloper(object):
             repo_page = 0
             while True:
                 repo_page += 1
-                repos = gitee_api.get_repos(cur_page=repo_page).json()
+                response = gitee_api.get_repos(cur_page=repo_page)
+                if response.status_code != 200:
+                    print('HTTP error!')
+                    continue
+                repos = response.json()
                 if len(repos) == 0:
                     break
                 print("repo_page: %i" % repo_page)
@@ -43,6 +47,9 @@ class GiteeDeveloper(object):
                     while True:
                         page += 1
                         commits = gitee_api.get_commits(repo_path, cur_page=page, since=self.since, until=self.until)
+                        if commits.status_code != 200:
+                            print('HTTP error!')
+                            continue
                         commits_legacy = commits.json()
                         if len(commits_legacy) == 0:
                             print("commit_page: %i finish..." % page)

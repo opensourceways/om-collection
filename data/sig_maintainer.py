@@ -37,7 +37,7 @@ class SigMaintainer(object):
         self.from_data = config.get("from_data")
         self.sig_mark = config.get("sig_mark")
         self.exists_ids = []
-        self.index_name_maintainer_info = config.get('index_name_maintainer_info')
+        # self.index_name_maintainer_info = config.get('index_name_maintainer_info')
 
     def run(self, from_time):
         if self.index_name_sigs and self.sig_mark:
@@ -432,10 +432,25 @@ class SigMaintainer(object):
             repositories = []
             if dir in sig_repos_dict:
                 repositories = sig_repos_dict.get(dir)
+            # get maintainers
+            try:
+                owner_file = self.sigs_dirs_path + '/' + dir + '/' + 'OWNERS'
+                owners = yaml.load_all(open(owner_file), Loader=yaml.Loader).__next__()
+                maintainers = owners['maintainers']
+            except FileNotFoundError:
+                maintainers = []
+            # # get maintainer sigs dict
+            # dt = defaultdict(dict)
+            # for maintainer in maintainers:
+            #     dt.update({maintainer: [dir]})
+            # combined_keys = dict_comb.keys() | dt.keys()
+            # dict_comb = {key: dict_comb.get(key, []) + dt.get(key, []) for key in combined_keys}
+            # sig actions
             action = {
                 "sig_name": dir,
                 "repos": repositories,
                 "is_sig_original": 1,
+                "maintainers": maintainers,
                 "created_at": "2021-12-01T00:00:00+08:00"
             }
             try:
@@ -446,11 +461,11 @@ class SigMaintainer(object):
                         action.update({i: info.get(i)})
                     if i == 'maintainers':
                         maintainer_info = info.get(i)
-                        maintainers = []
-                        for maintainer in maintainer_info:
-                            maintainers.append(maintainer['gitee_id'])
-                        action.update({'maintainer_info': info.get(i)})
-                        action.update({"maintainers": maintainers})
+                        # maintainers = []
+                        # for maintainer in maintainer_info:
+                        #     maintainers.append(maintainer['gitee_id'])
+                        action.update({'maintainer_info': maintainer_info})
+                        # action.update({"maintainers": maintainers})
             except FileNotFoundError:
                 print('sig-info.yaml of %s is not exist.' % dir)
             indexData = {"index": {"_index": self.index_name_sigs, "_id": dir}}
