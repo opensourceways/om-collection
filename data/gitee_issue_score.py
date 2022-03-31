@@ -36,12 +36,14 @@ class GiteeScore(object):
         self.repository = config.get('repository')
         self.issue_state = config.get('issue_state')
         self.score_admin_file_path = config.get('score_admin_file_path')
+        self.robot_user_login = config.get('robot_user_login')
         self.esClient = common.ESClient(config)
         self.giteeClient = GiteeClient(owner=self.owner, repository=self.repository, token=self.access_token)
 
     @common.show_spend_seconds_of_this_function
     def run(self, from_date):
 
+        self.robot_user_list = [robot_user.strip() for robot_user in self.robot_user_login.split(',')]
         self.score_admins = self.get_score_admins()
         if not self.score_admins:
             return
@@ -66,8 +68,8 @@ class GiteeScore(object):
         for issue_brief in issue_brief_list:
             issue_number = issue_brief[0]
             user_login = issue_brief[1]
+            if user_login in self.robot_user_login: continue  # Remove this issues which created by robot user
             issue_created_at = issue_brief[2]
-
             comment_index = issue_brief_list.index(issue_brief)
             issue_comment_list = self.get_comments_by_issue_number(issue_number)
             author_username, score = self.parse_comment_list(issue_comment_list)
