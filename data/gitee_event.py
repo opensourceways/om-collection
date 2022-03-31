@@ -121,7 +121,11 @@ class GiteeEvent(object):
         while True:
             try:
                 print("owner(%s), repo_page=%d" % (owner, repo_page))
-                repos_object = gitee_api.get_repos(cur_page=repo_page).json()
+                response = gitee_api.get_repos(cur_page=repo_page)
+                if response.status_code != 200:
+                    print('HTTP error!')
+                    continue
+                repos_object = response.json()
                 if len(repos_object) == 0:
                     print("event_count = ", self.event_count)
                     break
