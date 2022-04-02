@@ -216,7 +216,6 @@ class SigMaintainer(object):
                 # time_struct = time.strptime(date[2:], '%a %b %d %H:%M:%S %Y')
                 time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
                 times = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
-                break
         return times
 
     def get_owner_log(self, repo_path):
@@ -266,14 +265,7 @@ class SigMaintainer(object):
                 users.append(user['gitee_id'])
         for user in users:
             times_owner = None
-            times = None
-            for r in rs:
-                if re.search(r'^commit .*', r):
-                    date = re.search(r'Date: (.*)\n', r).group(1)
-                    # time_struct = time.strptime(date[2:], '%a %b %d %H:%M:%S %Y')
-                    time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
-                    times = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
-                    break
+            times = self.get_readme_log(repo_path)
             for r in rs:
                 if r == '':
                     continue
@@ -428,6 +420,8 @@ class SigMaintainer(object):
         actions = ''
         dict_comb = defaultdict(dict)
         for dir in dirs:
+            repo_path = self.sigs_dirs_path + '/' + dir
+            times = self.get_readme_log(repo_path)
             # get repos
             repositories = []
             if dir in sig_repos_dict:
@@ -451,7 +445,7 @@ class SigMaintainer(object):
                 "repos": repositories,
                 "is_sig_original": 1,
                 "maintainers": maintainers,
-                "created_at": "2021-12-01T00:00:00+08:00"
+                "created_at": times
             }
             try:
                 sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
