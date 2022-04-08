@@ -573,8 +573,9 @@ class GiteeClient():
 
         return self.fetch(url=url_next, payload=payload)
 
-    def get_commits(self, repo, cur_page, since, until):
+    def get_commits(self, repo, sha, cur_page, since, until):
         payload = {
+            'sha': sha,
             'page': cur_page,
             'per_page': PER_PAGE,
             'since': since,
