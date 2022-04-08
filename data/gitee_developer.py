@@ -91,8 +91,6 @@ class GiteeDeveloper(object):
                     if len(branches_name) == 0:
                         break
                     for branch in branches_name:
-                        if branch == "init":
-                            continue
                         print("start branch: %s" % branch)
                         page = 0
                         self.flag = 1
