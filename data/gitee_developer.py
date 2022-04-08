@@ -34,7 +34,7 @@ class GiteeDeveloper(object):
     def get_developer_info(self, owner, page, repo_path, branch):
         actions = ""
         gitee_api = GiteeClient(owner, self.repository, self.access_token, self.base_url)
-        commits = gitee_api.get_commits(repo_path, branch, cur_page=page, since=self.since, until=self.until)
+        commits = gitee_api.get_commits(repo_path, cur_page=page, since=self.since, until=self.until, sha=branch)
         if commits.status_code != 200:
             print('HTTP get commits error!')
             return actions

@@ -583,17 +583,20 @@ class GiteeClient():
 
         return self.fetch(url=url_next, payload=payload)
 
-    def get_commits(self, repo, sha, cur_page, since, until):
+    def get_commits(self, repo, cur_page, since, until=None, sha=None):
         payload = {
-            'sha': sha,
             'page': cur_page,
             'per_page': PER_PAGE,
             'since': since,
-            'until': until,
+            # 'until': until,
             'access_token': self.access_token
         }
-        commit_url = self.urijoin(self.base_url, 'repos', self.owner, repo, 'commits')
+        if sha is not None:
+            payload.update({'sha': sha})
+        if until is not None:
+            payload.update({'until': until})
 
+        commit_url = self.urijoin(self.base_url, 'repos', self.owner, repo, 'commits')
         return self.fetch(url=commit_url, payload=payload)
 
     def get_commit_count(self, owner, repo):
