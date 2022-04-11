@@ -193,7 +193,7 @@ class CVE(object):
             params['pageSize'] = pageSize
         else:
             params['pageSize'] = 10000
-        response = requests.get(self.cve_url, params=params)
+        response = self.esClient.request_get(self.cve_url, params=params)
         cveData = self.esClient.getGenerator(response.text)
         return cveData['body']
 
@@ -225,7 +225,7 @@ class CVE(object):
     def getPrByIssueNumber(self, owner, repo, issueNumber):
         url = 'https://gitee.com/api/v5/repos/%s/issues/%s/pull_requests?access_token=%s&repo=%s' % (
             owner, issueNumber, self.giteeToken, repo)
-        res = requests.get(url=url, verify=False)
+        res = self.esClient.request_get(url=url)
         prs = json.loads(res.text)
         return prs
 

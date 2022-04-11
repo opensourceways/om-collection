@@ -344,7 +344,7 @@ class CollectData(object):
   }%s
 }''' % (str(dateiise).split()[0], str(dateii).split()[0], mactch, commitdata)
 
-            res = requests.get(url=url, headers=self.headers, verify=False, data=data)
+            res = self.esClient.request_get(url=url, headers=self.headers, data=data)
             r = res.content
             re = json.loads(r)
             ind = re['hits']['hits']
@@ -1063,7 +1063,7 @@ class CollectData(object):
                 }
               }
             }''' % (str(dateiise).split()[0], str(dateii).split()[0])
-            res = requests.get(url=url, headers=self.headers, verify=False, data=data)
+            res = self.esClient.request_get(url=url, headers=self.headers, data=data)
             r = res.content
             re = json.loads(r)
             ind = re['hits']['hits']
@@ -1118,7 +1118,7 @@ class CollectData(object):
                         }
                       }
                     }''' % (str(dateiise).split()[0], str(dateii).split()[0])
-            res = requests.get(url=url, headers=self.headers, verify=False, data=data)
+            res = self.esClient.request_get(url=url, headers=self.headers, data=data)
             r = res.content
             re = json.loads(r)
             ind = re['hits']['hits']
@@ -1184,7 +1184,7 @@ class CollectData(object):
   }%s
 }''' % (created_at, str(datei).split()[0], str(dateii).split()[0], mactch, commitdata)
 
-            res = requests.get(url=url, headers=self.headers, verify=False, data=data)
+            res = self.esClient.request_get(url=url, headers=self.headers, data=data)
             r = res.content
             re = json.loads(r)
             num = re["aggregations"]["agg_count"]["value"]
@@ -1219,7 +1219,7 @@ class CollectData(object):
              }
            }''' % (created_at, str(datei).split()[0], str(dateii).split()[0], mactch)
 
-            res = requests.get(url=url, headers=self.headers, verify=False, data=data)
+            res = self.esClient.request_get(url=url, headers=self.headers, data=data)
             r = res.content
             re = json.loads(r)
             num = re["count"]
