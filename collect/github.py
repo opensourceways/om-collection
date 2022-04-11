@@ -64,7 +64,7 @@ class GithubClient(object):
     def getAllrepo(self):
         full_names = []
         r = requests.get('https://api.github.com/users/' + self.org + '/repos' + '?pape=1&per_page=10000',
-                         headers=self.headers)
+                         headers=self.headers, timeout=60)
         data = r.json()
         return data
 
@@ -74,7 +74,7 @@ class GithubClient(object):
         current_page = 1
         while True:
             url = f'https://api.github.com/orgs/{self.org}/repos?page={current_page}&per_page=100'
-            res = requests.get(url, headers=self.headers)
+            res = requests.get(url, headers=self.headers, timeout=60)
             data = res.json()
             if not data:  ## if data is a empty list, break loop
                 break
@@ -87,7 +87,7 @@ class GithubClient(object):
         headers = self.headers
         headers['Accept'] = 'application/vnd.github.v3.star+json'
         r = requests.get('https://api.github.com/users/%s' % name,
-                         headers=self.headers)
+                         headers=self.headers, timeout=60)
         data = r.json()
         return data
 
@@ -95,14 +95,14 @@ class GithubClient(object):
         headers = self.headers
         headers['Accept'] = 'application/vnd.github.v3.star+json'
         r = requests.get('https://api.github.com/user/%s' % id,
-                         headers=self.headers)
+                         headers=self.headers, timeout=60)
         data = r.json()
         return data
 
     def getAllOwnerRepo(self, owner):
         full_names = []
         r = requests.get('https://api.github.com/users/' + owner + '/repos' + '?pape=1&per_page=10000',
-                         headers=self.headers)
+                         headers=self.headers, timeout=60)
         data = r.json()
         return data
 
@@ -112,7 +112,7 @@ class GithubClient(object):
         else:
             repo = self.repository
         c = requests.get('https://api.github.com/repos/' + self.org + '/' + repo + '/traffic/clones',
-                         headers=self.headers)
+                         headers=self.headers, timeout=60)
         cloneObj = c.json()
         return cloneObj
 
@@ -141,7 +141,8 @@ class GithubClient(object):
         if method == 'GET':
             response = requests.get(url, headers=self.headers,
                                     verify=self.ssl_verify,
-                                    stream=stream, auth=auth)
+                                    stream=stream, auth=auth,
+                                    timeout=60)
             # response = self.session.get(url, params=payload, headers=headers, stream=stream,
             #                             verify=self.ssl_verify, auth=auth)
         else:

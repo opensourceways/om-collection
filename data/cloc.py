@@ -501,7 +501,7 @@ class ClocCode(object):
                 continue
             try:
                 # Fetch repo info from yaml file online
-                yaml_response = requests.get(yaml_url)
+                yaml_response = self.esClient.request_get(yaml_url)
                 if yaml_response.status_code != 200:
                     print('Failed to get repo from yaml_url,return empty repo list.\n')
                     return repos
