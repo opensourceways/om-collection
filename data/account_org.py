@@ -52,8 +52,8 @@ class AccountOrg(object):
                                     }
                                   }
                                 }'''
-            res = requests.get(self.esClient.getSearchUrl(index_name=self.index_name_cla), data=search_json,
-                               headers=self.esClient.default_headers, verify=False)
+            res = self.esClient.request_get(self.esClient.getSearchUrl(index_name=self.index_name_cla),
+                                            data=search_json, headers=self.esClient.default_headers)
             if res.status_code != 200:
                 print("The index not exist")
                 return {}
