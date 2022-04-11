@@ -63,7 +63,7 @@ class BaiDuTongjiClient():
                 "metrics": metric,
                 "method": method,
             }
-            data = requests.get(url=URL, params=params)
+            data = requests.get(url=URL, params=params, timeout=60)
 
         j = data.json()
         return j

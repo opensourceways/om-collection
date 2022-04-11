@@ -116,8 +116,8 @@ class GitHubDown(object):
 
     def getAllrepo(self, org):
         full_names = []
-        r = requests.get('https://api.github.com/users/' + org + '/repos' + '?pape=1&per_page=10000',
-                         headers=self.headers)
+        r = self.esClient.request_get('https://api.github.com/users/' + org + '/repos' + '?pape=1&per_page=10000',
+                                      headers=self.headers)
         data = r.json()
 
         for rep in data:
@@ -139,7 +139,7 @@ class GitHubDown(object):
     def getClone(self, full_names, org):
         actions = ""
         for full_name in full_names:
-            c = requests.get('https://api.github.com/repos/' + full_name + '/traffic/clones', headers=self.headers)
+            c = self.esClient.request_get('https://api.github.com/repos/' + full_name + '/traffic/clones', headers=self.headers)
 
             cloneObj = c.json()
 
@@ -171,7 +171,7 @@ class GitHubDown(object):
     def getView(self, full_names, org):
         actions = ""
         for full_name in full_names:
-            r = requests.get('https://api.github.com/repos/' + full_name + '/traffic/views', headers=self.headers)
+            r = self.esClient.request_get('https://api.github.com/repos/' + full_name + '/traffic/views', headers=self.headers)
 
             viewObj = r.json()
 

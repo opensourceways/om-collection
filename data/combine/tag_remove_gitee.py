@@ -98,7 +98,7 @@ class TagRemovedGitee(object):
     def tag_removed_issue_func(self, hit):
         _id = hit['_id']
         url = hit['_source']['url']
-        res = requests.get(url=url, headers=self.headers, timeout=(6.05, 6.05))
+        res = self.esClient.request_get(url=url, headers=self.headers, timeout=(6.05, 6.05))
         if res.status_code == 404:
             query = '''{
                           "script": {

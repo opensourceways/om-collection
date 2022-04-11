@@ -34,9 +34,9 @@ class Meetings(object):
         if self.org == 'mindspore':
             url = self.meetings_url + "meetingslist/?token=" + self.query_token
         if self.use_headers == 'true':
-            res = requests.get(url=url, headers=self.headers)
+            res = self.esClient.request_get(url=url, headers=self.headers)
         else:
-            res = requests.get(url=url)
+            res = self.esClient.request_get(url=url)
         if res.status_code != 200:
             print('request fail, code=%d' % res.status_code)
             return
@@ -64,7 +64,7 @@ class Meetings(object):
         print('get all meetings end...')
 
     def get_participants_by_meet(self, mid):
-        res = requests.get(url=self.meetings_url + "participants/" + mid + "/?token=" + self.query_token)
+        res = self.esClient.request_get(url=self.meetings_url + "participants/" + mid + "/?token=" + self.query_token)
         if res.status_code != 200:
             if res.status_code == 404:
                 print("The meeting participants not found: ", res.status_code)

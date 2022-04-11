@@ -52,7 +52,7 @@ class GiteeScore(object):
         print(f'Function name: {sys._getframe().f_code.co_name} has run over.')
 
     def get_score_admins(self):
-        yaml_response = requests.get(self.score_admin_file_path)
+        yaml_response = self.esClient.request_get(self.score_admin_file_path)
         if yaml_response.status_code != 200:
             print('Cannot fetch online yaml file.')
             return None

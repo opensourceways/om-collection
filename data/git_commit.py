@@ -797,8 +797,8 @@ class GitCommit(object):
                 companies = yaml.safe_load(open(company_filename, encoding='UTF-8'))
                 p.close()
             elif self.platform_name == 'windows':  ###Test in windows without wget command
-                user_yaml_response = requests.get(self.user_yaml_url)
-                company_yaml_response = requests.get(self.company_yaml_url)
+                user_yaml_response = self.esClient.request_get(self.user_yaml_url)
+                company_yaml_response = self.esClient.request_get(self.company_yaml_url)
                 if user_yaml_response.status_code != 200 or company_yaml_response.status_code != 200:
                     print('Cannot connect the address of data.yaml or company.yaml online. then return'
                           ' the empty companyInfo dict.')
@@ -968,7 +968,7 @@ class GitCommit(object):
                 continue
             try:
                 # Fetch repo info from yaml file online
-                yaml_response = requests.get(yaml_url)
+                yaml_response = self.esClient.request_get(yaml_url)
                 if yaml_response.status_code != 200:
                     print('Failed to get repo from yaml_url,return empty repo list.\n')
                     return repos
