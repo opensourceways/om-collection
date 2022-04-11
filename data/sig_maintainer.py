@@ -1,16 +1,15 @@
 import os
-from collections import defaultdict
-from bs4 import BeautifulSoup
 import re
 import json
 import requests
 import time
 import yaml
-from configparser import ConfigParser
+import subprocess
+
+from collections import defaultdict
 from data.common import ESClient
 from data.gitee import Gitee
-import traceback
-import subprocess
+
 
 
 class SigMaintainer(object):
