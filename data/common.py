@@ -1378,7 +1378,7 @@ class ESClient(object):
             return None
 
         data = res.json()
-        print(data)
+        # print(data)
         count = 0
         if query:
             if not field:
@@ -1727,7 +1727,7 @@ class ESClient(object):
             created_at = fromTime.strftime("%Y-%m-%dT23:59:59+08:00")
             if fromTime.strftime("%Y%m%d") == to:
                 created_at = fromTime.strftime("%Y-%m-%dT00:00:01+08:00")
-
+            query1 = "(" + query + ") AND !is_removed:1"
             c = self.getCountByTermDate(
                 field,
                 count_key,
@@ -1736,7 +1736,14 @@ class ESClient(object):
                 index_name=self.index_name,
                 query_index_name=self.query_index_name,
                 query=query)
-            # return
+            c1 = self.getCountByTermDate(
+                field,
+                count_key,
+                starTime.strftime("%Y-%m-%dT00:00:00+08:00"),
+                fromTime.strftime("%Y-%m-%dT23:59:59+08:00"),
+                index_name=self.index_name,
+                query_index_name=self.query_index_name,
+                query=query1)
             if c is not None:
                 user = {
                     "all_" + key_prefix + count_key: c,
@@ -1744,11 +1751,23 @@ class ESClient(object):
                         "%Y-%m-%dT00:00:00+08:00"),
                     "created_at": created_at,
                     # "metadata__updated_on": fromTime.strftime("%Y-%m-%dT23:59:59+08:00"),
+                    "is_all" + key_prefix + count_key: 1,
+                    "is_removed": 1
+                }
+                user1 = {
+                    "all_" + key_prefix + count_key: c1,
+                    "updated_at": fromTime.strftime(
+                        "%Y-%m-%dT00:00:00+08:00"),
+                    "created_at": created_at,
                     "is_all" + key_prefix + count_key: 1
                 }
                 id = fromTime.strftime(
+                    "%Y-%m-%dT00:00:00+08:00") + "all_removed" + key_prefix + count_key
+                id1 = fromTime.strftime(
                     "%Y-%m-%dT00:00:00+08:00") + "all_" + key_prefix + count_key
-                action = getSingleAction(self.index_name, id, user)
+                action0 = getSingleAction(self.index_name, id, user)
+                action1 = getSingleAction(self.index_name, id1, user1)
+                action = action0 + action1
                 actions += action
             fromTime = fromTime + timedelta(days=1)
 
@@ -1852,6 +1871,7 @@ class ESClient(object):
 
     def setFirstItem(self, key_prefix=None, query=None, key=None, query_index_name=None):
         actions = ""
+        users = []
         if not key:
             return
         buckets = self.getFirstItemByKey(query, key, query_index_name)
@@ -1861,21 +1881,94 @@ class ESClient(object):
             item = items["login_start"]["hits"]["hits"]
             if len(item) == 0:
                 continue
+            users.append(item[0])
+        query1 = "(" + query + ") AND !is_removed:1"
+        buckets = self.getFirstItemByKey(query1, key, query_index_name)
+        if not buckets:
+            return
+        for items in buckets:
+            item = items["login_start"]["hits"]["hits"]
+            if len(item) == 0:
+                continue
+            users.append(item[0])
+        for u in users:
+            user = {
+                "user_login": u.get("_source").get("user_login"),
+                "tag_user_company": u.get("_source").get("tag_user_company"),
+                "is_project_internal_user": u.get("_source").get("is_project_internal_user"),
+                "updated_at": u.get("_source").get("updated_at"),
+                "created_at": u.get("_source").get("created_at"),
+                "is_first" + key_prefix + key: 1
+            }
+            if "is_removed" in u.get("_source"):
+                user.update({"is_removed": 1})
+                org_name = self.getOrgNameByLogin(u.get("_source").get("user_login"), query, query_index_name)
+                user.update({"org_name": org_name})
             else:
-                user = {
-                    "updated_at": item[0].get("_source").get("updated_at"),
-                    "created_at": item[0].get("_source").get("created_at"),
-                    "is_first" + key_prefix + key: 1
-                }
-                if key:
-                    gitee_id = key.split(".keyword")[0]
-                    id = str(item[0]["_source"].get(gitee_id)) + "_is_" + key_prefix
-                else:
-                    id = str(item[0].get("_id")) + "_is_" + key_prefix
-                action = getSingleAction(self.index_name, id, user)
-                actions += action
+                org_name = self.getOrgNameByLogin(u.get("_source").get("user_login"), query1, query_index_name)
+                user.update({"org_name": org_name})
+            if key:
+                gitee_id = key.split(".keyword")[0]
+                id = str(u["_source"].get(gitee_id)) + "_is" + key_prefix
+            else:
+                id = str(u.get("_id")) + "_is" + key_prefix
+            action = getSingleAction(self.index_name, id, user)
+            actions += action
 
         self.safe_put_bulk(actions)
+        print(key_prefix, 'collect over...')
+
+    def getOrgNameByLogin(self, login, query, query_index):
+        query_json = '''{
+            "size": 0,
+            "query": {
+                "bool": {
+                    "must": [
+                        {
+                            "match": {
+                                "user_login.keyword": "%s"
+                            }
+                        },
+                        {
+                            "query_string": {
+                                "query": "%s"
+                            }                       
+                        }
+                    ],
+                    "must_not": [],
+                    "should": []
+                }
+            },
+            "aggs": {
+                "2": {
+                    "terms": {
+                        "field": "org_name.keyword",
+                        "size": 10000,
+                        "order": {
+                            "_key": "desc"
+                        },
+                        "min_doc_count": 1
+                    },
+                    "aggs": {}
+                }
+            }
+        }''' % (login, query)
+        if query_index is None:
+            query_index = self.index_name
+        res = requests.get(self.getSearchUrl(index_name=query_index), data=query_json,
+                           headers=self.default_headers, verify=False, timeout=60)
+        if res.status_code != 200:
+            print("get org name By Key(%s), err=%s" % (login, res))
+            return None
+        org_data = res.json()
+        buckets = org_data["aggregations"]["2"]["buckets"]
+        if len(buckets) == 0:
+            return None
+        orgs = []
+        for bucket in buckets:
+            orgs.append(bucket['key'])
+        # print('user contributed in orgs: ', orgs)
+        return orgs
 
     def scrollSearch(self, index_name, search=None, scroll_duration='1m', func=None):
         url = self.url + '/' + index_name + '/_search?scroll=' + scroll_duration
