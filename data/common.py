@@ -1727,7 +1727,6 @@ class ESClient(object):
             created_at = fromTime.strftime("%Y-%m-%dT23:59:59+08:00")
             if fromTime.strftime("%Y%m%d") == to:
                 created_at = fromTime.strftime("%Y-%m-%dT00:00:01+08:00")
-            query1 = "(" + query + ") AND !is_removed:1"
             c = self.getCountByTermDate(
                 field,
                 count_key,
@@ -1736,14 +1735,6 @@ class ESClient(object):
                 index_name=self.index_name,
                 query_index_name=self.query_index_name,
                 query=query)
-            c1 = self.getCountByTermDate(
-                field,
-                count_key,
-                starTime.strftime("%Y-%m-%dT00:00:00+08:00"),
-                fromTime.strftime("%Y-%m-%dT23:59:59+08:00"),
-                index_name=self.index_name,
-                query_index_name=self.query_index_name,
-                query=query1)
             if c is not None:
                 user = {
                     "all_" + key_prefix + count_key: c,
@@ -1754,23 +1745,34 @@ class ESClient(object):
                     "is_all" + key_prefix + count_key: 1,
                     "is_removed": 1
                 }
-                user1 = {
-                    "all_" + key_prefix + count_key: c1,
+                id = fromTime.strftime(
+                    "%Y-%m-%dT00:00:00+08:00") + "all_removed" + key_prefix + count_key
+                action = getSingleAction(self.index_name, id, user)
+                actions += action
+
+            query_removed = "(" + query + ") AND !is_removed:1"
+            c_removed = self.getCountByTermDate(
+                field,
+                count_key,
+                starTime.strftime("%Y-%m-%dT00:00:00+08:00"),
+                fromTime.strftime("%Y-%m-%dT23:59:59+08:00"),
+                index_name=self.index_name,
+                query_index_name=self.query_index_name,
+                query=query_removed)
+            if c_removed is not None:
+                user_removed = {
+                    "all_" + key_prefix + count_key: c_removed,
                     "updated_at": fromTime.strftime(
                         "%Y-%m-%dT00:00:00+08:00"),
                     "created_at": created_at,
                     "is_all" + key_prefix + count_key: 1
                 }
-                id = fromTime.strftime(
-                    "%Y-%m-%dT00:00:00+08:00") + "all_removed" + key_prefix + count_key
-                id1 = fromTime.strftime(
+                id_removed = fromTime.strftime(
                     "%Y-%m-%dT00:00:00+08:00") + "all_" + key_prefix + count_key
-                action0 = getSingleAction(self.index_name, id, user)
-                action1 = getSingleAction(self.index_name, id1, user1)
-                action = action0 + action1
-                actions += action
-            fromTime = fromTime + timedelta(days=1)
+                action_removed = getSingleAction(self.index_name, id_removed, user_removed)
+                actions += action_removed
 
+            fromTime = fromTime + timedelta(days=1)
         self.safe_put_bulk(actions)
 
     def getEsIds(self, index_name):
@@ -1882,8 +1884,8 @@ class ESClient(object):
             if len(item) == 0:
                 continue
             users.append(item[0])
-        query1 = "(" + query + ") AND !is_removed:1"
-        buckets = self.getFirstItemByKey(query1, key, query_index_name)
+        query_removed = "(" + query + ") AND !is_removed:1"
+        buckets = self.getFirstItemByKey(query_removed, key, query_index_name)
         if not buckets:
             return
         for items in buckets:
