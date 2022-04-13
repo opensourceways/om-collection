@@ -1907,7 +1907,7 @@ class ESClient(object):
                 org_name = self.getOrgNameByLogin(u.get("_source").get("user_login"), query, query_index_name)
                 user.update({"org_name": org_name})
             else:
-                org_name = self.getOrgNameByLogin(u.get("_source").get("user_login"), query1, query_index_name)
+                org_name = self.getOrgNameByLogin(u.get("_source").get("user_login"), query_removed, query_index_name)
                 user.update({"org_name": org_name})
             if key:
                 gitee_id = key.split(".keyword")[0]
