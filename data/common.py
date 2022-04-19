@@ -2021,7 +2021,7 @@ class ESClient(object):
                 }
             },
             "from": 0,
-            "size": 1,
+            "size": 1000,
             "sort": {
                 "created_at": {
                     "order": "desc"
@@ -2031,11 +2031,16 @@ class ESClient(object):
         }'''
         res = self.request_get(url=url, headers=_headers, data=query)
         if res.status_code != 200:
-            # print('The index not exist')
+            print('The index not exist, error=', res.json())
             return []
         token = res.json()
-        cur_token = token['hits']['hits'][0]['_source']
-        return cur_token['access_token'], cur_token['refresh_token']
+        cur_service = token['hits']['hits']
+        services = []
+        for i in range(len(cur_service)):
+            service_token = cur_service[i]['_source']
+            services.append(service_token)
+
+        return services
 
     def request_get(self, url, data=None, headers=None, params=None, verify=False, timeout=60):
         res = requests.get(url, data=data, headers=headers, params=params, verify=verify, timeout=timeout)

@@ -66,7 +66,7 @@ BACKEND_MAPPING = {
     'git_commit_log': 'data.git_commit_log.GitCommitLog',
     'sig_maintainer': 'data.sig_maintainer.SigMaintainer',
     'tag_removed_gitee': 'data.combine.tag_remove_gitee.TagRemovedGitee',
-    'giteev8_token': 'data.giteev8_token.GiteeToken',
+    'refresh_token': 'data.refresh_token.RefreshToken',
     'gitlab': 'data.gitlab.Gitlab',
     'giteescore': 'data.gitee_issue_score.GiteeScore'
 }
