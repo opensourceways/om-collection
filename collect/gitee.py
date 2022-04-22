@@ -628,7 +628,7 @@ class GiteeClient():
 
     def is_exists_issue(self, url):
         req = requests.get(url, timeout=60)
-        if req.status_code != 200:
+        if req.status_code == 404:
             return False
         else:
             return True

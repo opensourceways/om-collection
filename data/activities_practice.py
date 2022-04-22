@@ -95,9 +95,12 @@ class ActivitiesPractice(object):
                 client = GiteeClient(ownerRepo[0], ownerRepo[1], self.gitee_token)
 
                 if client.is_exists_issue(source['issue_url']) is False:
+                    print('*** issue not exists: %s' % res['issue_url'])
                     res['is_removed'] = 1
+                print('*** issue exists: %s' % res['issue_url'])
 
                 comments = self.get_data(client.issue_comments(source['issue_number']))
+                print('*** issue comment count: %d' % len(comments))
                 current_assign_user = ''
                 before_assign_users = []
                 is_assign = 0
