@@ -1,5 +1,6 @@
 *.ini
 config.ini
+config_backup.ini
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -36,6 +37,7 @@ ENV/
 *.sublime-workspace
 *.sublime-project
 
+temp_dir
 demo_data
 python_test
 result_logs

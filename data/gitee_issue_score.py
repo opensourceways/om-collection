@@ -16,9 +16,8 @@ import json
 import re
 import sys
 
-import requests
-
 from collect.gitee import GiteeClient
+
 from data import common
 
 HEADERS = {'Content-Type': 'application/json', 'charset': 'UTF-8'}
@@ -39,15 +38,41 @@ class GiteeScore(object):
         self.robot_user_login = config.get('robot_user_login')
         self.esClient = common.ESClient(config)
         self.giteeClient = GiteeClient(owner=self.owner, repository=self.repository, token=self.access_token)
+        self.bug_store_index_name = config.get('bug_store_index_name')
+        self.bug_query_sentence = config.get('bug_query_sentence')
+        self.bug_fragemnt_es_url = config.get('bug_fragemnt_es_url')
+        self.bug_fragemnt_authorization = config.get('bug_fragemnt_authorization')
+
 
     @common.show_spend_seconds_of_this_function
     def run(self, from_date):
+
+        # <editor-fold desc="Created log dir">
+        dest_dir = 'result_logs'
+        is_result_log_exist = common.create_log_dir(dest_dir)
+        if is_result_log_exist:
+            print(f'log_dir exists.')
+        else:
+            print(f'create log_dir failure.')
+        # </editor-fold>
+
+        self.failed_parse_issue_body = []
+        self.failed_parse_issue_body=list(set(self.failed_parse_issue_body))
+        bug_questionnaire_list = self.esClient.scrollSearchGiteeScore(index_name=self.bug_store_index_name,
+                                                        search=self.bug_query_sentence,
+                                                        es_url=self.bug_fragemnt_es_url,
+                                                        es_authorization=self.bug_fragemnt_authorization)
+        self.bugFragment_email_map = self.assemble_email_map(bug_questionnaire_list)
+
 
         self.robot_user_list = [robot_user.strip() for robot_user in self.robot_user_login.split(',')]
         self.score_admins = self.get_score_admins()
         if not self.score_admins:
             return
         self.process_gitee_score()
+
+        with open(file=f'{dest_dir}/issue_failed_fetch_email.txt',mode='w',encoding='utf-8') as f:
+            f.write('\n'.join(self.failed_parse_issue_body))
 
         print(f'Function name: {sys._getframe().f_code.co_name} has run over.')
 
@@ -61,15 +86,18 @@ class GiteeScore(object):
 
     @common.show_spend_seconds_of_this_function
     def process_gitee_score(self):
-        issue_brief_list = self.get_repo_issue_numbers()
+        issue_brief_list = self.get_repo_issue_content_list()
         issue_total_count = len(issue_brief_list)
 
         actions = ''
         for issue_brief in issue_brief_list:
             issue_number = issue_brief[0]
             user_login = issue_brief[1]
-            if user_login in self.robot_user_login: continue  # Remove this issues which created by robot user
             issue_created_at = issue_brief[2]
+            version_num = issue_brief[3]
+            folder_name = issue_brief[4]
+            email = issue_brief[5]
+
             comment_index = issue_brief_list.index(issue_brief)
             issue_comment_list = self.get_comments_by_issue_number(issue_number)
             author_username, score = self.parse_comment_list(issue_comment_list)
@@ -84,27 +112,40 @@ class GiteeScore(object):
             content_body['user_login'] = user_login
             content_body['scoring_admin'] = author_username
             content_body['score'] = score
+            content_body['version_num'] = version_num
+            content_body['folder_name'] = folder_name
+            content_body['email'] = email
             action = common.getSingleAction(self.index_name, issue_number, content_body)
             actions += action
         self.esClient.safe_put_bulk(actions)
 
     @common.show_spend_seconds_of_this_function
-    def get_repo_issue_numbers(self):
-
+    def get_repo_issue_content_list(self):
         issue_generator = self.giteeClient.issues()
-        issue_bodies = []
+        total_issue_bodies = []
+        
         for page_issue in issue_generator:
             page_issue_list = json.loads(page_issue)
             page_issue_bodies = []
-            for singe_issue_body in page_issue_list:
-                issue_number = singe_issue_body.get('number')
-                user_login = singe_issue_body.get('user').get('login')
-                created_at = singe_issue_body.get('created_at')
-                page_issue_bodies.append((issue_number, user_login, created_at))
-            issue_bodies.extend(page_issue_bodies)
+            for single_issue_body in page_issue_list:
 
-        print(f'Succeed to collect issue numbers: {len(issue_bodies)}')
-        return issue_bodies
+                # Only process the issue which issue title contains "文档捉虫"
+                if not self.is_docDebug_issue(single_issue_body.get('title')):continue
+
+                issue_number = single_issue_body.get('number')
+                user_login = single_issue_body.get('user').get('login')
+                if user_login in self.robot_user_login: continue  # Remove this issues which created by robot user
+
+                version_num, folder_name, bug_fragment = self.parse_single_issue_body(single_issue_body)
+                email = self.bugFragment_email_map.get(bug_fragment)
+                if not email:
+                    self.failed_parse_issue_body.append(issue_number)
+                created_at = single_issue_body.get('created_at')
+                page_issue_bodies.append((issue_number, user_login, created_at, version_num, folder_name, email))
+            total_issue_bodies.extend(page_issue_bodies)
+
+        print(f'Succeed to collect issue numbers: {len(total_issue_bodies)}')
+        return total_issue_bodies
 
     def get_comments_by_issue_number(self, issue_number):
         issue_comment_list = []
@@ -117,7 +158,8 @@ class GiteeScore(object):
         try:
             issue_comment_list = eval(issue_comment_text)
         except Exception as exp:
-            print(f'Failed to fetch comments from issue:{issue_number}. \t Error is {exp.__repr__()}')
+            print(
+                f'Failed to fetch comments from issue:{issue_number}. \t Error is {exp.__repr__()}')
 
         return issue_comment_list
 
@@ -152,3 +194,36 @@ class GiteeScore(object):
 
         score = float(score_str)
         return score
+
+    def is_docDebug_issue(self, title):
+        result = False
+        if '有奖捉虫' in title:
+            result = True
+        return result
+
+    def parse_single_issue_body(self, single_issue_body):
+        doc_link = None
+        version_num = None
+        folder_name = None
+        issue_number = single_issue_body.get('number')
+        try:
+            content_split_list = single_issue_body.get("body").replace('\r','').split('【')
+            doc_link = content_split_list[1].split('http')[1].split('\n')[0].strip()
+
+            bug_fragment_rawStr = re.split('\n+', content_split_list[2])[1]
+            bug_fragment = bug_fragment_rawStr.replace('>', '').strip()
+            version_num = doc_link.split('/')[5]
+            folder_name = doc_link.split('/')[7]
+        except Exception as exp:
+            self.failed_parse_issue_body.append(issue_number)
+            print(f'Issue number: {single_issue_body.get("number")} failed to parse single_issue body in function: {sys._getframe().f_code.co_name}')
+
+        return version_num, folder_name, bug_fragment
+
+    def assemble_email_map(self, bug_questionnaire_list):
+        bugFragment_email_map = {}
+        for bug_questionnaire in bug_questionnaire_list:
+            email = bug_questionnaire.get('_source').get('email')
+            bugDocFragment = bug_questionnaire.get( '_source').get('bugDocFragment')
+            bugFragment_email_map[bugDocFragment] = email
+        return bugFragment_email_map
