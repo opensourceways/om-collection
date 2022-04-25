@@ -28,6 +28,7 @@ class RefreshToken(object):
 
     def run(self, from_time):
         self.is_refresh_token()
+        time.sleep(10)
         services = self.esClient.get_access_token(self.index_name_token)
         for service in services:
             print("...service = %s, created_at = %s, access_token = %s***..."
