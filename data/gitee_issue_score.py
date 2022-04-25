@@ -58,10 +58,10 @@ class GiteeScore(object):
 
         self.failed_parse_issue_body = []
         self.failed_parse_issue_body=list(set(self.failed_parse_issue_body))
-        bug_questionnaire_list = self.esClient.scrollSearchGiteeScore(index_name=self.bug_store_index_name,
-                                                        search=self.bug_query_sentence,
-                                                        es_url=self.bug_fragemnt_es_url,
-                                                        es_authorization=self.bug_fragemnt_authorization)
+        bug_questionnaire_list = self.esClient.scrollSearchGiteeScore(index_name=self.bug_store_index_name, 
+                                                                      search=self.bug_query_sentence,
+                                                                      es_url=self.bug_fragemnt_es_url,
+                                                                      es_authorization=self.bug_fragemnt_authorization)
         self.bugFragment_email_map = self.assemble_email_map(bug_questionnaire_list)
 
 
@@ -101,17 +101,16 @@ class GiteeScore(object):
             comment_index = issue_brief_list.index(issue_brief)
             issue_comment_list = self.get_comments_by_issue_number(issue_number)
             author_username, score = self.parse_comment_list(issue_comment_list)
-            print(f'Succeed to parse issue: {issue_number}, \t{comment_index + 1}/{issue_total_count} '
-                  f'of issues')
-            if not score:
-                continue
+            print(f'Succeed to parse issue: {issue_number}, \t{comment_index + 1}/{issue_total_count} of issues')
 
             content_body = {}
+            if score:    # scored issue could get the two fields
+                content_body['scoring_admin'] = author_username
+                content_body['score'] = score
+            
             content_body['issue_number'] = issue_number
             content_body['created_at'] = issue_created_at
             content_body['user_login'] = user_login
-            content_body['scoring_admin'] = author_username
-            content_body['score'] = score
             content_body['version_num'] = version_num
             content_body['folder_name'] = folder_name
             content_body['email'] = email
@@ -123,7 +122,7 @@ class GiteeScore(object):
     def get_repo_issue_content_list(self):
         issue_generator = self.giteeClient.issues()
         total_issue_bodies = []
-        
+
         for page_issue in issue_generator:
             page_issue_list = json.loads(page_issue)
             page_issue_bodies = []
@@ -131,16 +130,18 @@ class GiteeScore(object):
 
                 # Only process the issue which issue title contains "文档捉虫"
                 if not self.is_docDebug_issue(single_issue_body.get('title')):continue
-
                 issue_number = single_issue_body.get('number')
                 user_login = single_issue_body.get('user').get('login')
                 if user_login in self.robot_user_login: continue  # Remove this issues which created by robot user
-
+                created_at = single_issue_body.get('created_at')
                 version_num, folder_name, bug_fragment = self.parse_single_issue_body(single_issue_body)
-                email = self.bugFragment_email_map.get(bug_fragment)
+
+                email=None
+                if bug_fragment:
+                   email = self.bugFragment_email_map.get(bug_fragment)
+
                 if not email:
                     self.failed_parse_issue_body.append(issue_number)
-                created_at = single_issue_body.get('created_at')
                 page_issue_bodies.append((issue_number, user_login, created_at, version_num, folder_name, email))
             total_issue_bodies.extend(page_issue_bodies)
 
@@ -205,18 +206,18 @@ class GiteeScore(object):
         doc_link = None
         version_num = None
         folder_name = None
+        bug_fragment = None
         issue_number = single_issue_body.get('number')
         try:
             content_split_list = single_issue_body.get("body").replace('\r','').split('【')
             doc_link = content_split_list[1].split('http')[1].split('\n')[0].strip()
+            version_num = doc_link.split('/')[5]
+            folder_name = doc_link.split('/')[7]
 
             bug_fragment_rawStr = re.split('\n+', content_split_list[2])[1]
             bug_fragment = bug_fragment_rawStr.replace('>', '').strip()
-            version_num = doc_link.split('/')[5]
-            folder_name = doc_link.split('/')[7]
         except Exception as exp:
-            self.failed_parse_issue_body.append(issue_number)
-            print(f'Issue number: {single_issue_body.get("number")} failed to parse single_issue body in function: {sys._getframe().f_code.co_name}')
+            print(f'Issue number: {issue_number} failed to parse single_issue body in function: {sys._getframe().f_code.co_name}\n Error is: {exp.__repr__}')
 
         return version_num, folder_name, bug_fragment
 
