@@ -70,7 +70,6 @@ class RefreshToken(object):
             print("Try to update config and use config to refresh token...")
             for new_token in self.service_refresh_token:
                 if service_name == new_token.get("service"):
-                    print("new_token = ", new_token)
                     self.refresh_access_token(new_token)
 
     def get_valid_token(self, service):
