@@ -917,7 +917,8 @@ class Gitee(object):
             except Exception as e:
                 print(e)
             issue_item['sig_names'] = sig_names
-            indexData = {"index": {"_index": self.index_name, "_id": issue_item['id']}}
+            index_id = 'issue_%s' % issue_item['id']
+            indexData = {"index": {"_index": self.index_name, "_id": index_id}}
             actions += json.dumps(indexData) + '\n'
             actions += json.dumps(issue_item) + '\n'
 
