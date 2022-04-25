@@ -93,7 +93,7 @@ def globalExceptionHandler(func):
 
 class GiteeClient():
 
-    def __init__(self, org, token, max_items=MAX_CATEGORY_ITEMS_PER_PAGE):
+    def __init__(self, org, token=None, max_items=MAX_CATEGORY_ITEMS_PER_PAGE):
         self.org = org
         if token:
             self.access_token = token
@@ -122,7 +122,7 @@ class GiteeClient():
         # parse result, get enterprise_id
         datas = json.loads(result.text)['data']
         for data in datas:
-            if data['name'].lower() == self.org.lower():
+            if self.org and data['name'].lower() == self.org.lower():
                 enterprise_id = data['id']
                 break
 
@@ -319,7 +319,6 @@ class GiteeClient():
                 'grant_type': 'refresh_token',
                 'refresh_token': refresh_token
             }
-            print("Refresh the access_token for Gitee API")
+            # print("Refresh the access_token for Gitee v8 API")
             res = self.session.post(url, json=params, headers=_header, stream=False, auth=None)
             return res
-   

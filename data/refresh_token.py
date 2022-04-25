@@ -7,7 +7,6 @@ from collect.gitee_v8 import GiteeClient
 from data.common import ESClient
 from collect.baidutongji import BaiDuTongjiClient
 
-
 urllib3.disable_warnings()
 
 EXPIRES_IN = 86400
@@ -27,8 +26,6 @@ class RefreshToken(object):
 
         self.org = config.get('org')
         self.service_refresh_token = json.loads(config.get('service_refresh_token'))
-        self.create_time = config.get('create_time')
-        
 
     def run(self, from_time):
         while True:
@@ -37,48 +34,62 @@ class RefreshToken(object):
             services = self.esClient.get_access_token(self.index_name_token)
             print(".....services=", services)
 
-    def refresh_access_token(self):
-        """Send a refresh post access to the Gitee Server"""
-        services_tokens = self.esClient.get_access_token(self.index_name_token)
-        if not services_tokens:
-            services_tokens = self.service_refresh_token
+    def refresh_access_token(self, valid_token):
+        rt = valid_token.get("refresh_token")
+        at = valid_token.get("access_token")
+        service_name = valid_token.get("service")
+        if rt is None:
+            return
 
-        for i in range(len(services_tokens)):
-            st = services_tokens[i]
-            access_token = st.get("access_token")
-            rt = st.get("refresh_token")
-            service_name = st.get("service")
-            if rt is None:
-                continue
+        if "giteev8" in service_name:
+            gitee_v8 = GiteeClient(self.org, at)
+            res = gitee_v8.refresh_token(rt)
+        elif "baidutongji" in service_name:
+            baiduClient = BaiDuTongjiClient(self.config)
+            res = baiduClient.refresh_access_token(rt, valid_token.get("client_id"), valid_token.get("client_secret"))
+            print("..baidutongji..res=", res.json())
+        else:
+            return
 
-            if "giteev8" in service_name:
-                gitee_v8 = GiteeClient(self.org, access_token)
-                res = gitee_v8.refresh_token(rt)
-            elif "baidutongji" in service_name:
-                baiduClient = BaiDuTongjiClient(self.config)
-                res = baiduClient.refresh_access_token(rt, st.get("client_id"), st.get("client_secret"))
-                print("..baidutongji..res=", res)
+        if 'access_token' in res.json():
+            created_time = time.time()
+            time_array = time.localtime(int(created_time))
+            str_date = time.strftime("%Y-%m-%dT%H:%M:%S+08:00", time_array)
 
-            if 'access_token' in res.json():
-                self.create_time = time.time()
-                time_array = time.localtime(int(self.create_time))
-                str_date = time.strftime("%Y-%m-%dT%H:%M:%S+08:00", time_array)
+            action = res.json()
+            action.update({'created_at': str_date})
+            action.update({'created_time': created_time})
+            action.update({'service': service_name})
+            action.update({'client_id': valid_token.get("client_id")})
+            action.update({'client_secret': valid_token.get("client_secret")})
+            indexData = {"index": {"_index": self.index_name_token, "_id": service_name}}
+            actions = json.dumps(indexData) + '\n'
+            actions += json.dumps(action) + '\n'
+            self.esClient.safe_put_bulk(actions)
+            print("refresh ok!")
+        else:
+            print("refresh failed! res = ", res)
+            print("Try to update config and use config to refresh token")
+            # for new_token in self.service_refresh_token:
+            #     if service_name == new_token.get("service"):
+            #         self.refresh_access_token(new_token)
 
-                action = res.json()
-                action.update({'created_at': str_date})
-                action.update({'service': service_name})
-                action.update({'client_id': st.get("client_id")})
-                action.update({'client_secret': st.get("client_secret")})
-                indexData = {"index": {"_index": self.index_name_token, "_id": service_name}}
-                actions = json.dumps(indexData) + '\n'
-                actions += json.dumps(action) + '\n'
-
-                self.esClient.safe_put_bulk(actions)
-
-                print("refresh ok!")
+    def get_valid_token(self, service):
+        # 取可用于刷新的有效token
+        # 使用数据库的值；数据库没有，使用配置文件的值
+        services_stored = self.esClient.get_access_token(self.index_name_token)
+        vt = service
+        for ss in services_stored:
+            if service.get("service") == ss.get("service"):
+                vt = ss
+                break
+        return vt
 
     def is_refresh_token(self):
         # 60s bias
-        if time.time() > (int(self.create_time) + EXPIRES_IN - 60):
-            print('star to refresh access token ...')
-            self.refresh_access_token()
+        for service in self.service_refresh_token:
+            valid_token = self.get_valid_token(service)
+            print("valid_token : ", valid_token)
+            if time.time() > (int(valid_token.get("created_time")) + EXPIRES_IN - 60):
+                print('Star to refresh access token for %s ...' % valid_token.get("service"))
+                self.refresh_access_token(valid_token)
