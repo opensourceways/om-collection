@@ -23,7 +23,6 @@ from data import common
 from data.common import ESClient
 from collect.baidutongji import BaiDuTongjiClient
 
-
 SOURCE_METRIC = "pv_count,pv_ratio,visit_count,visitor_count,new_visitor_count,new_visitor_ratio,ip_count,bounce_ratio,avg_visit_time,avg_visit_pages,trans_count,trans_ratio"
 ENTRANCE_PAGE_METRIC = "visit_count,visitor_count,new_visitor_count,new_visitor_ratio,ip_count,bounce_ratio,avg_visit_time,avg_visit_pages,trans_count,trans_ratio,out_pv_count"
 VISIT_PAGE_METRIC = "pv_count,visitor_count,ip_count,visit1_count,outward_count,exit_count,average_stay_time,exit_ratio"
@@ -34,7 +33,6 @@ TREND_METRIC = "pv_count,pv_ratio,visit_count,visitor_count,new_visitor_count,ne
 RESEARCH_WORD_METRIC = "pv_count,pv_ratio,visit_count,visitor_count,new_visitor_count,new_visitor_ratio,ip_count,bounce_ratio,avg_visit_time,avg_visit_pages,trans_count,trans_ratio"
 
 
-
 class BaiduTongji(object):
     def __init__(self, config=None):
         self.config = config
@@ -42,11 +40,11 @@ class BaiduTongji(object):
         self.index_name = config.get('index_name')
         self.site_id = config.get('site_id')
         self.esClient = ESClient(config)
-
+        self.index_name_token = config.get('index_name_token')
+        self.service = config.get("service")
 
     def getIndexName(self):
         return self.index_name
-
 
     def getBaiduAction(self, starTime, endTime, data, index_name, is_day_data=True):
         if not data:
@@ -103,12 +101,10 @@ class BaiduTongji(object):
 
         return actions
 
-
     def getDateByTime(self, start_date, metric, method, index_name):
         fromTime = datetime.strptime(start_date, "%Y%m%d")
         # to = datetime.today().strftime("%Y%m%d")
         to = datetime.today()
-        baiduClient = BaiDuTongjiClient(self.config)
 
         actions = []
         # while fromTime.strftime("%Y%m%d") < to:
@@ -118,10 +114,17 @@ class BaiduTongji(object):
 
             print("collect data of ", collect_time, index_name, method)
 
+            services = self.esClient.get_access_token(self.index_name_token)
+            access_token = None
+            for service in services:
+                if service.get("service") == self.service:
+                    access_token = service.get("access_token")
+            baiduClient = BaiDuTongjiClient(self.config, access_token)
+
             data = baiduClient.getCommon(collect_time, collect_time, metric, method)
             if not data:
                 continue
-            print(data)
+            # print(data['result']['timeSpan'])
             is_day_data = True
             if method == "trend/time/a":
                 is_day_data = False
@@ -138,7 +141,7 @@ class BaiduTongji(object):
         # return datetime.strptime(time, '%Y%m%d').strftime(
         #     '%Y-%m-%d') + "T" + endTime + ":59+08:00"
         return datetime.strptime(time, '%Y%m%d').strftime(
-                '%Y-%m-%d') + "T" + endTime + ":59+08:00"
+            '%Y-%m-%d') + "T" + endTime + ":59+08:00"
 
     # def setToltalCount(self, from_date, count_key):
     #     starTime = datetime.strptime(from_date, "%Y%m%d")
@@ -170,7 +173,6 @@ class BaiduTongji(object):
     #         fromTime = fromTime + timedelta(days=1)
     #
     #     self.esClient.safe_put_bulk(actions)
-
 
     def run(self, from_time):
         startTime = time.time()

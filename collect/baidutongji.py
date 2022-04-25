@@ -27,14 +27,14 @@ BAIDUTONGJI_REFRESH_TOKEN_URL = "http://openapi.baidu.com/oauth/2.0/token"
 
 class BaiDuTongjiClient():
 
-    def __init__(self, config=None):
+    def __init__(self, config=None, access_token=None):
         self.username = config.get("username")
         self.password = config.get("password")
         self.token = config.get("token")
-        self.refresh_token = config.get("refresh_token")
         self.site_id = config.get("site_id")
         self.is_baidutongji_enterprise = config.get("is_baidutongji_enterprise")
         self.session = requests.Session()
+        self.access_token = access_token
 
     # common
     def getCommon(self, starTime, endTime, metric, method):
@@ -59,7 +59,7 @@ class BaiDuTongjiClient():
         else:
 
             params = {
-                "access_token": self.token,
+                "access_token": self.access_token,
                 "site_id": self.site_id,
                 "start_date": starTime,
                 "end_date": endTime,
