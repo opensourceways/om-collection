@@ -118,6 +118,7 @@ class Gitee(object):
         else:
             if self.esClient.is_update_tag_company == 'true':
                 self.tagHistoryUsers()
+                self.esClient.tagUserOrgChanged()
             if self.is_set_pr_issue_repo_fork == 'true':
                 # self.writeData(self.writeContributeForSingleRepo, from_time)
                 self.writeData(self.writePullSingleRepo, from_time)
