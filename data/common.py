@@ -1742,7 +1742,10 @@ class ESClient(object):
                 action = getSingleAction(self.index_name, id, user)
                 actions += action
 
-            query_removed = "(" + query + ") AND !is_removed:1"
+            if query is not None:
+                query_removed = "(" + query + ") AND !is_removed:1"
+            else:
+                query_removed = "!is_removed:1"
             c_removed = self.getCountByTermDate(
                 field,
                 count_key,
