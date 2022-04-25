@@ -9,8 +9,6 @@ from collect.baidutongji import BaiDuTongjiClient
 
 urllib3.disable_warnings()
 
-EXPIRES_IN = 100
-
 
 class RefreshToken(object):
 
@@ -26,6 +24,7 @@ class RefreshToken(object):
 
         self.org = config.get('org')
         self.service_refresh_token = json.loads(config.get('service_refresh_token'))
+        self.expires_in = int(config.get('expires_in'))
 
     def run(self, from_time):
         while True:
@@ -88,6 +87,6 @@ class RefreshToken(object):
         for service in self.service_refresh_token:
             valid_token = self.get_valid_token(service)
             print("valid_token : ", valid_token)
-            if time.time() > (int(valid_token.get("created_time")) + EXPIRES_IN - 60):
+            if time.time() > (int(valid_token.get("created_time")) + self.expires_in - 60):
                 print('Star to refresh access token for %s ...' % valid_token.get("service"))
                 self.refresh_access_token(valid_token)
