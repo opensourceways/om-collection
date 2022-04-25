@@ -27,11 +27,11 @@ class RefreshToken(object):
         self.expires_in = int(config.get('expires_in'))
 
     def run(self, from_time):
-        while True:
-            self.is_refresh_token()
-            time.sleep(10)
-            services = self.esClient.get_access_token(self.index_name_token)
-            print(".....services=", services)
+        self.is_refresh_token()
+        services = self.esClient.get_access_token(self.index_name_token)
+        for service in services:
+            print("...service = %s, created_at = %s, access_token = %s***..."
+                  % (service.get("service"), service.get("created_at"), service.get("access_token")[:8]))
 
     def refresh_access_token(self, valid_token):
         rt = valid_token.get("refresh_token")
@@ -65,7 +65,7 @@ class RefreshToken(object):
             self.esClient.safe_put_bulk(actions)
             print("refresh ok!")
         else:
-            print("refresh failed! The refresh token may have be used.")
+            print("refresh failed! The refresh token may have be used... %s ..." % service_name)
             print("Try to update config and use config to refresh token...")
             for new_token in self.service_refresh_token:
                 if service_name == new_token.get("service"):
@@ -86,7 +86,6 @@ class RefreshToken(object):
         # 60s bias
         for service in self.service_refresh_token:
             valid_token = self.get_valid_token(service)
-            print("valid_token : ", valid_token)
             if time.time() > (int(valid_token.get("created_time")) + self.expires_in - 60):
                 print('Star to refresh access token for %s ...' % valid_token.get("service"))
                 self.refresh_access_token(valid_token)
