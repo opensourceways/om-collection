@@ -9,7 +9,7 @@ from collect.baidutongji import BaiDuTongjiClient
 
 urllib3.disable_warnings()
 
-EXPIRES_IN = 86400
+EXPIRES_IN = 100
 
 
 class RefreshToken(object):
@@ -36,18 +36,16 @@ class RefreshToken(object):
 
     def refresh_access_token(self, valid_token):
         rt = valid_token.get("refresh_token")
-        at = valid_token.get("access_token")
         service_name = valid_token.get("service")
         if rt is None:
             return
 
         if "giteev8" in service_name:
-            gitee_v8 = GiteeClient(self.org, at)
+            gitee_v8 = GiteeClient(self.org, rt)
             res = gitee_v8.refresh_token(rt)
         elif "baidutongji" in service_name:
             baiduClient = BaiDuTongjiClient(self.config)
             res = baiduClient.refresh_access_token(rt, valid_token.get("client_id"), valid_token.get("client_secret"))
-            print("..baidutongji..res=", res.json())
         else:
             return
 
@@ -68,11 +66,12 @@ class RefreshToken(object):
             self.esClient.safe_put_bulk(actions)
             print("refresh ok!")
         else:
-            print("refresh failed! res = ", res)
-            print("Try to update config and use config to refresh token")
-            # for new_token in self.service_refresh_token:
-            #     if service_name == new_token.get("service"):
-            #         self.refresh_access_token(new_token)
+            print("refresh failed! The refresh token may have be used.")
+            print("Try to update config and use config to refresh token...")
+            for new_token in self.service_refresh_token:
+                if service_name == new_token.get("service"):
+                    print("new_token = ", new_token)
+                    self.refresh_access_token(new_token)
 
     def get_valid_token(self, service):
         # 取可用于刷新的有效token
