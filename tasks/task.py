@@ -68,6 +68,7 @@ BACKEND_MAPPING = {
     'tag_removed_gitee': 'data.combine.tag_remove_gitee.TagRemovedGitee',
     'refresh_token': 'data.refresh_token.RefreshToken',
     'gitlab': 'data.gitlab.Gitlab',
+    'gitee_metrics': 'data.gitee_metrics.GiteeMetrics',
     'giteescore': 'data.gitee_issue_score.GiteeScore'
 }
 

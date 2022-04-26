@@ -1714,7 +1714,7 @@ class ESClient(object):
 
         actions = ""
         while fromTime.strftime("%Y%m%d") <= to:
-            print(fromTime)
+            # print(fromTime)
 
             created_at = fromTime.strftime("%Y-%m-%dT23:59:59+08:00")
             if fromTime.strftime("%Y%m%d") == to:
