@@ -52,7 +52,7 @@ try:
     config.read('config.ini', encoding='UTF-8')
     retry_time = config.getint('general', 'retry_time', )
     retry_sleep_time = config.getint('general', 'retry_sleep_time')
-except BaseException as  ex:
+except BaseException as ex:
     retry_sleep_time = 10
     retry_time = 10
 
@@ -222,7 +222,6 @@ class GiteeClient():
 
         path = self.urijoin("events")
         return self.fetch_items(path, payload)
-
 
     def events_prev_id(self, prev_id):
         """Fetch the pull requests from the repository.
@@ -632,3 +631,11 @@ class GiteeClient():
             return False
         else:
             return True
+
+    def gitee_rank(self, owner, repo):
+        rank_url = self.urijoin(self.base_url, "repos", owner, repo, "git", "get_rank")
+        return self.fetch(rank_url, {})
+
+    def gitee_metrics(self, owner, repo):
+        metric_url = self.urijoin(self.base_url, "repos", owner, repo, "git", "gitee_metrics")
+        return self.fetch(metric_url, {})

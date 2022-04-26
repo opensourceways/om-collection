@@ -54,7 +54,6 @@ class BaiDuTongjiClient():
                     "method": method
                 }
             }
-            # print(data_json)
             data = requests.post(url=ENTERPRISE_URL, json=data_json)
         else:
 

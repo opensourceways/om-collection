@@ -103,12 +103,9 @@ class BaiduTongji(object):
 
     def getDateByTime(self, start_date, metric, method, index_name):
         fromTime = datetime.strptime(start_date, "%Y%m%d")
-        # to = datetime.today().strftime("%Y%m%d")
         to = datetime.today()
 
         actions = []
-        # while fromTime.strftime("%Y%m%d") < to:
-        # print("fromtime=%s, to=%s", fromTime, to)
         while fromTime < to:
             collect_time = fromTime.strftime("%Y%m%d")
 
@@ -124,7 +121,6 @@ class BaiduTongji(object):
             data = baiduClient.getCommon(collect_time, collect_time, metric, method)
             if not data:
                 continue
-            # print(data['result']['timeSpan'])
             is_day_data = True
             if method == "trend/time/a":
                 is_day_data = False
@@ -138,41 +134,8 @@ class BaiduTongji(object):
     def getTime(self, time, endTime=None):
         if endTime is None:
             endTime = "08:59"
-        # return datetime.strptime(time, '%Y%m%d').strftime(
-        #     '%Y-%m-%d') + "T" + endTime + ":59+08:00"
         return datetime.strptime(time, '%Y%m%d').strftime(
             '%Y-%m-%d') + "T" + endTime + ":59+08:00"
-
-    # def setToltalCount(self, from_date, count_key):
-    #     starTime = datetime.strptime(from_date, "%Y%m%d")
-    #     fromTime = datetime.strptime(from_date, "%Y%m%d")
-    #     to = datetime.today().strftime("%Y%m%d")
-    #
-    #     actions = ""
-    #     while fromTime.strftime("%Y%m%d") < to:
-    #         print(fromTime)
-    #
-    #         c = self.esClient.getCountByTermDate(
-    #             "source_type_title.keyword",
-    #             count_key,
-    #             starTime.strftime("%Y-%m-%dT00:00:00+08:00"),
-    #             fromTime.strftime("%Y-%m-%dT23:59:59+08:00"),
-    #             index_name=self.index_name)
-    #         # return
-    #         if c is not None:
-    #             user = {
-    #                 "all_" + count_key: c,
-    #                 "updated_at": fromTime.strftime("%Y-%m-%dT00:00:00+08:00"),
-    #                 "created_at": fromTime.strftime("%Y-%m-%dT23:59:59+08:00"),
-    #                 # "metadata__updated_on": fromTime.strftime("%Y-%m-%dT23:59:59+08:00"),
-    #                 "is_all" + count_key: 1
-    #             }
-    #             id = fromTime.strftime("%Y-%m-%dT00:00:00+08:00") + "all_" + count_key
-    #             action = common.getSingleAction(self.index_name, id, user)
-    #             actions += action
-    #         fromTime = fromTime + timedelta(days=1)
-    #
-    #     self.esClient.safe_put_bulk(actions)
 
     def run(self, from_time):
         startTime = time.time()
