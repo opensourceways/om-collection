@@ -66,19 +66,15 @@ class GiteeMetrics(object):
 
                     metrics_res = self.gitee_repo_metrics(owner, repo_path)
                     if metrics_res.status_code != 200:
-                        print('metrics = ', metrics_res.json())
+                        print('No metrics info...')
                         continue
 
                     rank_res = self.gitee_repo_rank(owner, repo_path)
                     if rank_res.status_code != 200:
-                        print('rank = ', rank_res.json())
+                        print('No rank info...')
                         continue
                     rank = rank_res.json()
-
                     metrics = metrics_res.json()
-                    # created_time = time.time()
-                    # time_array = time.localtime(int(created_time))
-                    # str_date = time.strftime("%Y-%m-%dT%H:%M:%S+08:00", time_array)
 
                     repo_info = {
                         'repo': metrics.get('repo'),
