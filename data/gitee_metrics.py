@@ -1,5 +1,6 @@
 import json
 import time
+from datetime import datetime, timedelta
 
 from data.common import ESClient
 from collect.gitee import GiteeClient
@@ -16,11 +17,19 @@ class GiteeMetrics(object):
         self.owners = config.get('owner')
         self.access_token = config.get('token')
         self.repository = None
+        self.update_day = datetime.today()
 
     def run(self, from_time):
-        print('Collect repo gitee metrics and rank : starting...')
-        self.collect_developer_details()
-        print('Collect repo gitee metrics and rank : finished...')
+        str_date = self.update_day.strftime("%Y-%m-%dT08:00:00+08:00")
+        now_day = datetime.today()
+        if now_day < self.update_day:
+            print('Not need update metrics, now day is ', now_day.strftime("%Y-%m-%d"))
+        else:
+            print('Collect repo gitee metrics and rank : starting...%s ' % str_date)
+            self.collect_developer_details(str_date)
+            print('Collect repo gitee metrics and rank : finished...%s ' % str_date)
+            self.update_day = now_day + timedelta(days=1)
+            print('Next day to update metrics is ', self.update_day.strftime("%Y-%m-%d"))
 
     def gitee_repo_metrics(self, owner, repo_path):
         gitee = GiteeClient(owner, repo_path, self.access_token)
@@ -32,7 +41,7 @@ class GiteeMetrics(object):
         res = gitee.gitee_rank(owner, repo_path)
         return res
 
-    def collect_developer_details(self):
+    def collect_developer_details(self, str_date):
         owners = self.owners.split(',')
         for owner in owners:
             print("...start owner: %s..." % owner)
@@ -67,9 +76,9 @@ class GiteeMetrics(object):
                     rank = rank_res.json()
 
                     metrics = metrics_res.json()
-                    created_time = time.time()
-                    time_array = time.localtime(int(created_time))
-                    str_date = time.strftime("%Y-%m-%dT%H:%M:%S+08:00", time_array)
+                    # created_time = time.time()
+                    # time_array = time.localtime(int(created_time))
+                    # str_date = time.strftime("%Y-%m-%dT%H:%M:%S+08:00", time_array)
 
                     repo_info = {
                         'repo': metrics.get('repo'),
