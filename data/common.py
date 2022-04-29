@@ -408,7 +408,7 @@ class ESClient(object):
             giteeid_company_dict_copy.update({k1: self.giteeid_company_dict.get(k)})
         return giteeid_company_dict_copy
 
-    def getUserInfo(self, login):
+    def getUserInfo(self, login, created_at=None):
         if isinstance(login, str) is True:
             login = login.lower()
         internalUsers_copy = self.users_lower()
@@ -444,6 +444,25 @@ class ESClient(object):
                 userExtra["is_project_internal_user"] = 1
             else:
                 userExtra["is_project_internal_user"] = 0
+
+        if created_at and len(self.giteeid_company_change_dict) != 0 and login in self.giteeid_company_change_dict:
+            vMap = self.giteeid_company_change_dict[login]
+            times = sorted(vMap.keys())
+            for i in range(1, len(times) + 1):
+                if i == 1:
+                    startTime = datetime.strptime('1990-01-01', '%Y-%m-%d')
+                else:
+                    startTime = datetime.strptime(times[i - 1], '%Y-%m-%d')
+                if i == len(times):
+                    endTime = datetime.strptime('2222-01-01', '%Y-%m-%d')
+                else:
+                    endTime = datetime.strptime(times[i], '%Y-%m-%d')
+                company = vMap.get(times[i - 1])
+
+                if startTime <= datetime.strptime(created_at[0:10], '%Y-%m-%d') < endTime:
+                    userExtra["tag_user_company"] = company
+                else:
+                    continue
 
         return userExtra
 
