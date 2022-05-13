@@ -143,7 +143,7 @@ class BlueZoneUser(object):
                           ]
                         }
                       }
-                    }''' % (self.user['gitee_id'], self.startTime, self.endTime)
+                    }''' % (self.user['gitee_id'].strip(), self.startTime, self.endTime)
         for index in indexs:
             self.esClient.scrollSearch(index_name=index, search=search, func=self.pr_func_gitee)
 
@@ -209,7 +209,7 @@ class BlueZoneUser(object):
                           ]
                         }
                       }
-                    }''' % (self.user['gitee_id'], self.startTime, self.endTime)
+                    }''' % (self.user['gitee_id'].strip(), self.startTime, self.endTime)
         for index in indexs:
             self.esClient.scrollSearch(index_name=index, search=search, func=self.issue_func_gitee)
 
@@ -278,7 +278,7 @@ class BlueZoneUser(object):
                           ]
                         }
                       }
-                    }''' % (self.user['gitee_id'], self.startTime, self.endTime)
+                    }''' % (self.user['gitee_id'].strip(), self.startTime, self.endTime)
         for index in indexs:
             self.esClient.scrollSearch(index_name=index, search=search, func=self.pr_issue_comment_func_gitee)
 
@@ -353,7 +353,7 @@ class BlueZoneUser(object):
                           ]
                         }
                       }
-                    }''' % (self.user['emails'], self.startTime, self.endTime)
+                    }''' % (self.user['emails'].strip(), self.startTime, self.endTime)
         for index in indexs:
             self.esClient.scrollSearch(index_name=index, search=search, func=self.commit_func)
 
@@ -416,7 +416,7 @@ class BlueZoneUser(object):
                           ]
                         }
                       }
-                    }''' % (self.user['github_id'], self.startTime, self.endTime)
+                    }''' % (self.user['github_id'].strip(), self.startTime, self.endTime)
         for index in indexs:
             self.esClient.scrollSearch(index_name=index, search=search, func=self.pr_func_github)
 
@@ -482,7 +482,7 @@ class BlueZoneUser(object):
                           ]
                         }
                       }
-                    }''' % (self.user['github_id'], self.startTime, self.endTime)
+                    }''' % (self.user['github_id'].strip(), self.startTime, self.endTime)
         for index in indexs:
             self.esClient.scrollSearch(index_name=index, search=search, func=self.issue_func_github)
 
@@ -549,7 +549,7 @@ class BlueZoneUser(object):
                           ]
                         }
                       }
-                    }''' % (self.user['github_id'], self.startTime, self.endTime)
+                    }''' % (self.user['github_id'].strip(), self.startTime, self.endTime)
         for index in indexs:
             self.esClient.scrollSearch(index_name=index, search=search, func=self.pr_issue_comment_func_github)
 
