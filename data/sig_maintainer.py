@@ -111,7 +111,6 @@ class SigMaintainer(object):
     def get_sig_repos(self, dir):
         sig_repo_list = []
         sig_repo_path = self.sigs_dirs_path + '/' + dir
-        # print('sig_repo_path = ', sig_repo_path)
         repo_path_dirs = os.walk(sig_repo_path).__next__()[1]
 
         if 'openeuler' in repo_path_dirs:
