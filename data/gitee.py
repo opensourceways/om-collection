@@ -460,7 +460,7 @@ class Gitee(object):
                 "fork_gitee_repo": re.sub('.git$', '', fork['html_url']),
                 "is_gitee_fork": 1,
             }
-            userExtra = self.esClient.getUserInfo(action['user_login'])
+            userExtra = self.esClient.getUserInfo(action['user_login'], fork["created_at"])
             action.update(userExtra)
 
             indexData = {
@@ -522,7 +522,7 @@ class Gitee(object):
                 "user_created_at": user_details["created_at"] if user_details else None,
                 "from_registerd_to_star": from_registerd_to_star
             }
-            userExtra = self.esClient.getUserInfo(action['user_login'])
+            userExtra = self.esClient.getUserInfo(action['user_login'], star["star_at"])
             action.update(userExtra)
             indexData = {
                 "index": {"_index": self.index_name, "_id": star_id}}
@@ -564,7 +564,7 @@ class Gitee(object):
                 "org_name": owner,
                 "is_gitee_watch": 1,
             }
-            userExtra = self.esClient.getUserInfo(action['user_login'])
+            userExtra = self.esClient.getUserInfo(action['user_login'], watch["watch_at"])
             action.update(userExtra)
 
             indexData = {
@@ -600,7 +600,7 @@ class Gitee(object):
             "gitee_repo": re.sub('.git$', '', repo_data['html_url']),
             "is_gitee_repo": 1,
         }
-        userExtra = self.esClient.getUserInfo(repo_data['owner']['login'])
+        userExtra = self.esClient.getUserInfo(repo_data['owner']['login'], repo_data["created_at"])
         repo_detail.update(userExtra)
 
         maintainerdata = self.esClient.getRepoMaintainer(self.sig_index, repo_data["full_name"])
@@ -917,7 +917,8 @@ class Gitee(object):
             except Exception as e:
                 print(e)
             issue_item['sig_names'] = sig_names
-            indexData = {"index": {"_index": self.index_name, "_id": issue_item['id']}}
+            index_id = 'issue_%s' % issue_item['id']
+            indexData = {"index": {"_index": self.index_name, "_id": index_id}}
             actions += json.dumps(indexData) + '\n'
             actions += json.dumps(issue_item) + '\n'
 
@@ -1021,7 +1022,7 @@ class Gitee(object):
             ecomment['is_gitee_{}'.format(REVIEW_COMMENT_TYPE)] = 1
             ecomment['is_gitee_comment'] = 1
 
-            userExtra = self.esClient.getUserInfo(ecomment['user_login'])
+            userExtra = self.esClient.getUserInfo(ecomment['user_login'], comment['created_at'])
             ecomment.update(userExtra)
             ecomments.append(ecomment)
 
@@ -1082,7 +1083,7 @@ class Gitee(object):
             ecommit['is_gitee_{}'.format(COMMIT_TYPE)] = 1
             ecommit['is_gitee_commit'] = 1
 
-            userExtra = self.esClient.getUserInfo(ecommit['user_login'])
+            userExtra = self.esClient.getUserInfo(ecommit['user_login'], ecommit['created_at'])
             ecommit.update(userExtra)
             ecommits.append(ecommit)
 
@@ -1203,7 +1204,7 @@ class Gitee(object):
 
         # if self.prjs_map:
         #    rich_pr.update(self.get_item_project(rich_pr))
-        userExtra = self.esClient.getUserInfo(rich_pr['user_login'])
+        userExtra = self.esClient.getUserInfo(rich_pr['user_login'], pull_request['created_at'])
         rich_pr.update(userExtra)
         rich_pr['addcodenum'] = pull_request['codediffadd']
         rich_pr['deletecodenum'] = pull_request['codediffdelete']
@@ -1350,7 +1351,7 @@ class Gitee(object):
         # rich_issue.pop('is_gitee2_{}'.format(ISSUE_TYPE))
         rich_issue['is_gitee_{}'.format(ISSUE_TYPE)] = 1
 
-        userExtra = self.esClient.getUserInfo(rich_issue['user_login'])
+        userExtra = self.esClient.getUserInfo(rich_issue['user_login'], issue['created_at'])
         rich_issue.update(userExtra)
         return rich_issue
 
@@ -1411,7 +1412,7 @@ class Gitee(object):
 
             if 'project' in eitem:
                 ecomment['project'] = eitem['project']
-            userExtra = self.esClient.getUserInfo(ecomment['user_login'])
+            userExtra = self.esClient.getUserInfo(ecomment['user_login'], comment['created_at'])
             ecomment.update(userExtra)
             # self.add_repository_labels(ecomment)
             # self.add_metadata_filter_raw(ecomment)
@@ -1574,7 +1575,7 @@ class Gitee(object):
         dict_all_user = {}
         # the first update all data
         if len(self.giteeid_company_dict_last) == 0:
-            all_user = self.esClient.getTotalAuthorName(size=10000)
+            all_user = self.esClient.getTotalAuthorName(size=20000)
             for user in all_user:
                 dict_all_user.update({user['key']: "independent"})
 
@@ -1593,30 +1594,83 @@ class Gitee(object):
             else:
                 is_admin_added = 0
             if u in users or company == self.internal_company_name:
-                update_data = {
-                    "doc": {
-                        "tag_user_company": self.internal_company_name,
-                        "is_project_internal_user": 1,
-                        "is_admin_added": is_admin_added,
-                    }
-                }
+                is_project_internal_user = 1
+                tag_user_company = self.internal_company_name
             else:
-                update_data = {
-                    "doc": {
-                        "tag_user_company": company,
-                        "is_project_internal_user": 0,
-                        "is_admin_added": is_admin_added,
-                    }
-                }
+                is_project_internal_user = 0
+                tag_user_company = company
 
-            actions = ""
-            ids = self.getAllIndex(u)
-            for id in ids:
-                action = common.getSingleAction(
-                    self.index_name, id["key"], update_data, act="update")
-                actions += action
+            if len(self.esClient.giteeid_company_change_dict) != 0 and u in self.esClient.giteeid_company_change_dict:
+                vMap = self.esClient.giteeid_company_change_dict[u]
+                times = sorted(vMap.keys())
+                for i in range(1, len(times) + 1):
+                    if i == 1:
+                        startTime = '1990-01-01'
+                    else:
+                        startTime = times[i - 1]
+                    if i == len(times):
+                        endTime = '2222-01-01'
+                    else:
+                        endTime = times[i]
+                    company = vMap.get(times[i - 1])
+                    print('*** update %s : %s' % (u, company))
 
-            self.esClient.safe_put_bulk(actions)
+                    query = '''{
+                                  "script": {
+                                    "source": "ctx._source.tag_user_company = params.tag_user_company;ctx._source.is_project_internal_user = params.is_project_internal_user;ctx._source.is_admin_added = params.is_admin_added",
+                                    "params": {
+                                      "tag_user_company": "%s",
+                                      "is_project_internal_user": "%s",
+                                      "is_admin_added": "%s"
+                                    },
+                                    "lang": "painless"
+                                  },
+                                  "query": {
+                                    "bool": {
+                                      "must": [
+                                        {
+                                          "range": {
+                                            "created_at": {
+                                              "gte": "%s",
+                                              "lt": "%s"
+                                            }
+                                          }
+                                        },
+                                        {
+                                          "term": {
+                                            "user_login.keyword": "%s"
+                                          }
+                                        }
+                                      ]
+                                    }
+                                  }
+                                }''' % (company, is_project_internal_user, is_admin_added, startTime, endTime, u)
+                    self.esClient.updateByQuery(query=query.encode('utf-8'))
+            else:
+                print('*** update %s : %s' % (u, tag_user_company))
+                query = '''{
+                              "script": {
+                                "source": "ctx._source.tag_user_company = params.tag_user_company;ctx._source.is_project_internal_user = params.is_project_internal_user;ctx._source.is_admin_added = params.is_admin_added",
+                                "params": {
+                                  "tag_user_company": "%s",
+                                  "is_project_internal_user": "%s",
+                                  "is_admin_added": "%s"
+                                },
+                                "lang": "painless"
+                              },
+                              "query": {
+                                "bool": {
+                                  "must": [
+                                    {
+                                      "term": {
+                                        "user_login.keyword": "%s"
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            }''' % (tag_user_company, is_project_internal_user, is_admin_added, u)
+                self.esClient.updateByQuery(query=query.encode('utf-8'))
 
     def tagUsersFromEmail(self, tag_user_company="internal_company"):
         if self.is_gitee_enterprise == "true":
@@ -1782,7 +1836,7 @@ class Gitee(object):
                         user['user_name'] = user['name']
                         user['author_name'] = user['name']
                         user['org_name'] = self.orgs[index]
-                        userExtra = self.esClient.getUserInfo(user['login'])
+                        userExtra = self.esClient.getUserInfo(user['login'], user['created_at'])
                         user.update(userExtra)
                         action = common.getSingleAction(self.index_name_all[index], id, user)
                         self.esClient.safe_put_bulk(action)
