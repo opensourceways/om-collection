@@ -42,8 +42,9 @@ class SigMaintainer(object):
     def run(self, from_time):
         if self.index_name_sigs and self.sig_mark:
             self.get_all_id()
-            self.get_sigs()
+            self.download_sigs()
             maintainer_sigs_dict = self.get_sigs_original()
+            self.get_sigs(maintainer_sigs_dict)
 
     def getSingleAction(self, index_name, id, body, act="index"):
         action = ""
@@ -148,7 +149,6 @@ class SigMaintainer(object):
             for repo in repos:
                 if self.get_repo_name_without_sig:
                     repositories.append(repo)
-                    break
                 else:
                     repositories.append(self.org + '/' + repo)
             sig_repos_dict.update({d['name']: repositories})
@@ -309,7 +309,7 @@ class SigMaintainer(object):
                 datas += datar
         return datas
 
-    def get_sigs(self):
+    def download_sigs(self):
         path = self.sigs_dir
         url = self.sigs_url
         if not os.path.exists(path):
@@ -322,6 +322,7 @@ class SigMaintainer(object):
             cmdpull = 'cd %s;git pull' % gitpath
             os.system(cmdpull)
 
+    def get_sigs(self, maintainer_sigs_dict):
         dic = self.esClient.getOrgByGiteeID()
         self.esClient.giteeid_company_dict = dic[0]
         self.gitee.internalUsers = self.gitee.getItselfUsers(self.gitee.internal_users)
@@ -372,6 +373,8 @@ class SigMaintainer(object):
                                      "committer_time": times_owner,
                                      "is_sig_repo_committer": 1,
                                      "owner_type": key}
+                            if key == "maintainers":
+                                dataw.update({"maintainer_in_sigs": maintainer_sigs_dict.get(owner)})
                             userExtra = self.esClient.getUserInfo(owner)
                             dataw.update(userExtra)
                             datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
@@ -390,6 +393,8 @@ class SigMaintainer(object):
                                      "committer_time": times_owner,
                                      "is_sig_repo_committer": 1,
                                      "owner_type": key}
+                            if key == "maintainers":
+                                dataw.update({"maintainer_in_sigs": maintainer_sigs_dict.get(owner)})
                             userExtra = self.esClient.getUserInfo(owner)
                             dataw.update(userExtra)
                             datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
@@ -432,12 +437,12 @@ class SigMaintainer(object):
                 maintainers = owners['maintainers']
             except FileNotFoundError:
                 maintainers = []
-            # # get maintainer sigs dict
-            # dt = defaultdict(dict)
-            # for maintainer in maintainers:
-            #     dt.update({maintainer: [dir]})
-            # combined_keys = dict_comb.keys() | dt.keys()
-            # dict_comb = {key: dict_comb.get(key, []) + dt.get(key, []) for key in combined_keys}
+            # get maintainer sigs dict
+            dt = defaultdict(dict)
+            for maintainer in maintainers:
+                dt.update({maintainer: [dir]})
+            combined_keys = dict_comb.keys() | dt.keys()
+            dict_comb = {key: dict_comb.get(key, []) + dt.get(key, []) for key in combined_keys}
             # sig actions
             action = {
                 "sig_name": dir,
@@ -454,11 +459,7 @@ class SigMaintainer(object):
                         action.update({i: info.get(i)})
                     if i == 'maintainers':
                         maintainer_info = info.get(i)
-                        # maintainers = []
-                        # for maintainer in maintainer_info:
-                        #     maintainers.append(maintainer['gitee_id'])
                         action.update({'maintainer_info': maintainer_info})
-                        # action.update({"maintainers": maintainers})
             except FileNotFoundError:
                 print('sig-info.yaml of %s is not exist.' % dir)
             indexData = {"index": {"_index": self.index_name_sigs, "_id": dir}}
