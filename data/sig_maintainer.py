@@ -148,7 +148,6 @@ class SigMaintainer(object):
             for repo in repos:
                 if self.get_repo_name_without_sig:
                     repositories.append(repo)
-                    break
                 else:
                     repositories.append(self.org + '/' + repo)
             sig_repos_dict.update({d['name']: repositories})
@@ -432,12 +431,7 @@ class SigMaintainer(object):
                 maintainers = owners['maintainers']
             except FileNotFoundError:
                 maintainers = []
-            # # get maintainer sigs dict
-            # dt = defaultdict(dict)
-            # for maintainer in maintainers:
-            #     dt.update({maintainer: [dir]})
-            # combined_keys = dict_comb.keys() | dt.keys()
-            # dict_comb = {key: dict_comb.get(key, []) + dt.get(key, []) for key in combined_keys}
+
             # sig actions
             action = {
                 "sig_name": dir,
@@ -454,11 +448,7 @@ class SigMaintainer(object):
                         action.update({i: info.get(i)})
                     if i == 'maintainers':
                         maintainer_info = info.get(i)
-                        # maintainers = []
-                        # for maintainer in maintainer_info:
-                        #     maintainers.append(maintainer['gitee_id'])
                         action.update({'maintainer_info': maintainer_info})
-                        # action.update({"maintainers": maintainers})
             except FileNotFoundError:
                 print('sig-info.yaml of %s is not exist.' % dir)
             indexData = {"index": {"_index": self.index_name_sigs, "_id": dir}}
