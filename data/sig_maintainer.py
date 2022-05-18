@@ -34,6 +34,7 @@ class SigMaintainer(object):
         self.sig_repo_name = config.get('sig_repo_name')
         self.sigs_dirs_path = config.get('sigs_dirs_path')
         self.from_data = config.get("from_data")
+        self.get_repo_name_without_sig = config.get("get_repo_name_without_sig")
         self.sig_mark = config.get("sig_mark")
         self.exists_ids = []
         # self.index_name_maintainer_info = config.get('index_name_maintainer_info')
@@ -86,7 +87,7 @@ class SigMaintainer(object):
         res = requests.post(url, headers=self.esClient.default_headers, verify=False, data=search)
         data = res.json()
 
-        removed_sigs = ['sig-template']
+        removed_sigs = ['sig-template', 'Template']
         for sig in data['aggregations']['2']['buckets']:
             sig_name = sig['key']
             if sig_name not in dirs:
@@ -146,8 +147,8 @@ class SigMaintainer(object):
             repos = d['repositories']
             repositories = []
             for repo in repos:
-                if str(repo).__contains__('/'):
-                    repositories = repos
+                if self.get_repo_name_without_sig:
+                    repositories.append(repo)
                     break
                 else:
                     repositories.append(self.org + '/' + repo)
@@ -361,7 +362,7 @@ class SigMaintainer(object):
                         if dir in sig_repos_dict:
                             repos = sig_repos_dict.get(dir)
                         for repo in repos:
-                            ID = self.org + '_' + dir + '_' + repo + '_' + key + '_' + owner
+                            ID = self.org + '_' + dir + '_' + repo + '_' + key + '_' + str(owner)
                             if ID in self.exists_ids:
                                 self.exists_ids.remove(ID)
                             dataw = {"sig_name": dir,
