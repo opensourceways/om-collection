@@ -69,7 +69,8 @@ BACKEND_MAPPING = {
     'refresh_token': 'data.refresh_token.RefreshToken',
     'gitlab': 'data.gitlab.Gitlab',
     'gitee_metrics': 'data.gitee_metrics.GiteeMetrics',
-    'giteescore': 'data.gitee_issue_score.GiteeScore'
+    'giteescore': 'data.gitee_issue_score.GiteeScore',
+    'collect_pypi': 'data.pypi.CollectPypi'
 }
 
 
