@@ -1,6 +1,7 @@
 import json
 
 from collect.github import GithubClient
+from data import common
 from data.common import ESClient
 
 
@@ -18,6 +19,7 @@ class GitHubPrIssue(object):
         self.is_set_watch = config.get('is_set_watch')
         self.is_set_fork = config.get('is_set_fork')
         self.repos = config.get('repos')
+        self.robot_user = config.get('robot_user')
         self.repos_name = []
 
     def run(self, from_date):
@@ -92,10 +94,15 @@ class GitHubPrIssue(object):
                     submitted_at = review['submitted_at']
                 except KeyError:
                     submitted_at = pr['created_at']
-                review_times.append(self.format_time_z(submitted_at))
+                if self.robot_user:
+                    robot_users = self.robot_user.split(',')
+                    if review['user']['login'] and review['user']['login'] not in robot_users:
+                        review_times.append(self.format_time_z(submitted_at))
                 reviews_data = {
                     'pr_id': pr['id'],
                     'pr_number': pr_num,
+                    'pr_title': pr['title'],
+                    'pr_body': pr['body'],
                     'pr_review_id': review['id'],
                     'user_id': review['user']['id'],
                     'user_login': review['user']['login'],
@@ -122,10 +129,15 @@ class GitHubPrIssue(object):
             comment_actions = ''
             comment_times = []
             for comment in comments:
-                comment_times.append(self.format_time_z(comment['created_at']))
+                if self.robot_user:
+                    robot_users = self.robot_user.split(',')
+                    if comment['user']['login'] not in robot_users:
+                        comment_times.append(self.format_time_z(comment['created_at']))
                 comments_data = {
                     'pr_id': pr['id'],
                     'pr_number': pr_num,
+                    'pr_title': pr['title'],
+                    'pr_body': pr['body'],
                     'id': comment['id'],
                     'user_id': comment['user']['id'],
                     'user_login': comment['user']['login'],
@@ -159,6 +171,7 @@ class GitHubPrIssue(object):
                 'updated_at': self.format_time_z(pr['updated_at']),
                 'closed_at': self.format_time_z(pr['closed_at']),
                 'merged_at': self.format_time_z(pr['merged_at']),
+                'time_to_close_days': common.get_time_diff_days(pr['created_at'], pr['closed_at']),
                 'github_repo': self.org + '/' + repo,
                 'is_github_pr': 1,
                 'is_github_account': 1,
@@ -193,7 +206,10 @@ class GitHubPrIssue(object):
             comment_actions = ''
             comment_times = []
             for comment in comments:
-                comment_times.append(self.format_time_z(comment['created_at']))
+                if self.robot_user:
+                    robot_users = self.robot_user.split(',')
+                    if comment['user']['login'] not in robot_users:
+                        comment_times.append(self.format_time_z(comment['created_at']))
                 comments_data = {
                     'issue_id': issue['id'],
                     'issue_number': issue_num,
@@ -229,6 +245,7 @@ class GitHubPrIssue(object):
                 'created_at': self.format_time_z(issue['created_at']),
                 'updated_at': self.format_time_z(issue['updated_at']),
                 'closed_at': self.format_time_z(issue['closed_at']),
+                'time_to_close_days': common.get_time_diff_days(issue['created_at'], issue['closed_at']),
                 'github_repo': self.org + '/' + repo,
                 'is_github_issue': 1,
                 'is_github_account': 1,
