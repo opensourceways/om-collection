@@ -13,7 +13,6 @@
 # Create: 2020-05
 #
 
-
 import json
 import re
 import subprocess

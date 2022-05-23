@@ -13,15 +13,8 @@
 # Create: 2020-05
 #
 
-import os
-import sys
-
-import requests
-
-import json
 import time
 
-from datetime import datetime
 from data import common
 from data.common import ESClient
 
