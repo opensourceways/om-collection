@@ -319,6 +319,6 @@ class GiteeClient():
                 'grant_type': 'refresh_token',
                 'refresh_token': refresh_token
             }
-            # print("Refresh the access_token for Gitee v8 API")
+
             res = self.session.post(url, json=params, headers=_header, stream=False, auth=None)
             return res
