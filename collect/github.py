@@ -143,8 +143,6 @@ class GithubClient(object):
                                     verify=self.ssl_verify,
                                     stream=stream, auth=auth,
                                     timeout=60)
-            # response = self.session.get(url, params=payload, headers=headers, stream=stream,
-            #                             verify=self.ssl_verify, auth=auth)
         else:
             response = requests.post(url, headers=self.headers,
                                      verify=self.ssl_verify,
@@ -158,13 +156,6 @@ class GithubClient(object):
         # set the header for request
         headers.update({'Content-Type': 'application/json;charset=UTF-8'})
         return headers
-
-    # def _refresh_access_token(self):
-    #     """Send a refresh post access to the Gitee Server"""
-    #     if self.access_token:
-    #         url = GITHUB_URL + "?grant_type=refresh_token&refresh_token=" + self.access_token
-    #         logger.info("Refresh the access_token for Gitee API")
-    #         self.session.post(url, data=None, headers=None, stream=False, auth=None)
 
     def urijoin(self, *args):
         """Joins given arguments into a URI.
