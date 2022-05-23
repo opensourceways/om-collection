@@ -433,9 +433,6 @@ class Gitee(object):
 
     def writeForks(self, owner, repo, from_date, sig_names=None):
         startTime = datetime.datetime.now()
-        # from_date = self.getFromDate(from_date, [
-        #     {"name": "is_gitee_fork", "value": 1}])
-        # print("Start collect fork data from ", from_date)
 
         client = GiteeClient(owner, repo, self.gitee_token)
         fork_data = self.getGenerator(client.forks())
@@ -443,9 +440,6 @@ class Gitee(object):
 
         fork_ids = []
         for fork in fork_data:
-            # if common.str_to_datetime(fork["updated_at"]) < from_date:
-            #     continue
-
             action = {
                 "sig_names": sig_names,
                 "fork_id": fork["id"],
@@ -499,8 +493,6 @@ class Gitee(object):
             if len(original_ids) != 0 and star['id'] in original_ids:
                 continue
             star_id = owner + "/" + repo + "_" + "star" + str(star['id'])
-            # if self.esClient.checkFieldExist(filter=star_id) == True:
-            #     continue
 
             from_registerd_to_star = None
             user_details = self.getGenerator(client.user(star['login']))
@@ -544,14 +536,9 @@ class Gitee(object):
             }], matchs_not=[{"name": "is_removed", "value": "1"}])
         actions = ""
         for watch in watch_data:
-            # if watch['login'] in self.skip_user:
-            #     continue
-
             watch_id = owner + "/" + repo + "_" + "watch" + str(watch['id'])
             if len(original_ids) != 0 and watch['id'] in original_ids:
                 continue
-            # if self.esClient.checkFieldExist(filter=[watch_id]) == True:
-            #     continue
             action = {
                 "sig_names": sig_names,
                 "user_id": watch["id"],
@@ -618,8 +605,6 @@ class Gitee(object):
             branchName += br['brname'] + ','
         branchName = branchName[0:len(branchName) - 1]
         repo_detail['branchName'] = branchName
-        # repo_detail['branches'] = brinfo
-        # repo_detail['branchinfo'] = brinfo
         repo_detail['branch_detail'] = brinfo
         indexData = {
             "index": {"_index": self.index_name,
@@ -686,14 +671,6 @@ class Gitee(object):
         result = []
         version = None
         print("start getbranchinfo repo: ", repo)
-        # file_name = repo
-        # repo_spec_dict = {}
-        # if self.repo_spec is not None:
-        #     for rs in str(self.repo_spec).split(';'):
-        #         r_s = rs.split(',')
-        #         repo_spec_dict.update({r_s[0]: r_s[1]})
-        # if repo_spec_dict is not None and repo_spec_dict.keys().__contains__(repo):
-        #     file_name = repo_spec_dict[repo]
 
         for br in branches:
             brresult = {}
@@ -759,14 +736,6 @@ class Gitee(object):
             client.pulls(state='all', once_update_num_of_pr=once_update_num_of_pr, direction='desc',
                          sort='updated'))
         print(('collection %d pulls' % (len(pull_data))))
-        # self.updateRemovedData(pull_data, 'pr', [{
-        #     "name": "is_gitee_pull_request",
-        #     "value": 1,
-        # },
-        #     {
-        #         "name": "gitee_repo.keyword",
-        #         "value": "https://gitee.com/" + owner + "/" + repo,
-        #     }])
         for x in pull_data:
             print(x['number'])
             if common.str_to_datetime(x['updated_at']) < from_date:
@@ -923,14 +892,6 @@ class Gitee(object):
             actions += json.dumps(issue_item) + '\n'
 
         self.esClient.safe_put_bulk(actions)
-        # self.updateRemovedData(issue_data, 'issue', [{
-        #     "name": "is_gitee_issue",
-        #     "value": 1,
-        # },
-        #     {
-        #         "name": "gitee_repo.keyword",
-        #         "value": "https://gitee.com/" + owner + "/" + repo,
-        #     }])
         endTime = datetime.datetime.now()
         print("Collect repo(%s/%s) issue data finished, spend %s seconds" % (
             owner, repo, (endTime - startTime).total_seconds()))
@@ -1133,7 +1094,6 @@ class Gitee(object):
         rich_pr['body'] = pull_request['body']
         rich_pr['pull_id'] = pull_request['id']
         rich_pr['pull_id_in_repo'] = pull_request['html_url'].split("/")[-1]
-        #rich_pr['issue_id_in_repo'] = pull_request['html_url'].split("/")[-1]
         rich_pr['repository'] = pull_request['url']
 
         client = GiteeClient("", "", self.gitee_token)
@@ -1154,7 +1114,6 @@ class Gitee(object):
             rich_pr['is_pr_associate_issue'] = 1
 
         rich_pr['pull_title'] = pull_request['title']
-        #rich_pr['issue_title_analyzed'] = pull_request['title']
         rich_pr['pull_state'] = pull_request['state']
         if (rich_pr['pull_state'] == 'open'):
             rich_pr["is_pull_state_open"] = 1
@@ -1292,7 +1251,6 @@ class Gitee(object):
         rich_issue['issue_id'] = issue['id']
         rich_issue['issue_number'] = issue['number']
         rich_issue['issue_id_in_repo'] = issue['html_url'].split("/")[-1]
-        # rich_issue['repository'] = self.get_project_repository(rich_issue)
         rich_issue['repository'] = issue['repository']['full_name']
         rich_issue['repository_forks_count'] = int(issue['repository']['forks_count'])
         rich_issue['repository_stargazers_count'] = int(issue['repository']['stargazers_count'])
@@ -1320,7 +1278,6 @@ class Gitee(object):
         rich_issue['issue_customize_state'] = issue['issue_state']
 
         # extract reactions and add it to enriched item
-        # rich_issue.update(self.__get_reactions(issue))
 
         labels = []
         [labels.append(label['name']) for label in issue['labels'] if 'labels' in issue]
@@ -1331,7 +1288,6 @@ class Gitee(object):
         if 'head' not in issue.keys() and 'pull_request' not in issue.keys():
             rich_issue['issue_pull_request'] = False
 
-        # rich_issue['gitee_repo'] = rich_issue['repository'].replace(gitee, '')
         rich_issue['gitee_repo'] = re.sub('.git$', '', issue['repository']['html_url'])
         rich_issue['org_name'] = issue['repository']['namespace']['path']
         # if self.prjs_map:
@@ -1346,9 +1302,6 @@ class Gitee(object):
                 common.get_time_diff_days(common.str_to_datetime(issue['created_at']),
                                           common.get_time_to_first_attention(issue))
 
-        # rich_issue.update(self.get_grimoire_fields(issue['created_at'], ISSUE_TYPE))
-        # due to backtrack compatibility, `is_gitee2_*` is replaced with `is_gitee_*`
-        # rich_issue.pop('is_gitee2_{}'.format(ISSUE_TYPE))
         rich_issue['is_gitee_{}'.format(ISSUE_TYPE)] = 1
 
         userExtra = self.esClient.getUserInfo(rich_issue['user_login'], issue['created_at'])
@@ -1373,8 +1326,6 @@ class Gitee(object):
             ecomment['issue_created_at'] = eitem['issue_created_at']
             ecomment['issue_updated_at'] = eitem['issue_updated_at']
             ecomment['issue_closed_at'] = eitem['issue_closed_at']
-            # ecomment['created_at'] = eitem['issue_created_at']
-            # ecomment['updated_at'] = eitem['issue_updated_at']
             ecomment['closed_at'] = eitem['issue_closed_at']
             ecomment['issue_pull_request'] = eitem['issue_pull_request']
             ecomment['gitee_repo'] = eitem['gitee_repo']
@@ -1389,7 +1340,6 @@ class Gitee(object):
             # ecomment['url'] = comment['html_url']
 
             # extract reactions and add it to enriched item
-            # ecomment.update(self.__get_reactions(comment))
             user = comment.get('user', None)
             if user is not None and user:
                 ecomment['user_id'] = user['id']
@@ -1445,10 +1395,7 @@ class Gitee(object):
         all_user = self.esClient.getTotalAuthorName(
             field="user_login.keyword")
         for user in all_user:
-            # if user["key"] in self.all_user:
-            #     continue
             user_name = user["key"]
-            # self.all_user.append(user_name)
             print("start to update user:", user)
             self.esClient.setIsFirstCountributeItem(user_name)
 
@@ -1516,52 +1463,6 @@ class Gitee(object):
                 users.append(line.split('\n')[0])
         print(users)
         return users
-
-    # def tagUserOrgChanged(self):
-    #     if len(self.esClient.giteeid_company_change_dict) == 0:
-    #         return
-    #     for key, vMap in self.esClient.giteeid_company_change_dict.items():
-    #         vMap.keys()
-    #         times = sorted(vMap.keys())
-    #         for i in range(1, len(times) + 1):
-    #             if i == 1:
-    #                 startTime = '1990-01-01'
-    #             else:
-    #                 startTime = times[i - 1]
-    #             if i == len(times):
-    #                 endTime = '2222-01-01'
-    #             else:
-    #                 endTime = times[i]
-    #             company = vMap.get(times[i - 1])
-    #             # is_project_internal_user = 0
-    #             # if company == self.internal_company_name:
-    #             #     is_project_internal_user = 1
-    #
-    #             query = '''{
-    #                         	"script": {
-    #                         		"source": "ctx._source['tag_user_company']='%s'"
-    #                         	},
-    #                         	"query": {
-    #                         		"bool": {
-    #                         			"must": [
-    #                         				{
-    #                         					"range": {
-    #                         						"created_at": {
-    #                         							"gte": "%s",
-    #                         							"lt": "%s"
-    #                         						}
-    #                         					}
-    #                         				},
-    #                         				{
-    #                         					"term": {
-    #                         						"user_login.keyword": "%s"
-    #                         					}
-    #                         				}
-    #                         			]
-    #                         		}
-    #                         	}
-    #                         }''' % (company, startTime, endTime, key)
-    #             self.esClient.updateByQuery(query=query.encode('utf-8'))
 
     def tagHistoryUsers(self):
         if self.giteeid_company_dict_last == self.esClient.giteeid_company_dict:
@@ -1712,7 +1613,6 @@ class Gitee(object):
             self.esClient.safe_put_bulk(actions)
 
     def tagUsers(self, from_date=None, tag_user_company="openeuler"):
-        # users = self.getItselfUsers()
         if self.is_gitee_enterprise == "true":
             users = self.enterpriseUsers
         else:
@@ -1752,7 +1652,6 @@ class Gitee(object):
                         else:
                             if re.search(r'huawei', data["companies"]['company_name'], re.I):
                                 update_data["companies"]['company_name'] = 'Huawei'
-            # for u in users:
             actions = ""
             ids = self.getAllIndex(u)
             for id in ids:
