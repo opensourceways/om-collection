@@ -474,8 +474,6 @@ class GoogleAnalyticUser(object):
             total_data_dict['dimensions'] = [cursor_date.strftime('%Y%m%d')]
             total_data_dict['metrics'] = first_page_reports[0].get('data').get('totals')
 
-            # total_data_dict = content_totals[0]
-            # total_data_dict['date'] = cursor_date_str
             increment_date_total_row_list.append(total_data_dict)
 
             days += 1

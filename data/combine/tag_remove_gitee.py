@@ -105,11 +105,6 @@ class TagRemovedGitee(object):
         with ThreadPoolExecutor(max_workers=self.thread_pool_max) as executor:
             executor.map(self.tag_removed_issue_func, hits)
 
-            # tasks = [executor.submit(self.tag_removed_issue_func, hit) for hit in hits]
-            # for task in as_completed(tasks, timeout=2):
-            #     data = task.result()
-            #     print(data)
-
     def tag_removed_issue_func(self, hit):
         _id = hit['_id']
         url = hit['_source']['url']

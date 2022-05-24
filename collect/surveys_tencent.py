@@ -62,7 +62,7 @@ class SurveysTencentApi(object):
         }
         return self.http_req(url=url, params=params)
 
-    # 获取回答列表 TODO
+    # 获取回答列表
     def get_answers(self, access_token, survey_id, per_page=20, last_answer_id=0):
         url = self.url_join(BASE_URL, 'surveys', survey_id, 'answers')
         params = {
@@ -74,7 +74,7 @@ class SurveysTencentApi(object):
         }
         return self.http_req(url=url, params=params)
 
-    # 获取回答详情 TODO
+    # 获取回答详情
     def get_answer_legacy(self, access_token, survey_id, answer_id):
         url = self.url_join(BASE_URL, 'surveys', survey_id, 'answers', answer_id)
         params = {
