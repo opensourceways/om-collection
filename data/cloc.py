@@ -119,7 +119,6 @@ class ClocCode(object):
             print(f'{self.thread_name} === Current OS is not linux.\n {command_statement} would not be executed.')
             return None
 
-        # pdb.set_trace()
         # 执行shell语句并定义输出格式
         subp = subprocess.Popen(command_statement, shell=True, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
 

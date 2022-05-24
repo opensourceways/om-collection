@@ -282,20 +282,10 @@ class CollectData(object):
                 res = json.load(f)
                 repos = res[sig]['git']
             res = self.collect_code(repos)
-            # with open('D:/openeuler_code.txt', 'w') as f:
-            #     f.write(json.dumps(res))
-            # for r in res:
-            #     for body in res[r]:
-            #         # body = {'date': '2020-06-19', 'add': 2099, 'remove': 2515, 'total': -416}
-            #         ID = r + '_' + body['date']
-            #         data = getSingleAction(index_name, ID, body)
-            #         safe_put_bulk(data)
-            #         print(data)
 
             all_code = []
 
             for r in res:
-                # res[r]['created_at']
                 index = len(res[r])
                 resfist = res[r]
                 break
@@ -310,10 +300,6 @@ class CollectData(object):
                     call['remove'] += res[r][i]['remove']
                     call['total'] += res[r][i]['total']
                 all_code.append(call)
-
-            # resall = json.dumps(all_code)
-            # with open('D:/openeuler_code_all.txt', 'w') as f:
-            #     f.write(resall)
 
             for body in all_code:
                 ID = sig + '_all_' + body['created_at']
@@ -333,7 +319,6 @@ class CollectData(object):
             dateiise = dateii
             dateii += datetime.timedelta(days=1)
             stime = datetime.datetime.strftime(dateiise, "%Y-%m-%d")
-            # data = '''{"size":9999,"query": {"bool": {"must": [{ "match": { "created_at":"%s" }}%s]}}}''' % (stime, mactch)
             if commit:
                 commitdata = ''',"aggs": {
     "age_count": {
@@ -740,7 +725,6 @@ class CollectData(object):
             rs2.append('\n'.join(ownerslist[n2:]))
             onwer_file = repo_path + '/' + 'OWNERS'
             onwers = yaml.load_all(open(onwer_file), Loader=yaml.Loader).__next__()
-            # data = yaml.load_all(open(self.sig_yaml_path)).__next__()['sigs']
             datas = ''
             try:
                 for key, val in onwers.items():
@@ -751,16 +735,12 @@ class CollectData(object):
                                    self.esClient.searchEsList("openeuler_sigs_committers_20210318", search)]
                         times_onwer = None
                         for r in rs2:
-                            # if re.search(r'\+\s*-\s*%s' % onwer, r):
                             if re.search(r'Author:\s%s' % onwer, r):
                                 date = re.search(r'Date:\s*(.*)\n', r).group(1)
                                 time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
                                 times_onwer = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
 
                         repo_mark = True
-                        # for d in data:
-                        #     if d is not None and 'name' in d and d['name'] == dir:
-                        #         repos = d['repositories']
                         repos = []
                         sig_repo_path = self.sigs_dirs_path + '/' + dir
                         print('sig_repo_path = ', sig_repo_path)
@@ -824,10 +804,6 @@ class CollectData(object):
                             dataw.update(userExtra)
                             datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
                             datas += datar
-                        # for id in ID_list:
-                        #     data = '''{"size":10000,"query": {"bool": {"match": [{ "term": { "_id":"%s"}}]}}}''' % id
-                        #     self.esClient.post_delete_delete_by_query(data, self.index_name_sigs)
-                        #     print('delete ID: %s' % id)
                 self.safe_put_bulk(datas)
                 print("this sig done: %s" % dir)
                 time.sleep(1)
@@ -975,7 +951,6 @@ class CollectData(object):
             times_onwer = None
             for r in rs2:
                 if re.search(r'\+\s*-\s*%s' % onwer, r):
-                    # date = r.split("Date:   ")[1].split(" +0800")[0]
                     a = r.split("Date:   ")[1]
                     date = re.split(r" [+|-]\d{4}", a)[0]
                     time_struct = time.strptime(date, '%a %b %d %H:%M:%S %Y')
@@ -1010,7 +985,6 @@ class CollectData(object):
             cmdpull = 'cd %s;git pull' % gitpath
             os.system(cmdpull)
 
-        # sigs_data = yaml.load_all(open(self.sig_yaml_path)).__next__()
         dirs = os.walk(self.sigs_dirs_path).__next__()[1]
         sigs_data = {}
         for dir in dirs:
@@ -1161,7 +1135,6 @@ class CollectData(object):
                                     body['openDays_60-'] = 1
                         data = self.getSingleAction(self.index_name_sigs, ID, body)
                         self.safe_put_bulk(data)
-                        # print("data:%s" % data)
 
     def transform_total_base(self, url, index_name, date, mactch, totalmark, id, aggs='', created_at='created_at'):
         datei = datetime.datetime.strptime(date, "%Y-%m-%d")

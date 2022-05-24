@@ -115,28 +115,6 @@ class HuaweiCloud(object):
                 action = common.getSingleAction(self.index_name, index_id, body)
                 actions += action
 
-                # if i < 18000:
-                #     gb = 2
-                #     body2 = {
-                #         "sum_value": 1024 * 1024 * 1024 * gb,
-                #         "sum_value_gb": gb,
-                #         "timestamp": aggregation.timestamp,
-                #         "namespace": "SYS.I",
-                #         "metric_name": "i_stream",
-                #         "created_at": created_at,
-                #         "dim_name": "temp",
-                #         "id": "publicip_id_" + str(i),
-                #         "total": i * gb,
-                #         "total_num": i * gb / 6
-                #     }
-                #     index_id2 = created_at + "publicip_id_" + str(i)
-                #     action2 = common.getSingleAction(self.index_name, index_id2,
-                #                                      body2)
-                #     actions += action2
-                #     print("i=%d, created_at=%s" % (i, created_at))
-                #
-                # i += 1
-                # print(action)
             self.esClient.safe_put_bulk(actions)
             tmp_from_date = tmp_from_date + timedelta(days=9)
 

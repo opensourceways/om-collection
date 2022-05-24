@@ -140,8 +140,6 @@ class GiteeClient():
 
         if self._set_extra_headers():
             self.session.headers.update(self._set_extra_headers())
-        # refresh the access token
-        # self._refresh_access_token()
 
     def dir_tree(self, owner, repository, branch):
         path = self.urijoin(self.base_url, 'repos', owner, repository, 'git', 'trees', branch)

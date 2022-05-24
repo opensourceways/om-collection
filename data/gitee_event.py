@@ -84,7 +84,6 @@ class GiteeEvent(object):
                         prev_id = e.get('id')
                     if e.get('created_at'):
                         created_at = e.get('created_at')
-                        # print('id = ', prev_id, ', created_at = ', created_at)
                         day = created_at.split('T')
                         e_time = time.mktime(time.strptime(day[0], '%Y-%m-%d'))
                         s_time = time.mktime(time.strptime(self.start_time, '%Y-%m-%d'))
@@ -108,7 +107,6 @@ class GiteeEvent(object):
                     action.update(is_inner_user)
                     action.update(json_type)
                     action[is_type] = 1
-                    # print("action = ", action)
                     self.actions += json.dumps(index_data_survey) + '\n'
                     self.actions += json.dumps(action) + '\n'
                     self.event_count += 1

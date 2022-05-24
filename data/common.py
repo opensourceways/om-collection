@@ -1064,16 +1064,6 @@ class ESClient(object):
         return data['aggregations']['uniq_gender']['buckets']
 
     def setIsFirstCountributeItem(self, user_login):
-        # get min created at value by author name
-        # data_query = '''"query": {
-        #     "bool": {
-        #         "must": [
-        #             {"match": {"user_login": "%s"}}
-        #         ]
-        #     }
-        # },''' % (
-        #     user_login)
-
         data_query = '''"query": {
             "bool": {
                 "must": [

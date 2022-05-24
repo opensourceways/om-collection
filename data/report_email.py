@@ -2593,28 +2593,6 @@ class ReportEmail(object):
             res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
             result["openlookeng"]["video"] = int(res["aggregations"]["new_followers"]["value"])
 
-            # data = '''{"size":10000,
-            #   "query": {
-            #     "bool": {
-            #       "filter":{
-            #         "range":{
-            #           "created_at":{
-            #             "gte":"%s.000+0800",
-            #             "lt":"%s.000+0800"
-            #           }
-            #         }
-            #       }, "must_not": [{ "match": { "path.keyword":"-" }}]
-            #     }
-            #   },
-            #   "aggs": {
-            #     "ip": {
-            #       "cardinality": {
-            #         "field": "ip.keyword"}}}
-            # }''' % (starttime, endtime)
-            # url = 'https://119.8.111.61:9200/openlookeng_obs_20200706/_search'
-            # res = json.loads(requests.get(url=url, headers=headers, verify=False, data=data.encode('utf-8')).content)
-            # result["openlookeng"]["users"] = int(res["aggregations"]["ip"]["value"])
-
             data = '''{"size":100,
              "query": {
                 "bool": {
@@ -3486,24 +3464,6 @@ class ReportEmail(object):
         prs.save(fileppt)
 
     def do(self, start='2019-06-01 00:00:00', end=None, org=None, check=None):
-        # if not os.path.exists('D:\\GrafanaPng'):
-        #     os.makedirs('D:\\GrafanaPng')
-
-        # with open("D:\\pngurl.json", 'r') as fj:
-        #     f = json.load(fj)
-        # if org:
-        #     for c in f[org]['pngurl']:
-        #         if f[org]['pngurl'][c]:
-        #             filename = "D:\\GrafanaPng\\%s_%s.png" % (org, c)
-        #             getPng(f[org]['pngurl'][c], filename, f[org]['APIkey'], start, end)
-        # else:
-        #     for z in f:
-        #         if 'pngurl' in f[z]:
-        #             for c in f[z]['pngurl']:
-        #                 if f[z]['pngurl'][c]:
-        #                     filename = "D:\\GrafanaPng\\%s_%s.png" % (z, c)
-        #                     getPng(f[z]['pngurl'][c], filename, f[z]['APIkey'], start, end)
-
         if not end:
             endT = time.strftime("%Y/%m/%d", time.localtime(time.time()))
         else:

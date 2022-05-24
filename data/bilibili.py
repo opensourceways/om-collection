@@ -33,8 +33,6 @@ class BILIBILI(object):
 
 
     def changeToDate(self, str_date):
-        # t = time.strftime("%Y-%m-%dT00:00:00+08:00",
-        #                   time.strptime(str_date, "%Y-%m-%d"))
         str_date = str_date + "T00:00:00+08:00"
         return str_date
 
@@ -130,7 +128,6 @@ class BILIBILI(object):
             "live_revenue": float(live_revenue),
             "peak_popularity": float(peak_popularity),
             "barrage": float(barrage),
-            # "new_followers": float(new_followers),
             "view_time_per_capita": float(view_time_per_capita),
             "author_name": author_name,
             "topic_title": topic_title,
