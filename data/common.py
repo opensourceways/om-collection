@@ -520,8 +520,6 @@ class ESClient(object):
         for line in f.readlines():
             if line != "\n":
                 users.append(line.split('\n')[0])
-        print(users)
-        print(len(users))
         return users
 
     def getEnterpriseUser(self):
