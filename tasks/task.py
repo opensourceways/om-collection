@@ -78,7 +78,6 @@ class George:
 
     def __init__(self):
         """ config is a Config object """
-        # self.from_data = config.from_data
         self.config = ConfigParser()
         self.config.read('config.ini', 'UTF-8')
         self.sections = self.config.sections()
