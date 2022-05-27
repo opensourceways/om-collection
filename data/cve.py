@@ -1,3 +1,17 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright 2020 The community Authors.
+# A-Tune is licensed under the Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#     http://license.coscl.org.cn/MulanPSL2
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+# PURPOSE.
+# See the Mulan PSL v2 for more details.
+# Create: 2022-03
+#
 import json
 import datetime
 import re
@@ -193,7 +207,7 @@ class CVE(object):
             params['pageSize'] = pageSize
         else:
             params['pageSize'] = 10000
-        response = requests.get(self.cve_url, params=params)
+        response = self.esClient.request_get(self.cve_url, params=params)
         cveData = self.esClient.getGenerator(response.text)
         return cveData['body']
 
@@ -225,7 +239,7 @@ class CVE(object):
     def getPrByIssueNumber(self, owner, repo, issueNumber):
         url = 'https://gitee.com/api/v5/repos/%s/issues/%s/pull_requests?access_token=%s&repo=%s' % (
             owner, issueNumber, self.giteeToken, repo)
-        res = requests.get(url=url, verify=False)
+        res = self.esClient.request_get(url=url)
         prs = json.loads(res.text)
         return prs
 

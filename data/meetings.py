@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+#
+# Copyright 2020 The community Authors.
+# A-Tune is licensed under the Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#     http://license.coscl.org.cn/MulanPSL2
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+# PURPOSE.
+# See the Mulan PSL v2 for more details.
+# Create: 2020-05
+#
 
 import requests
 import json
@@ -34,9 +46,9 @@ class Meetings(object):
         if self.org == 'mindspore':
             url = self.meetings_url + "meetingslist/?token=" + self.query_token
         if self.use_headers == 'true':
-            res = requests.get(url=url, headers=self.headers)
+            res = self.esClient.request_get(url=url, headers=self.headers)
         else:
-            res = requests.get(url=url)
+            res = self.esClient.request_get(url=url)
         if res.status_code != 200:
             print('request fail, code=%d' % res.status_code)
             return
@@ -64,7 +76,7 @@ class Meetings(object):
         print('get all meetings end...')
 
     def get_participants_by_meet(self, mid):
-        res = requests.get(url=self.meetings_url + "participants/" + mid + "/?token=" + self.query_token)
+        res = self.esClient.request_get(url=self.meetings_url + "participants/" + mid + "/?token=" + self.query_token)
         if res.status_code != 200:
             if res.status_code == 404:
                 print("The meeting participants not found: ", res.status_code)

@@ -27,12 +27,14 @@ BAIDUTONGJI_REFRESH_TOKEN_URL = "http://openapi.baidu.com/oauth/2.0/token"
 
 class BaiDuTongjiClient():
 
-    def __init__(self, config=None):
+    def __init__(self, config=None, access_token=None):
         self.username = config.get("username")
         self.password = config.get("password")
         self.token = config.get("token")
         self.site_id = config.get("site_id")
         self.is_baidutongji_enterprise = config.get("is_baidutongji_enterprise")
+        self.session = requests.Session()
+        self.access_token = access_token
 
     # common
     def getCommon(self, starTime, endTime, metric, method):
@@ -52,26 +54,26 @@ class BaiDuTongjiClient():
                     "method": method
                 }
             }
-            # print(data_json)
             data = requests.post(url=ENTERPRISE_URL, json=data_json)
         else:
+
             params = {
-                "access_token": self.token,
+                "access_token": self.access_token,
                 "site_id": self.site_id,
                 "start_date": starTime,
                 "end_date": endTime,
                 "metrics": metric,
                 "method": method,
             }
-            data = requests.get(url=URL, params=params)
+            data = requests.get(url=URL, params=params, timeout=60)
 
         j = data.json()
         return j
 
-    def _refresh_access_token(self):
+    def refresh_access_token(self, refresh_token, client_id, client_secret):
         """Send a refresh post access to the Gitee Server"""
-        if self.token:
-            url = GITEE_REFRESH_TOKEN_URL + "?grant_type=refresh_token&refresh_token=" + self.token
-            logger.info("Refresh the access_token for Baidutongji API")
-            self.session.post(url, data=None, headers=None, stream=False, auth=None)
-
+        if refresh_token:
+            url = (BAIDUTONGJI_REFRESH_TOKEN_URL + "?grant_type=refresh_token&refresh_token=" +
+                   refresh_token + "&client_id=" + client_id + "&client_secret=" + client_secret)
+            res = self.session.post(url, data=None, headers=None, stream=False, auth=None)
+            return res

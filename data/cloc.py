@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+#
+# Copyright 2020 The community Authors.
+# A-Tune is licensed under the Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#     http://license.coscl.org.cn/MulanPSL2
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+# PURPOSE.
+# See the Mulan PSL v2 for more details.
+# Create: 2022-03
+#
 import base64
 import errno
 import hashlib
@@ -107,7 +119,6 @@ class ClocCode(object):
             print(f'{self.thread_name} === Current OS is not linux.\n {command_statement} would not be executed.')
             return None
 
-        # pdb.set_trace()
         # 执行shell语句并定义输出格式
         subp = subprocess.Popen(command_statement, shell=True, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
 
@@ -501,7 +512,7 @@ class ClocCode(object):
                 continue
             try:
                 # Fetch repo info from yaml file online
-                yaml_response = requests.get(yaml_url)
+                yaml_response = self.esClient.request_get(yaml_url)
                 if yaml_response.status_code != 200:
                     print('Failed to get repo from yaml_url,return empty repo list.\n')
                     return repos

@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+#
+# Copyright 2020 The community Authors.
+# A-Tune is licensed under the Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#     http://license.coscl.org.cn/MulanPSL2
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+# PURPOSE.
+# See the Mulan PSL v2 for more details.
+# Create: 2022-03
+#
 import base64
 import errno
 import hashlib
@@ -797,8 +809,8 @@ class GitCommit(object):
                 companies = yaml.safe_load(open(company_filename, encoding='UTF-8'))
                 p.close()
             elif self.platform_name == 'windows':  ###Test in windows without wget command
-                user_yaml_response = requests.get(self.user_yaml_url)
-                company_yaml_response = requests.get(self.company_yaml_url)
+                user_yaml_response = self.esClient.request_get(self.user_yaml_url)
+                company_yaml_response = self.esClient.request_get(self.company_yaml_url)
                 if user_yaml_response.status_code != 200 or company_yaml_response.status_code != 200:
                     print('Cannot connect the address of data.yaml or company.yaml online. then return'
                           ' the empty companyInfo dict.')
@@ -968,7 +980,7 @@ class GitCommit(object):
                 continue
             try:
                 # Fetch repo info from yaml file online
-                yaml_response = requests.get(yaml_url)
+                yaml_response = self.esClient.request_get(yaml_url)
                 if yaml_response.status_code != 200:
                     print('Failed to get repo from yaml_url,return empty repo list.\n')
                     return repos

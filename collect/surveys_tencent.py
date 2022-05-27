@@ -1,3 +1,18 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright 2020 The community Authors.
+# A-Tune is licensed under the Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#     http://license.coscl.org.cn/MulanPSL2
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+# PURPOSE.
+# See the Mulan PSL v2 for more details.
+# Create: 2020-05
+#
+
 import requests
 
 BASE_URL = 'https://open.wj.qq.com/api'
@@ -47,7 +62,7 @@ class SurveysTencentApi(object):
         }
         return self.http_req(url=url, params=params)
 
-    # 获取回答列表 TODO
+    # 获取回答列表
     def get_answers(self, access_token, survey_id, per_page=20, last_answer_id=0):
         url = self.url_join(BASE_URL, 'surveys', survey_id, 'answers')
         params = {
@@ -59,7 +74,7 @@ class SurveysTencentApi(object):
         }
         return self.http_req(url=url, params=params)
 
-    # 获取回答详情 TODO
+    # 获取回答详情
     def get_answer_legacy(self, access_token, survey_id, answer_id):
         url = self.url_join(BASE_URL, 'surveys', survey_id, 'answers', answer_id)
         params = {

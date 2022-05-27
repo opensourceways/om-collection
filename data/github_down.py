@@ -13,15 +13,8 @@
 # Create: 2020-05
 #
 
-import os
-import sys
-
-import requests
-
-import json
 import time
 
-from datetime import datetime
 from data import common
 from data.common import ESClient
 
@@ -31,18 +24,23 @@ class GitHubDown(object):
         self.config = config
         self.index_name = config.get('index_name')
         self.org = config.get('github_org')
+        self.repos = config.get('repos')
         self.esClient = ESClient(config)
-        self.headers = {}
-        self.headers[
-            "Authorization"] = config.get('github_authorization')
+        self.headers = {"Authorization": config.get('github_authorization')}
+        self.repos_name = []
 
     def run(self, from_date):
         startTime = time.time()
         print("Collect github download clone view data: staring")
-        # self.setFromFile("github_clone_view_all.csv")
-        full_names = self.getFullNames(self.org, from_date)
-        self.getClone(full_names, self.org)
-        self.getView(full_names, self.org)
+        if self.repos is None:
+            self.repos_name = self.getFullNames(self.org, from_date)
+        else:
+            repos_name = str(self.repos).split(";")
+            for name in repos_name:
+                self.repos_name.append(self.org + '/' + name)
+        print(self.repos_name)
+        self.getClone(self.repos_name, self.org)
+        self.getView(self.repos_name, self.org)
 
         endTime = time.time()
         spent_time = time.strftime("%H:%M:%S",
@@ -116,8 +114,8 @@ class GitHubDown(object):
 
     def getAllrepo(self, org):
         full_names = []
-        r = requests.get('https://api.github.com/users/' + org + '/repos' + '?pape=1&per_page=10000',
-                         headers=self.headers)
+        r = self.esClient.request_get('https://api.github.com/users/' + org + '/repos' + '?pape=1&per_page=10000',
+                                      headers=self.headers)
         data = r.json()
 
         for rep in data:
@@ -139,7 +137,7 @@ class GitHubDown(object):
     def getClone(self, full_names, org):
         actions = ""
         for full_name in full_names:
-            c = requests.get('https://api.github.com/repos/' + full_name + '/traffic/clones', headers=self.headers)
+            c = self.esClient.request_get('https://api.github.com/repos/' + full_name + '/traffic/clones', headers=self.headers)
 
             cloneObj = c.json()
 
@@ -171,7 +169,7 @@ class GitHubDown(object):
     def getView(self, full_names, org):
         actions = ""
         for full_name in full_names:
-            r = requests.get('https://api.github.com/repos/' + full_name + '/traffic/views', headers=self.headers)
+            r = self.esClient.request_get('https://api.github.com/repos/' + full_name + '/traffic/views', headers=self.headers)
 
             viewObj = r.json()
 

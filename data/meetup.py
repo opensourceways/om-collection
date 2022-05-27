@@ -1,3 +1,17 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright 2020 The community Authors.
+# A-Tune is licensed under the Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#     http://license.coscl.org.cn/MulanPSL2
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+# PURPOSE.
+# See the Mulan PSL v2 for more details.
+# Create: 2020-05
+#
 import csv
 import json
 import requests
@@ -50,7 +64,7 @@ class Meetup(object):
 
     def meetupWechat(self):
         # 获取所有活动
-        response = requests.get(self.activities_url + '?token=' + self.query_token)
+        response = self.esClient.request_get(self.activities_url + '?token=' + self.query_token)
         if response.status_code != 200:
             print('get activities fail, code=%d' % response.status_code)
             return
@@ -63,7 +77,7 @@ class Meetup(object):
             activity_actions += json.dumps(activity) + '\n'
 
             # 获取活动报名者
-            response = requests.get(self.registrants_url + str(activity_id) + '/?token=' + self.query_token)
+            response = self.esClient.request_get(self.registrants_url + str(activity_id) + '/?token=' + self.query_token)
             if response.status_code != 200:
                 print("get registrants fail, code=%d, activity_id is %s" % (response.status_code, str(activity_id)))
                 continue
@@ -131,7 +145,7 @@ class Meetup(object):
 
     def getAliaseCompanyDict(self):
         aliase_company_dict = {}
-        res = requests.get(url=self.company_aliases_yaml)
+        res = self.esClient.request_get(url=self.company_aliases_yaml)
         if res.status_code == 200:
             data = yaml.safe_load(res.text)
             for org in data['companies']:
@@ -141,7 +155,7 @@ class Meetup(object):
 
     def getAliaseProfessionDict(self):
         aliase_profession_dict = {}
-        res = requests.get(url=self.profession_aliases_yaml)
+        res = self.esClient.request_get(url=self.profession_aliases_yaml)
         if res.status_code == 200:
             data = yaml.safe_load(res.text)
             for org in data['professions']:

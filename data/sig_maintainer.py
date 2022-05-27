@@ -1,16 +1,29 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright 2020 The community Authors.
+# A-Tune is licensed under the Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#     http://license.coscl.org.cn/MulanPSL2
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+# PURPOSE.
+# See the Mulan PSL v2 for more details.
+# Create: 2020-05
+#
 import os
-from collections import defaultdict
-from bs4 import BeautifulSoup
 import re
 import json
 import requests
 import time
 import yaml
-from configparser import ConfigParser
+import subprocess
+
+from collections import defaultdict
 from data.common import ESClient
 from data.gitee import Gitee
-import traceback
-import subprocess
+
 
 
 class SigMaintainer(object):
@@ -35,15 +48,17 @@ class SigMaintainer(object):
         self.sig_repo_name = config.get('sig_repo_name')
         self.sigs_dirs_path = config.get('sigs_dirs_path')
         self.from_data = config.get("from_data")
+        self.get_repo_name_without_sig = config.get("get_repo_name_without_sig")
         self.sig_mark = config.get("sig_mark")
         self.exists_ids = []
-        self.index_name_maintainer_info = config.get('index_name_maintainer_info')
+        # self.index_name_maintainer_info = config.get('index_name_maintainer_info')
 
     def run(self, from_time):
         if self.index_name_sigs and self.sig_mark:
             self.get_all_id()
-            self.get_sigs()
+            self.download_sigs()
             maintainer_sigs_dict = self.get_sigs_original()
+            self.get_sigs(maintainer_sigs_dict)
 
     def getSingleAction(self, index_name, id, body, act="index"):
         action = ""
@@ -87,7 +102,7 @@ class SigMaintainer(object):
         res = requests.post(url, headers=self.esClient.default_headers, verify=False, data=search)
         data = res.json()
 
-        removed_sigs = ['sig-template']
+        removed_sigs = ['sig-template', 'Template']
         for sig in data['aggregations']['2']['buckets']:
             sig_name = sig['key']
             if sig_name not in dirs:
@@ -111,7 +126,6 @@ class SigMaintainer(object):
     def get_sig_repos(self, dir):
         sig_repo_list = []
         sig_repo_path = self.sigs_dirs_path + '/' + dir
-        # print('sig_repo_path = ', sig_repo_path)
         repo_path_dirs = os.walk(sig_repo_path).__next__()[1]
 
         if 'openeuler' in repo_path_dirs:
@@ -147,9 +161,8 @@ class SigMaintainer(object):
             repos = d['repositories']
             repositories = []
             for repo in repos:
-                if str(repo).__contains__('/'):
-                    repositories = repos
-                    break
+                if self.get_repo_name_without_sig:
+                    repositories.append(repo)
                 else:
                     repositories.append(self.org + '/' + repo)
             sig_repos_dict.update({d['name']: repositories})
@@ -216,7 +229,6 @@ class SigMaintainer(object):
                 # time_struct = time.strptime(date[2:], '%a %b %d %H:%M:%S %Y')
                 time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
                 times = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
-                break
         return times
 
     def get_owner_log(self, repo_path):
@@ -266,14 +278,7 @@ class SigMaintainer(object):
                 users.append(user['gitee_id'])
         for user in users:
             times_owner = None
-            times = None
-            for r in rs:
-                if re.search(r'^commit .*', r):
-                    date = re.search(r'Date: (.*)\n', r).group(1)
-                    # time_struct = time.strptime(date[2:], '%a %b %d %H:%M:%S %Y')
-                    time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
-                    times = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
-                    break
+            times = self.get_readme_log(repo_path)
             for r in rs:
                 if r == '':
                     continue
@@ -318,7 +323,7 @@ class SigMaintainer(object):
                 datas += datar
         return datas
 
-    def get_sigs(self):
+    def download_sigs(self):
         path = self.sigs_dir
         url = self.sigs_url
         if not os.path.exists(path):
@@ -331,6 +336,7 @@ class SigMaintainer(object):
             cmdpull = 'cd %s;git pull' % gitpath
             os.system(cmdpull)
 
+    def get_sigs(self, maintainer_sigs_dict):
         dic = self.esClient.getOrgByGiteeID()
         self.esClient.giteeid_company_dict = dic[0]
         self.gitee.internalUsers = self.gitee.getItselfUsers(self.gitee.internal_users)
@@ -370,7 +376,7 @@ class SigMaintainer(object):
                         if dir in sig_repos_dict:
                             repos = sig_repos_dict.get(dir)
                         for repo in repos:
-                            ID = self.org + '_' + dir + '_' + repo + '_' + key + '_' + owner
+                            ID = self.org + '_' + dir + '_' + repo + '_' + key + '_' + str(owner)
                             if ID in self.exists_ids:
                                 self.exists_ids.remove(ID)
                             dataw = {"sig_name": dir,
@@ -381,6 +387,8 @@ class SigMaintainer(object):
                                      "committer_time": times_owner,
                                      "is_sig_repo_committer": 1,
                                      "owner_type": key}
+                            if key == "maintainers":
+                                dataw.update({"maintainer_in_sigs": maintainer_sigs_dict.get(owner)})
                             userExtra = self.esClient.getUserInfo(owner)
                             dataw.update(userExtra)
                             datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
@@ -399,6 +407,8 @@ class SigMaintainer(object):
                                      "committer_time": times_owner,
                                      "is_sig_repo_committer": 1,
                                      "owner_type": key}
+                            if key == "maintainers":
+                                dataw.update({"maintainer_in_sigs": maintainer_sigs_dict.get(owner)})
                             userExtra = self.esClient.getUserInfo(owner)
                             dataw.update(userExtra)
                             datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
@@ -428,15 +438,32 @@ class SigMaintainer(object):
         actions = ''
         dict_comb = defaultdict(dict)
         for dir in dirs:
+            repo_path = self.sigs_dirs_path + '/' + dir
+            times = self.get_readme_log(repo_path)
             # get repos
             repositories = []
             if dir in sig_repos_dict:
                 repositories = sig_repos_dict.get(dir)
+            # get maintainers
+            try:
+                owner_file = self.sigs_dirs_path + '/' + dir + '/' + 'OWNERS'
+                owners = yaml.load_all(open(owner_file), Loader=yaml.Loader).__next__()
+                maintainers = owners['maintainers']
+            except FileNotFoundError:
+                maintainers = []
+            # get maintainer sigs dict
+            dt = defaultdict(dict)
+            for maintainer in maintainers:
+                dt.update({maintainer: [dir]})
+            combined_keys = dict_comb.keys() | dt.keys()
+            dict_comb = {key: dict_comb.get(key, []) + dt.get(key, []) for key in combined_keys}
+            # sig actions
             action = {
                 "sig_name": dir,
                 "repos": repositories,
                 "is_sig_original": 1,
-                "created_at": "2021-12-01T00:00:00+08:00"
+                "maintainers": maintainers,
+                "created_at": times
             }
             try:
                 sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
@@ -446,11 +473,7 @@ class SigMaintainer(object):
                         action.update({i: info.get(i)})
                     if i == 'maintainers':
                         maintainer_info = info.get(i)
-                        maintainers = []
-                        for maintainer in maintainer_info:
-                            maintainers.append(maintainer['gitee_id'])
-                        action.update({'maintainer_info': info.get(i)})
-                        action.update({"maintainers": maintainers})
+                        action.update({'maintainer_info': maintainer_info})
             except FileNotFoundError:
                 print('sig-info.yaml of %s is not exist.' % dir)
             indexData = {"index": {"_index": self.index_name_sigs, "_id": dir}}

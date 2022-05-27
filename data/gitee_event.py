@@ -1,3 +1,17 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright 2020 The community Authors.
+# A-Tune is licensed under the Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#     http://license.coscl.org.cn/MulanPSL2
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+# PURPOSE.
+# See the Mulan PSL v2 for more details.
+# Create: 2022-03
+#
 import json
 from data import common
 from data.common import ESClient
@@ -70,7 +84,6 @@ class GiteeEvent(object):
                         prev_id = e.get('id')
                     if e.get('created_at'):
                         created_at = e.get('created_at')
-                        # print('id = ', prev_id, ', created_at = ', created_at)
                         day = created_at.split('T')
                         e_time = time.mktime(time.strptime(day[0], '%Y-%m-%d'))
                         s_time = time.mktime(time.strptime(self.start_time, '%Y-%m-%d'))
@@ -94,7 +107,6 @@ class GiteeEvent(object):
                     action.update(is_inner_user)
                     action.update(json_type)
                     action[is_type] = 1
-                    # print("action = ", action)
                     self.actions += json.dumps(index_data_survey) + '\n'
                     self.actions += json.dumps(action) + '\n'
                     self.event_count += 1
@@ -121,7 +133,11 @@ class GiteeEvent(object):
         while True:
             try:
                 print("owner(%s), repo_page=%d" % (owner, repo_page))
-                repos_object = gitee_api.get_repos(cur_page=repo_page).json()
+                response = gitee_api.get_repos(cur_page=repo_page)
+                if response.status_code != 200:
+                    print('HTTP error!')
+                    continue
+                repos_object = response.json()
                 if len(repos_object) == 0:
                     print("event_count = ", self.event_count)
                     break

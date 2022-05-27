@@ -66,9 +66,11 @@ BACKEND_MAPPING = {
     'git_commit_log': 'data.git_commit_log.GitCommitLog',
     'sig_maintainer': 'data.sig_maintainer.SigMaintainer',
     'tag_removed_gitee': 'data.combine.tag_remove_gitee.TagRemovedGitee',
-    'giteev8_token': 'data.giteev8_token.GiteeToken',
+    'refresh_token': 'data.refresh_token.RefreshToken',
     'gitlab': 'data.gitlab.Gitlab',
-    'giteescore': 'data.gitee_issue_score.GiteeScore'
+    'gitee_metrics': 'data.gitee_metrics.GiteeMetrics',
+    'giteescore': 'data.gitee_issue_score.GiteeScore',
+    'collect_pypi': 'data.pypi.CollectPypi'
 }
 
 
@@ -76,7 +78,6 @@ class George:
 
     def __init__(self):
         """ config is a Config object """
-        # self.from_data = config.from_data
         self.config = ConfigParser()
         self.config.read('config.ini', 'UTF-8')
         self.sections = self.config.sections()

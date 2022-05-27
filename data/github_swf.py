@@ -165,7 +165,8 @@ class GitHubSWF(object):
           }
         }''' % (str(dateiise).split()[0], str(dateii).split()[0], search, field, size, type)
             res = json.loads(
-                requests.get(url=url, headers=self.headers, verify=False, data=data.encode('utf-8')).content)
+                             self.esClient.request_get(url=url, headers=self.headers,
+                             data=data.encode('utf-8')).content)
             num = sum([int(r['3']['value']) for r in res["aggregations"]["2"]["buckets"]])
             body = {'created_at': stime + 'T00:00:00.000+0800', totalmark: 1, 'total_num': num}
             ID = totalmark + stime

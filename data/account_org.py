@@ -1,3 +1,17 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright 2020 The community Authors.
+# A-Tune is licensed under the Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#     http://license.coscl.org.cn/MulanPSL2
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+# PURPOSE.
+# See the Mulan PSL v2 for more details.
+# Create: 2022-03
+#
 import csv
 import json
 import os
@@ -52,8 +66,8 @@ class AccountOrg(object):
                                     }
                                   }
                                 }'''
-            res = requests.get(self.esClient.getSearchUrl(index_name=self.index_name_cla), data=search_json,
-                               headers=self.esClient.default_headers, verify=False)
+            res = self.esClient.request_get(self.esClient.getSearchUrl(index_name=self.index_name_cla),
+                                            data=search_json, headers=self.esClient.default_headers)
             if res.status_code != 200:
                 print("The index not exist")
                 return {}
@@ -121,11 +135,6 @@ class AccountOrg(object):
                     email = gitee_id
                 id = email
 
-                # email = None
-                # if gitee_id in self.csv_data:
-                #     email = self.csv_data[gitee_id]
-                # if email is None:
-                #     continue
                 action = {
                     "email": email,
                     "organization": dic3.get(organization),

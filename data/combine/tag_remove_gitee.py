@@ -1,3 +1,18 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright 2020 The community Authors.
+# A-Tune is licensed under the Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#     http://license.coscl.org.cn/MulanPSL2
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+# PURPOSE.
+# See the Mulan PSL v2 for more details.
+# Create: 2020-05
+#
+
 import datetime
 import json
 import re
@@ -90,15 +105,10 @@ class TagRemovedGitee(object):
         with ThreadPoolExecutor(max_workers=self.thread_pool_max) as executor:
             executor.map(self.tag_removed_issue_func, hits)
 
-            # tasks = [executor.submit(self.tag_removed_issue_func, hit) for hit in hits]
-            # for task in as_completed(tasks, timeout=2):
-            #     data = task.result()
-            #     print(data)
-
     def tag_removed_issue_func(self, hit):
         _id = hit['_id']
         url = hit['_source']['url']
-        res = requests.get(url=url, headers=self.headers, timeout=(6.05, 6.05))
+        res = self.esClient.request_get(url=url, headers=self.headers, timeout=(6.05, 6.05))
         if res.status_code == 404:
             query = '''{
                           "script": {
