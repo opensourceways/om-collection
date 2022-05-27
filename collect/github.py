@@ -46,7 +46,7 @@ class GithubClient(object):
     """
 
     def __init__(self, org, repository, token,
-                 base_url=None, max_items=MAX_CATEGORY_ITEMS_PER_PAGE, ):
+                 base_url=None, max_items=MAX_CATEGORY_ITEMS_PER_PAGE, tokens=None):
         self.org = org
         self.repository = repository
         self.headers = {
@@ -58,6 +58,8 @@ class GithubClient(object):
         self.ssl_verify = True
         if self._set_extra_headers():
             self.session.headers.update(self._set_extra_headers())
+        self.tokens = tokens
+        self.used_tokens = []
         # refresh the access token
         # self._refresh_access_token()
 
@@ -257,6 +259,16 @@ class GithubClient(object):
         self.get_data(url=url, params=params, current_page=1, datas=datas)
         return datas
 
+    def get_pr_pre(self, owner, repo, func):
+        url = self.urijoin(BASE_URL, 'repos', owner, repo, 'pulls')
+        params = {
+            'state': 'all',
+            'sort': 'updated',
+            'direction': 'desc',
+            'per_page': MAX_CATEGORY_ITEMS_PER_PAGE
+        }
+        self.get_data_pre(url=url, params=params, current_page=1, func=func, repo=repo)
+
     def get_pr(self, owner, repo):
         url = self.urijoin(BASE_URL, 'repos', owner, repo, 'pulls')
         params = {
@@ -268,6 +280,16 @@ class GithubClient(object):
         datas = []
         self.get_data(url=url, params=params, current_page=1, datas=datas)
         return datas
+
+    def get_issue_pre(self, owner, repo, func):
+        url = self.urijoin(BASE_URL, 'repos', owner, repo, 'issues')
+        params = {
+            'state': 'all',
+            'sort': 'updated',
+            'direction': 'desc',
+            'per_page': MAX_CATEGORY_ITEMS_PER_PAGE
+        }
+        self.get_data_pre(url=url, params=params, current_page=1, func=func, repo=repo)
 
     def get_issue(self, owner, repo):
         url = self.urijoin(BASE_URL, 'repos', owner, repo, 'issues')
@@ -345,8 +367,17 @@ class GithubClient(object):
 
         if int(req.headers.get('X-RateLimit-Used')) >= int(req.headers.get('X-RateLimit-Limit')) - 1:
             print("Thread sleeping, cause exceed the rate limit of github...")
-            time.sleep(3600)
-            current_page -= 1
+            diff = list(set(self.tokens).difference(set(self.used_tokens)))
+            if len(diff) == 0:
+                token = self.used_tokens[0]
+                self.used_tokens = []
+            else:
+                token = diff[0]
+            self.used_tokens.append(token)
+            self.headers["Authorization"] = token
+            req = self.http_req(url=url, params=params)
+            # time.sleep(3600)
+            # current_page -= 1
         js = req.json()
         if type(js) == dict:
             datas.append(js)
@@ -357,6 +388,41 @@ class GithubClient(object):
             url_next = req.links['next']['url']
             current_page += 1
             self.get_data(url_next, params=params, current_page=current_page, datas=datas)
+
+    def get_data_pre(self, url, params, current_page, func, repo):
+        print('****** Data page: %i ******' % current_page)
+        datas = []
+        req = self.http_req(url=url, params=params)
+
+        if req.status_code != 200:
+            print('Get data error, API: %s' % url)
+            if url.endswith('comments'):
+                req = self.http_req(url=url, params=None)
+
+        if int(req.headers.get('X-RateLimit-Used')) >= int(req.headers.get('X-RateLimit-Limit')) - 1:
+            print("Thread sleeping, cause exceed the rate limit of github...")
+            diff = list(set(self.tokens).difference(set(self.used_tokens)))
+            if len(diff) == 0:
+                token = self.used_tokens[0]
+                self.used_tokens = []
+            else:
+                token = diff[0]
+            self.used_tokens.append(token)
+            self.headers["Authorization"] = token
+            req = self.http_req(url=url, params=params)
+            # time.sleep(3600)
+            # current_page -= 1
+        js = req.json()
+        if type(js) == dict:
+            datas.append(js)
+        else:
+            datas.extend(req.json())
+        func(datas, self, repo)
+
+        if 'next' in req.links:
+            url_next = req.links['next']['url']
+            current_page += 1
+            self.get_data_pre(url_next, params=params, current_page=current_page, func=func, repo=repo)
 
     def http_req(self, url, params, method='GET', headers=None, stream=False, auth=None):
         if headers is None:
