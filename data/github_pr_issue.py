@@ -1,3 +1,4 @@
+import datetime
 import json
 
 from collect.github import GithubClient
@@ -21,6 +22,8 @@ class GitHubPrIssue(object):
         self.repos = config.get('repos')
         self.robot_user = config.get('robot_user')
         self.repos_name = []
+        self.tokens = config.get('tokens')
+        self.is_write_page = config.get('is_write_page')
 
     def run(self, from_date):
         print('Start collection github pr/issue/swf')
@@ -30,10 +33,18 @@ class GitHubPrIssue(object):
             self.repos_name = str(self.repos).split(";")
         for repo in self.repos_name:
             client = GithubClient(org=self.org, repository=repo, token=self.github_token)
+            client.tokens = self.tokens.split(',')
+            client.used_tokens.append(self.github_token)
             if self.is_set_pr == 'true':
-                self.write_pr(client=client, repo=repo)
+                if self.is_write_page == 'true':
+                    self.write_pr_pre(client=client, repo=repo)
+                else:
+                    self.write_pr(client=client, repo=repo)
             if self.is_set_issue == 'true':
-                self.write_issue(client=client, repo=repo)
+                if self.is_write_page == 'true':
+                    self.write_issue_pre(client=client, repo=repo)
+                else:
+                    self.write_issue(client=client, repo=repo)
             if self.is_set_star == 'true':
                 self.write_star(client=client, repo=repo)
             if self.is_set_watch == 'true':
@@ -78,12 +89,11 @@ class GitHubPrIssue(object):
         self.esClient.safe_put_bulk(actions)
         print('****** Finish collection repos of org, count=%i ******' % len(repos))
 
-    def write_pr(self, client, repo):
-        print('****** Start collection pulls of repo, repo=%s ******' % repo)
-        prs = client.get_pr(owner=self.org, repo=repo)
+    def parse_pr(self, prs, client, repo):
         actions = ''
         for pr in prs:
             pr_num = pr['number']
+
             # pr reviews
             print('****** Start collection pull_reviews, num=%i ******' % pr_num)
             reviews = client.get_pr_review(owner=self.org, repo=repo, pr_num=pr_num)
@@ -94,9 +104,14 @@ class GitHubPrIssue(object):
                     submitted_at = review['submitted_at']
                 except KeyError:
                     submitted_at = pr['created_at']
+                review_user_id = ''
+                review_user_login = ''
+                if review['user'] and review['user']['login']:
+                    review_user_id = review['user']['id']
+                    review_user_login = review['user']['login']
                 if self.robot_user:
                     robot_users = self.robot_user.split(',')
-                    if review['user']['login'] and review['user']['login'] not in robot_users:
+                    if review['user'] and review['user']['login'] and review['user']['login'] not in robot_users:
                         review_times.append(self.format_time_z(submitted_at))
                 reviews_data = {
                     'pr_id': pr['id'],
@@ -104,8 +119,8 @@ class GitHubPrIssue(object):
                     'pr_title': pr['title'],
                     'pr_body': pr['body'],
                     'pr_review_id': review['id'],
-                    'user_id': review['user']['id'],
-                    'user_login': review['user']['login'],
+                    'user_id': review_user_id,
+                    'user_login': review_user_login,
                     'html_url': review['html_url'],
                     'pr_review_body': review['body'],
                     'pr_review_state': review['state'],
@@ -129,9 +144,14 @@ class GitHubPrIssue(object):
             comment_actions = ''
             comment_times = []
             for comment in comments:
+                comment_user_id = ''
+                comment_user_login = ''
+                if comment['user'] and comment['user']['login']:
+                    comment_user_id = comment['user']['id']
+                    comment_user_login = comment['user']['login']
                 if self.robot_user:
                     robot_users = self.robot_user.split(',')
-                    if comment['user']['login'] not in robot_users:
+                    if comment['user'] and comment['user']['login'] and comment['user']['login'] not in robot_users:
                         comment_times.append(self.format_time_z(comment['created_at']))
                 comments_data = {
                     'pr_id': pr['id'],
@@ -139,8 +159,8 @@ class GitHubPrIssue(object):
                     'pr_title': pr['title'],
                     'pr_body': pr['body'],
                     'id': comment['id'],
-                    'user_id': comment['user']['id'],
-                    'user_login': comment['user']['login'],
+                    'user_id': comment_user_id,
+                    'user_login': comment_user_login,
                     'html_url': comment['html_url'],
                     'pr_comment_body': comment['body'],
                     'created_at': self.format_time_z(comment['created_at']),
@@ -156,6 +176,45 @@ class GitHubPrIssue(object):
                 comment_actions += json.dumps(index_data) + '\n'
                 comment_actions += json.dumps(comments_data) + '\n'
             self.esClient.safe_put_bulk(comment_actions)
+
+            # pr_issue comments
+            print('****** Start collection pull_issue_comments, num=%i ******' % pr_num)
+            issue_comments = client.get_issue_comment(owner=self.org, repo=repo, issue_num=pr_num)
+            issue_comment_actions = ''
+            issue_comment_times = []
+            for issue_comment in issue_comments:
+                issue_comment_user_id = ''
+                issue_comment_user_login = ''
+                if issue_comment['user'] and issue_comment['user']['login']:
+                    issue_comment_user_id = issue_comment['user']['id']
+                    issue_comment_user_login = issue_comment['user']['login']
+                if self.robot_user:
+                    robot_users = self.robot_user.split(',')
+                    if issue_comment['user'] and issue_comment['user']['login'] and issue_comment['user']['login'] not in robot_users:
+                        issue_comment_times.append(self.format_time_z(issue_comment['created_at']))
+                issue_comments_data = {
+                    'pr_id': pr['id'],
+                    'pr_number': pr_num,
+                    'pr_title': pr['title'],
+                    'pr_body': pr['body'],
+                    'id': issue_comment['id'],
+                    'user_id': issue_comment_user_id,
+                    'user_login': issue_comment_user_login,
+                    'html_url': issue_comment['html_url'],
+                    'pr_issue_comment_body': issue_comment['body'],
+                    'created_at': self.format_time_z(issue_comment['created_at']),
+                    'updated_at': self.format_time_z(issue_comment['updated_at']),
+                    'github_repo': self.org + '/' + repo,
+                    'is_github_pr_issue_comment': 1,
+                    'is_github_comment': 1,
+                    'is_github_account': 1,
+                    'is_project_internal_user': 0,
+                }
+                index_id = 'pr_issue_comment_' + repo + '_' + str(pr_num) + '_' + str(issue_comment['id'])
+                index_data = {"index": {"_index": self.index_name, "_id": index_id}}
+                issue_comment_actions += json.dumps(index_data) + '\n'
+                issue_comment_actions += json.dumps(issue_comments_data) + '\n'
+            self.esClient.safe_put_bulk(issue_comment_actions)
 
             # pr
             pr_data = {
@@ -177,12 +236,30 @@ class GitHubPrIssue(object):
                 'is_github_account': 1,
                 'is_project_internal_user': 0,
             }
-            if reviews:
+            if reviews and len(reviews) != 0:
                 pr_data['pr_review_count'] = len(reviews)
-                pr_data['pr_review_first'] = min(review_times)
-            if comments:
+                if len(review_times) != 0:
+                    pr_data['pr_review_first'] = min(review_times)
+                    pr_data['first_review_pr_time'] = (
+                            datetime.datetime.strptime(pr_data['pr_review_first'], '%Y-%m-%dT%H:%M:%S+00:00')
+                            - datetime.datetime.strptime(pr_data['created_at'],
+                                                         '%Y-%m-%dT%H:%M:%S+00:00')).total_seconds()
+            if comments and len(comments) != 0:
                 pr_data['pr_comment_count'] = len(comments)
-                pr_data['pr_comment_first'] = min(comment_times)
+                if len(comment_times) != 0:
+                    pr_data['pr_comment_first'] = min(comment_times)
+                    pr_data['first_comment_pr_time'] = (
+                            datetime.datetime.strptime(pr_data['pr_comment_first'], '%Y-%m-%dT%H:%M:%S+00:00')
+                            - datetime.datetime.strptime(pr_data['created_at'],
+                                                         '%Y-%m-%dT%H:%M:%S+00:00')).total_seconds()
+            if issue_comments and len(issue_comments) != 0:
+                pr_data['pr_issue_comment_count'] = len(issue_comments)
+                if len(issue_comment_times) != 0:
+                    pr_data['pr_issue_comment_first'] = min(issue_comment_times)
+                    pr_data['first_comment_pr_issue_time'] = (
+                            datetime.datetime.strptime(pr_data['pr_issue_comment_first'], '%Y-%m-%dT%H:%M:%S+00:00')
+                            - datetime.datetime.strptime(pr_data['created_at'],
+                                                         '%Y-%m-%dT%H:%M:%S+00:00')).total_seconds()
             index_id = 'pr_' + repo + '_' + str(pr_num)
             index_data = {"index": {"_index": self.index_name, "_id": index_id}}
             actions += json.dumps(index_data) + '\n'
@@ -190,9 +267,125 @@ class GitHubPrIssue(object):
         self.esClient.safe_put_bulk(actions)
         print('****** Finish collection pulls of repo, repo=%s, pr_count=%i ******' % (repo, len(prs)))
 
-    def write_issue(self, client, repo):
-        print('****** Start collection issues of repo, repo=%s ******' % repo)
-        issues = client.get_issue(owner=self.org, repo=repo)
+    # 每获取一页就入库
+    def write_pr_pre(self, client, repo):
+        print('****** Start collection pulls of repo, repo=%s ******' % repo)
+        client.get_pr_pre(owner=self.org, repo=repo, func=self.parse_pr)
+
+    def write_pr(self, client, repo):
+        print('****** Start collection pulls of repo, repo=%s ******' % repo)
+        prs = client.get_pr(owner=self.org, repo=repo)
+        self.parse_pr(prs, client, repo)
+        # actions = ''
+        # for pr in prs:
+        #     pr_num = pr['number']
+        #     # pr reviews
+        #     print('****** Start collection pull_reviews, num=%i ******' % pr_num)
+        #     reviews = client.get_pr_review(owner=self.org, repo=repo, pr_num=pr_num)
+        #     review_actions = ''
+        #     review_times = []
+        #     for review in reviews:
+        #         try:
+        #             submitted_at = review['submitted_at']
+        #         except KeyError:
+        #             submitted_at = pr['created_at']
+        #         if self.robot_user:
+        #             robot_users = self.robot_user.split(',')
+        #             if review['user']['login'] and review['user']['login'] not in robot_users:
+        #                 review_times.append(self.format_time_z(submitted_at))
+        #         reviews_data = {
+        #             'pr_id': pr['id'],
+        #             'pr_number': pr_num,
+        #             'pr_title': pr['title'],
+        #             'pr_body': pr['body'],
+        #             'pr_review_id': review['id'],
+        #             'user_id': review['user']['id'],
+        #             'user_login': review['user']['login'],
+        #             'html_url': review['html_url'],
+        #             'pr_review_body': review['body'],
+        #             'pr_review_state': review['state'],
+        #             'created_at': self.format_time_z(submitted_at),
+        #             'updated_at': self.format_time_z(submitted_at),
+        #             'submitted_at': self.format_time_z(submitted_at),
+        #             'github_repo': self.org + '/' + repo,
+        #             'is_github_pr_review': 1,
+        #             'is_github_account': 1,
+        #             'is_project_internal_user': 0,
+        #         }
+        #         index_id = 'pr_review_' + repo + '_' + str(pr_num) + '_' + str(review['id'])
+        #         index_data = {"index": {"_index": self.index_name, "_id": index_id}}
+        #         review_actions += json.dumps(index_data) + '\n'
+        #         review_actions += json.dumps(reviews_data) + '\n'
+        #     self.esClient.safe_put_bulk(review_actions)
+        #
+        #     # pr comments
+        #     print('****** Start collection pull_comments, num=%i ******' % pr_num)
+        #     comments = client.get_pr_comment(owner=self.org, repo=repo, pr_num=pr_num)
+        #     comment_actions = ''
+        #     comment_times = []
+        #     for comment in comments:
+        #         if self.robot_user:
+        #             robot_users = self.robot_user.split(',')
+        #             if comment['user']['login'] not in robot_users:
+        #                 comment_times.append(self.format_time_z(comment['created_at']))
+        #         comments_data = {
+        #             'pr_id': pr['id'],
+        #             'pr_number': pr_num,
+        #             'pr_title': pr['title'],
+        #             'pr_body': pr['body'],
+        #             'id': comment['id'],
+        #             'user_id': comment['user']['id'],
+        #             'user_login': comment['user']['login'],
+        #             'html_url': comment['html_url'],
+        #             'pr_comment_body': comment['body'],
+        #             'created_at': self.format_time_z(comment['created_at']),
+        #             'updated_at': self.format_time_z(comment['updated_at']),
+        #             'github_repo': self.org + '/' + repo,
+        #             'is_github_pr_comment': 1,
+        #             'is_github_comment': 1,
+        #             'is_github_account': 1,
+        #             'is_project_internal_user': 0,
+        #         }
+        #         index_id = 'pr_comment_' + repo + '_' + str(pr_num) + '_' + str(comment['id'])
+        #         index_data = {"index": {"_index": self.index_name, "_id": index_id}}
+        #         comment_actions += json.dumps(index_data) + '\n'
+        #         comment_actions += json.dumps(comments_data) + '\n'
+        #     self.esClient.safe_put_bulk(comment_actions)
+        #
+        #     # pr
+        #     pr_data = {
+        #         'pr_id': pr['id'],
+        #         'html_url': pr['html_url'],
+        #         'pr_number': pr['number'],
+        #         'user_id': pr['user']['id'],
+        #         'user_login': pr['user']['login'],
+        #         'pr_state': pr['state'],
+        #         'pr_title': pr['title'],
+        #         'pr_body': pr['body'],
+        #         'created_at': self.format_time_z(pr['created_at']),
+        #         'updated_at': self.format_time_z(pr['updated_at']),
+        #         'closed_at': self.format_time_z(pr['closed_at']),
+        #         'merged_at': self.format_time_z(pr['merged_at']),
+        #         'time_to_close_days': common.get_time_diff_days(pr['created_at'], pr['closed_at']),
+        #         'github_repo': self.org + '/' + repo,
+        #         'is_github_pr': 1,
+        #         'is_github_account': 1,
+        #         'is_project_internal_user': 0,
+        #     }
+        #     if reviews:
+        #         pr_data['pr_review_count'] = len(reviews)
+        #         pr_data['pr_review_first'] = min(review_times)
+        #     if comments:
+        #         pr_data['pr_comment_count'] = len(comments)
+        #         pr_data['pr_comment_first'] = min(comment_times)
+        #     index_id = 'pr_' + repo + '_' + str(pr_num)
+        #     index_data = {"index": {"_index": self.index_name, "_id": index_id}}
+        #     actions += json.dumps(index_data) + '\n'
+        #     actions += json.dumps(pr_data) + '\n'
+        # self.esClient.safe_put_bulk(actions)
+        # print('****** Finish collection pulls of repo, repo=%s, pr_count=%i ******' % (repo, len(prs)))
+
+    def parse_issue(self, issues, client, repo):
         actions = ''
         count = 0
         for issue in issues:
@@ -206,16 +399,21 @@ class GitHubPrIssue(object):
             comment_actions = ''
             comment_times = []
             for comment in comments:
+                comment_user_id = ''
+                comment_user_login = ''
+                if comment['user'] and comment['user']['login']:
+                    comment_user_id = comment['user']['id']
+                    comment_user_login = comment['user']['login']
                 if self.robot_user:
                     robot_users = self.robot_user.split(',')
-                    if comment['user']['login'] not in robot_users:
+                    if comment['user'] and comment['user']['login'] and comment['user']['login'] not in robot_users:
                         comment_times.append(self.format_time_z(comment['created_at']))
                 comments_data = {
                     'issue_id': issue['id'],
                     'issue_number': issue_num,
                     'id': comment['id'],
-                    'user_id': comment['user']['id'],
-                    'user_login': comment['user']['login'],
+                    'user_id': comment_user_id,
+                    'user_login': comment_user_login,
                     'html_url': comment['html_url'],
                     'issue_comment_body': comment['body'],
                     'created_at': self.format_time_z(comment['created_at']),
@@ -251,15 +449,97 @@ class GitHubPrIssue(object):
                 'is_github_account': 1,
                 'is_project_internal_user': 0,
             }
-            if comments:
+            if comments and len(comments) != 0:
                 issue_data['issue_comment_count'] = len(comments)
-                issue_data['issue_comment_first'] = min(comment_times)
+                if len(comment_times) != 0:
+                    issue_data['issue_comment_first'] = min(comment_times)
+                    issue_data['first_comment_issue_time'] = (
+                            datetime.datetime.strptime(issue_data['issue_comment_first'], '%Y-%m-%dT%H:%M:%S+00:00')
+                            - datetime.datetime.strptime(issue_data['created_at'],
+                                                         '%Y-%m-%dT%H:%M:%S+00:00')).total_seconds()
             index_id = 'issue_' + repo + '_' + str(issue_num)
             index_data = {"index": {"_index": self.index_name, "_id": index_id}}
             actions += json.dumps(index_data) + '\n'
             actions += json.dumps(issue_data) + '\n'
         self.esClient.safe_put_bulk(actions)
         print('****** Finish collection issues of repo, repo=%s, issue_count=%i ******' % (repo, count))
+
+    # 每获取一页就入库
+    def write_issue_pre(self, client, repo):
+        print('****** Start collection issues of repo, repo=%s ******' % repo)
+        client.get_issue_pre(owner=self.org, repo=repo, func=self.parse_issue)
+
+    def write_issue(self, client, repo):
+        print('****** Start collection issues of repo, repo=%s ******' % repo)
+        issues = client.get_issue(owner=self.org, repo=repo)
+        self.parse_issue(issues, client, repo)
+        # actions = ''
+        # count = 0
+        # for issue in issues:
+        #     issue_num = issue['number']
+        #     if ('/issues/%i' % issue_num) not in issue['html_url']:
+        #         continue
+        #     count += 1
+        #     # issue comments
+        #     print('****** Start collection issue_comments, num=%i ******' % issue_num)
+        #     comments = client.get_issue_comment(owner=self.org, repo=repo, issue_num=issue_num)
+        #     comment_actions = ''
+        #     comment_times = []
+        #     for comment in comments:
+        #         if self.robot_user:
+        #             robot_users = self.robot_user.split(',')
+        #             if comment['user']['login'] not in robot_users:
+        #                 comment_times.append(self.format_time_z(comment['created_at']))
+        #         comments_data = {
+        #             'issue_id': issue['id'],
+        #             'issue_number': issue_num,
+        #             'id': comment['id'],
+        #             'user_id': comment['user']['id'],
+        #             'user_login': comment['user']['login'],
+        #             'html_url': comment['html_url'],
+        #             'issue_comment_body': comment['body'],
+        #             'created_at': self.format_time_z(comment['created_at']),
+        #             'updated_at': self.format_time_z(comment['updated_at']),
+        #             'github_repo': self.org + '/' + repo,
+        #             'is_github_issue_comment': 1,
+        #             'is_github_comment': 1,
+        #             'is_github_account': 1,
+        #             'is_project_internal_user': 0,
+        #         }
+        #         index_id = 'issue_comment_' + repo + '_' + str(issue_num) + '_' + str(comment['id'])
+        #         index_data = {"index": {"_index": self.index_name, "_id": index_id}}
+        #         comment_actions += json.dumps(index_data) + '\n'
+        #         comment_actions += json.dumps(comments_data) + '\n'
+        #     self.esClient.safe_put_bulk(comment_actions)
+        #
+        #     # issue
+        #     issue_data = {
+        #         'issue_id': issue['id'],
+        #         'html_url': issue['html_url'],
+        #         'issue_number': issue['number'],
+        #         'user_id': issue['user']['id'],
+        #         'user_login': issue['user']['login'],
+        #         'issue_state': issue['state'],
+        #         'issue_title': issue['title'],
+        #         'issue_body': issue['body'],
+        #         'created_at': self.format_time_z(issue['created_at']),
+        #         'updated_at': self.format_time_z(issue['updated_at']),
+        #         'closed_at': self.format_time_z(issue['closed_at']),
+        #         'time_to_close_days': common.get_time_diff_days(issue['created_at'], issue['closed_at']),
+        #         'github_repo': self.org + '/' + repo,
+        #         'is_github_issue': 1,
+        #         'is_github_account': 1,
+        #         'is_project_internal_user': 0,
+        #     }
+        #     if comments:
+        #         issue_data['issue_comment_count'] = len(comments)
+        #         issue_data['issue_comment_first'] = min(comment_times)
+        #     index_id = 'issue_' + repo + '_' + str(issue_num)
+        #     index_data = {"index": {"_index": self.index_name, "_id": index_id}}
+        #     actions += json.dumps(index_data) + '\n'
+        #     actions += json.dumps(issue_data) + '\n'
+        # self.esClient.safe_put_bulk(actions)
+        # print('****** Finish collection issues of repo, repo=%s, issue_count=%i ******' % (repo, count))
 
     def write_star(self, client, repo):
         print('****** Start collection stars of repo, repo=%s ******' % repo)
