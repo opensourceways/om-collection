@@ -108,8 +108,8 @@ class GitHubPrIssue(object):
         for pr in prs:
             pr_num = pr.get('number')
             if pr_num is None:
-               print('****** pr number is None, pr=%s ******' % pr)
-               continue
+                print('****** pr number is None, pr=%s ******' % pr)
+                continue
 
             # pr reviews
             print('****** Start collection pull_reviews, num=%i ******' % pr_num)
@@ -123,12 +123,12 @@ class GitHubPrIssue(object):
                     submitted_at = pr['created_at']
                 review_user_id = ''
                 review_user_login = ''
-                if review['user'] and review['user']['login']:
+                if review.get('user') is not None and review.get('user').get('login') is not None:
                     review_user_id = review['user']['id']
                     review_user_login = review['user']['login']
                 if self.robot_user:
                     robot_users = self.robot_user.split(',')
-                    if review['user'] and review['user']['login'] and review['user']['login'] not in robot_users:
+                    if review.get('user') is not None and review.get('user').get('login') is not None and review.get('user').get('login') not in robot_users:
                         review_times.append(self.format_time_z(submitted_at))
                 reviews_data = {
                     'pr_id': pr['id'],
@@ -163,12 +163,12 @@ class GitHubPrIssue(object):
             for comment in comments:
                 comment_user_id = ''
                 comment_user_login = ''
-                if comment['user'] and comment['user']['login']:
+                if comment.get('user') is not None and comment.get('user').get('login') is not None:
                     comment_user_id = comment['user']['id']
                     comment_user_login = comment['user']['login']
                 if self.robot_user:
                     robot_users = self.robot_user.split(',')
-                    if comment['user'] and comment['user']['login'] and comment['user']['login'] not in robot_users:
+                    if comment.get('user') is not None and comment.get('user').get('login') is not None and comment.get('user').get('login') not in robot_users:
                         comment_times.append(self.format_time_z(comment['created_at']))
                 comments_data = {
                     'pr_id': pr['id'],
@@ -202,12 +202,12 @@ class GitHubPrIssue(object):
             for issue_comment in issue_comments:
                 issue_comment_user_id = ''
                 issue_comment_user_login = ''
-                if issue_comment['user'] and issue_comment['user']['login']:
+                if issue_comment.get('user') is not None and issue_comment.get('user').get('login') is not None:
                     issue_comment_user_id = issue_comment['user']['id']
                     issue_comment_user_login = issue_comment['user']['login']
                 if self.robot_user:
                     robot_users = self.robot_user.split(',')
-                    if issue_comment['user'] and issue_comment['user']['login'] and issue_comment['user']['login'] not in robot_users:
+                    if issue_comment.get('user') is not None and issue_comment.get('user').get('login') is not None and issue_comment.get('user').get('login') not in robot_users:
                         issue_comment_times.append(self.format_time_z(issue_comment['created_at']))
                 issue_comments_data = {
                     'pr_id': pr['id'],
@@ -298,8 +298,8 @@ class GitHubPrIssue(object):
         actions = ''
         count = 0
         for issue in issues:
-            issue_num = issue['number']
-            if ('/issues/%i' % issue_num) not in issue['html_url']:
+            issue_num = issue.get('number')
+            if issue_num is not None and ('/issues/%i' % issue_num) not in issue['html_url']:
                 continue
             count += 1
             # issue comments
@@ -310,12 +310,12 @@ class GitHubPrIssue(object):
             for comment in comments:
                 comment_user_id = ''
                 comment_user_login = ''
-                if comment['user'] and comment['user']['login']:
+                if comment.get('user') is not None and comment.get('user').get('login') is not None:
                     comment_user_id = comment['user']['id']
                     comment_user_login = comment['user']['login']
                 if self.robot_user:
                     robot_users = self.robot_user.split(',')
-                    if comment['user'] and comment['user']['login'] and comment['user']['login'] not in robot_users:
+                    if comment.get('user') is not None and comment.get('user').get('login') is not None and comment.get('user').get('login') not in robot_users:
                         comment_times.append(self.format_time_z(comment['created_at']))
                 comments_data = {
                     'issue_id': issue['id'],
