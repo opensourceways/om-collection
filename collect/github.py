@@ -396,22 +396,17 @@ class GithubClient(object):
 
         if req.status_code != 200:
             print('Get data error, API: %s' % url)
+            self.change_token()
             if url.endswith('comments'):
-                req = self.http_req(url=url, params=None)
+                self.get_data_pre(url, params=None, current_page=current_page, func=func, repo=repo)
+            else:
+                self.get_data_pre(url, params=params, current_page=current_page, func=func, repo=repo)
 
         if int(req.headers.get('X-RateLimit-Used')) >= int(req.headers.get('X-RateLimit-Limit')) - 1:
             print("Thread sleeping, cause exceed the rate limit of github...")
-            diff = list(set(self.tokens).difference(set(self.used_tokens)))
-            if len(diff) == 0:
-                token = self.used_tokens[0]
-                self.used_tokens = []
-            else:
-                token = diff[0]
-            self.used_tokens.append(token)
-            self.headers["Authorization"] = token
-            req = self.http_req(url=url, params=params)
-            # time.sleep(3600)
-            # current_page -= 1
+            self.change_token()
+            self.get_data_pre(url, params=params, current_page=current_page, func=func, repo=repo)
+
         js = req.json()
         if type(js) == dict:
             datas.append(js)
@@ -423,6 +418,9 @@ class GithubClient(object):
             url_next = req.links['next']['url']
             current_page += 1
             self.get_data_pre(url_next, params=params, current_page=current_page, func=func, repo=repo)
+        else:
+            print('*** No next in links, current_page: %d' % current_page)
+            return
 
     def http_req(self, url, params, method='GET', headers=None, stream=False, auth=None):
         if headers is None:
@@ -436,3 +434,14 @@ class GithubClient(object):
             response = self.session.post(url, data=params, headers=headers, stream=stream,
                                          verify=True, auth=auth)
         return response
+
+    def change_token(self):
+        print('Change token')
+        diff = list(set(self.tokens).difference(set(self.used_tokens)))
+        if len(diff) == 0:
+            token = self.used_tokens[0]
+            self.used_tokens = []
+        else:
+            token = diff[0]
+        self.used_tokens.append(token)
+        self.headers["Authorization"] = token
