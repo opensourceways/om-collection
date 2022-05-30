@@ -106,7 +106,10 @@ class GitHubPrIssue(object):
     def parse_pr(self, prs, client, repo):
         actions = ''
         for pr in prs:
-            pr_num = pr['number']
+            pr_num = pr.get('number')
+            if pr_num is None:
+               print('****** pr number is None, pr=%s ******' % pr)
+               continue
 
             # pr reviews
             print('****** Start collection pull_reviews, num=%i ******' % pr_num)
