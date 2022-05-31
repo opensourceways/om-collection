@@ -105,18 +105,20 @@ class GitHubPrIssue(object):
 
     def parse_pr(self, prs, client, repo):
         actions = ''
+        # 获取PR信息
         for pr in prs:
             pr_num = pr.get('number')
+            print('****** Start collection pull num=%i ******' % pr_num)
             if pr_num is None:
                 print('****** pr number is None, pr=%s ******' % pr)
                 continue
 
-            # pr reviews
-            print('****** Start collection pull_reviews, num=%i ******' % pr_num)
+            # 获取PR的代码review信息
             reviews = client.get_pr_review(owner=self.org, repo=repo, pr_num=pr_num)
             review_actions = ''
             review_times = []
             for review in reviews:
+                print('****** Start collection pull_reviews, num=%i ******' % review.get('id'))
                 try:
                     submitted_at = review['submitted_at']
                 except KeyError:
@@ -155,12 +157,12 @@ class GitHubPrIssue(object):
                 review_actions += json.dumps(reviews_data) + '\n'
             self.esClient.safe_put_bulk(review_actions)
 
-            # pr comments
-            print('****** Start collection pull_comments, num=%i ******' % pr_num)
+            # 获取PR的代码提交代码review时的comment信息
             comments = client.get_pr_comment(owner=self.org, repo=repo, pr_num=pr_num)
             comment_actions = ''
             comment_times = []
             for comment in comments:
+                print('****** Start collection pull_comments, num=%i ******' % comment.get('id'))
                 comment_user_id = ''
                 comment_user_login = ''
                 if comment.get('user') is not None and comment.get('user').get('login') is not None:
@@ -194,12 +196,13 @@ class GitHubPrIssue(object):
                 comment_actions += json.dumps(comments_data) + '\n'
             self.esClient.safe_put_bulk(comment_actions)
 
-            # pr_issue comments
-            print('****** Start collection pull_issue_comments, num=%i ******' % pr_num)
+            # 获取直接回复PR的评论信息
+            # 注:不是代码review，在pr下方评论框回复，由于pr源于issue，因此被叫做issue comment
             issue_comments = client.get_issue_comment(owner=self.org, repo=repo, issue_num=pr_num)
             issue_comment_actions = ''
             issue_comment_times = []
             for issue_comment in issue_comments:
+                print('****** Start collection pull_issue_comments, num=%i ******' % issue_comment.get('id'))
                 issue_comment_user_id = ''
                 issue_comment_user_login = ''
                 if issue_comment.get('user') is not None and issue_comment.get('user').get('login') is not None:
@@ -284,11 +287,12 @@ class GitHubPrIssue(object):
         self.esClient.safe_put_bulk(actions)
         print('****** Finish collection pulls of repo, repo=%s, pr_count=%i ******' % (repo, len(prs)))
 
-    # 每获取一页就入库
+    # 每获取一页的PR信息就写入数据库
     def write_pr_pre(self, client, repo):
-        print('****** Start collection pulls of repo, repo=%s ******' % repo)
+        print('****** Start perpage collection pulls of repo, repo=%s ******' % repo)
         client.get_pr_pre(owner=self.org, repo=repo, func=self.parse_pr)
 
+    # 获取完所有的PR信息再写入数据库
     def write_pr(self, client, repo):
         print('****** Start collection pulls of repo, repo=%s ******' % repo)
         prs = client.get_pr(owner=self.org, repo=repo)
@@ -299,17 +303,20 @@ class GitHubPrIssue(object):
         count = 0
         for issue in issues:
             issue_num = issue.get('number')
+            print('****** Start collection issue, num=%i ******' % issue_num)
             if issue_num is not None and ('/issues/%i' % issue_num) not in issue['html_url']:
                 continue
             count += 1
             # issue comments
-            print('****** Start collection issue_comments, num=%i ******' % issue_num)
+            
             comments = client.get_issue_comment(owner=self.org, repo=repo, issue_num=issue_num)
             comment_actions = ''
             comment_times = []
             for comment in comments:
                 comment_user_id = ''
                 comment_user_login = ''
+
+                print('****** Start collection issue_comments, num=%i ******' % comment.get('id'))
                 if comment.get('user') is not None and comment.get('user').get('login') is not None:
                     comment_user_id = comment['user']['id']
                     comment_user_login = comment['user']['login']
