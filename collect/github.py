@@ -263,7 +263,8 @@ class GithubClient(object):
         url = self.urijoin(BASE_URL, 'repos', owner, repo, 'pulls')
         params = {
             'state': 'all',
-            'sort': 'updated',
+            # 'sort': 'updated',
+            'sort': 'created',
             'direction': 'desc',
             'per_page': MAX_CATEGORY_ITEMS_PER_PAGE
         }
@@ -386,7 +387,7 @@ class GithubClient(object):
             self.get_data(url_next, params=params, current_page=current_page, datas=datas)
 
     def get_data_pre(self, url, params, current_page, func, repo):
-        print('****** Data page: %i ******' % current_page)
+        print('******get_data_pre: Data page: %i ******' % current_page)
         datas = []
         req = self.http_req(url=url, params=params)
 
