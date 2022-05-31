@@ -37,7 +37,7 @@ class GiteeScore(object):
         self.issue_state = config.get('issue_state')
         self.score_admin_file_path = config.get('score_admin_file_path')
         self.robot_user_login = config.get('robot_user_login')
-        self.giteeClient = GiteeClient(owner=self.owner, repository=self.repository, token=self.access_token)
+
         self.bug_store_index_name = config.get('bug_store_index_name')
         self.bug_query_sentence = config.get('bug_query_sentence')
         self.bug_fragemnt_es_url = config.get('bug_fragemnt_es_url')
@@ -47,6 +47,8 @@ class GiteeScore(object):
         self.score_admins = self.get_score_admins()
         self.bugFragment_email_map = None
         self.robot_user_list = [robot_user.strip() for robot_user in self.robot_user_login.split(',')]
+        self.repository_list = [repo for repo in self.repository.split(',')]
+        self.giteeClient = None
 
     @common.show_spend_seconds_of_this_function
     def run(self, from_date):
@@ -65,8 +67,11 @@ class GiteeScore(object):
                                                                       es_url=self.bug_fragemnt_es_url,
                                                                       es_authorization=self.bug_fragemnt_authorization)
         self.bugFragment_email_map = self.assemble_email_map(bug_questionnaire_list)
-        self.process_issue_score()
-        self.process_pull_score()
+        for repo in self.repository_list:
+            print("Process repo: ", repo)
+            self.giteeClient = GiteeClient(owner=self.owner, repository=repo, token=self.access_token)
+            self.process_issue_score()
+            self.process_pull_score()
 
         with open(file=f'{dest_dir}/issue_failed_fetch_email.txt', mode='w', encoding='utf-8') as f:
             f.write('\n'.join(self.failed_parse_issue_body))
@@ -182,8 +187,7 @@ class GiteeScore(object):
 
     @common.show_spend_seconds_of_this_function
     def get_repo_pull_content_list(self):
-
-        pull_generator = self.giteeClient.pulls(state='open', once_update_num_of_pr=0)
+        pull_generator = self.giteeClient.pulls(state='all', once_update_num_of_pr=0)
         whole_pull_list = self.esClient.getGenerator(pull_generator)
 
         total_pull_bodies = []
