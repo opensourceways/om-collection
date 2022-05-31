@@ -363,21 +363,17 @@ class GithubClient(object):
         req = self.http_req(url=url, params=params)
 
         if req.status_code != 200:
-            print('Get data error, API: %s' % url)
+            print('Get data error, API: %s, req: %s' % (url, req.text))
+            self.change_token()
+            if url.endswith('comments'):
+                self.get_data(url, params=None, current_page=current_page, datas=datas)
+            else:
+                self.get_data(url, params=params, current_page=current_page, datas=datas)
 
         if int(req.headers.get('X-RateLimit-Used')) >= int(req.headers.get('X-RateLimit-Limit')) - 1:
             print("Thread sleeping, cause exceed the rate limit of github...")
-            diff = list(set(self.tokens).difference(set(self.used_tokens)))
-            if len(diff) == 0:
-                token = self.used_tokens[0]
-                self.used_tokens = []
-            else:
-                token = diff[0]
-            self.used_tokens.append(token)
-            self.headers["Authorization"] = token
-            req = self.http_req(url=url, params=params)
-            # time.sleep(3600)
-            # current_page -= 1
+            self.change_token()
+            self.get_data(url, params=params, current_page=current_page, datas=datas)
         js = req.json()
         if type(js) == dict:
             datas.append(js)
@@ -395,7 +391,7 @@ class GithubClient(object):
         req = self.http_req(url=url, params=params)
 
         if req.status_code != 200:
-            print('Get data error, API: %s' % url)
+            print('Get data error, API: %s, req: %s' % (url, req.text))
             self.change_token()
             if url.endswith('comments'):
                 self.get_data_pre(url, params=None, current_page=current_page, func=func, repo=repo)
