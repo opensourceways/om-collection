@@ -38,6 +38,8 @@ class GitHubPrIssue(object):
         self.repos_name = []
         self.tokens = config.get('tokens')
         self.is_write_page = config.get('is_write_page')
+        self.from_page = config.get('from_page')
+        self.end_page = config.get('end_page')
 
     def run(self, from_date):
         print('Start collection github pr/issue/swf')
@@ -49,6 +51,10 @@ class GitHubPrIssue(object):
             client = GithubClient(org=self.org, repository=repo, token=self.github_token)
             client.tokens = self.tokens.split(',')
             client.used_tokens.append(self.github_token)
+            if self.from_page:
+                client.from_page = int(self.from_page)
+            if self.end_page:
+                client.end_page = int(self.end_page)
             if self.is_set_pr == 'true':
                 if self.is_write_page == 'true':
                     self.write_pr_pre(client=client, repo=repo)
