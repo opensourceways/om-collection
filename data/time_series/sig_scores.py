@@ -1,0 +1,146 @@
+import datetime
+import json
+import requests
+import time
+from dateutil.relativedelta import relativedelta
+from data.common import ESClient
+import math
+
+METRICS = ["D0", "D1", "D2", "Company", "PR_Merged", "PR_Review", "Issue_update", "Issue_Closed", "Issue_Comment",
+           "Contribute", "Meeting", "Attendee", "Maintainer"]
+
+
+class SigScores(object):
+    def __init__(self, config=None):
+        self.config = config
+        self.index_name = config.get('index_name')
+        self.index_name_gitee = config.get('index_name_gitee')
+        self.index_name_maintainer = config.get('index_name_maintainer')
+        self.index_name_meeting = config.get('index_name_meeting')
+        self.url = config.get('es_url')
+        self.authorization = config.get('authorization')
+        self.esClient = ESClient(config)
+
+        self.from_date = config.get('from_date')
+        self.params = json.loads((config.get('params')))
+
+        self.query_strs = config.get('query').split(';')
+        self.sig_contributes_query = config.get('sig_contributes_query')
+        self.sig_meetings_query = config.get('sig_meetings_query')
+        self.sig_maintainers_query = config.get('sig_maintainers_query')
+
+    def run(self, time=None):
+        self.get_sig_score_by_days()
+
+    def get_query_data(self, index, query, from_time, end_time):
+        query = query % (from_time, end_time)
+        url = self.url + '/' + index + '/_search'
+        res = requests.post(url, headers=self.esClient.default_headers, verify=False, data=query.encode('utf-8'))
+        data = res.json()['aggregations']['group_filed']['buckets']
+        return data
+
+    def get_sig_score_by_days(self):
+        if self.from_date is None:
+            from_date = datetime.date.today()
+        else:
+            from_date = datetime.datetime.strptime(self.from_date, "%Y%m%d")
+        now_date = datetime.date.today().strftime("%Y%m%d")
+
+        actions = ""
+        while from_date.strftime("%Y%m%d") <= now_date:
+            actions += self.get_sig_score(from_date)
+            from_date += relativedelta(days=1)
+        self.esClient.safe_put_bulk(actions)
+
+    def get_sig_score(self, date):
+        date_ago = date - relativedelta(years=1)
+        from_time = time.mktime(date_ago.timetuple()) * 1000
+        end_time = time.mktime(date.timetuple()) * 1000
+        print("Compute sig score: ", date)
+        created_at = date.strftime("%Y-%m-%dT00:00:01+08:00")
+        res = self.compute_sig_scores(from_time, end_time)
+        action = {
+            "created_at": created_at,
+            "sig_scores": res
+        }
+        indexData = {"index": {"_index": self.index_name, "_id": "sigs_score_" + str(date)}}
+        actions = json.dumps(indexData) + '\n'
+        actions += json.dumps(action) + '\n'
+        return actions
+
+    def get_sig_metrics(self, from_time, end_time):
+        res_data = {}
+        metrics_index = 0
+        for query in self.query_strs:
+            gitee_data = self.get_query_data(self.index_name_gitee, query, from_time, end_time)
+            res_data = self.get_metrics_value(res_data, gitee_data, metrics_index)
+            metrics_index += 1
+
+        meeting_data = self.get_query_data(self.index_name_meeting, self.sig_meetings_query, from_time, end_time)
+        res_data = self.get_metrics_meeting(res_data, meeting_data, metrics_index)
+
+        metrics_index += 2
+        maintainer_data = self.get_query_data(self.index_name_maintainer, self.sig_maintainers_query, from_time,
+                                              end_time)
+        res_data = self.get_metrics_value(res_data, maintainer_data, metrics_index)
+
+        return res_data
+
+    def compute_sig_scores(self, from_time, end_time):
+        all_sigs = []
+        metrics_data = self.get_sig_metrics(from_time, end_time)
+        for key in metrics_data:
+            sig_score = 0
+            data = metrics_data.get(key)
+            for m in METRICS:
+                params = self.params.get(m)
+                value = data.get(m) if m in data else 0
+                if m == 'PR_Review':
+                    value = value / data.get('PR_Merged') if 'PR_Merged' in data and data.get('PR_Merged') != 0 else 0
+                if m == 'Issue_Comment':
+                    value = value / data.get('Issue_Closed') if 'Issue_Closed' in data and data.get(
+                        'Issue_Closed') != 0 else 0
+                score = math.log(1 + value) / math.log(1 + max(value, params[1])) * params[0]
+                sig_score += score
+            action = {
+                'sig_names': key,
+                'score': sig_score
+            }
+            all_sigs.append(action)
+        all_sigs.sort(key=lambda x: (x['score']), reverse=True)
+        for rank in range(len(all_sigs)):
+            all_sigs[rank].update({'rank': rank + 1})
+            rank += 1
+        return all_sigs
+
+    def get_metrics_meeting(self, res_data, datas, index):
+        res = res_data
+        sigs = res.keys()
+        if len(datas) != 0:
+            for data in datas:
+                key = data.get('key')
+                count = data.get('doc_count')
+                value = data.get('count').get('value')
+                if key not in sigs:
+                    res.update({key: {METRICS[index]: count}})
+                    res.update({key: {METRICS[index + 1]: value}})
+                else:
+                    res.get(key).update({METRICS[index]: count})
+                    res.get(key).update({METRICS[index + 1]: value})
+        return res
+
+    def get_metrics_value(self, res_data, datas, index):
+        res = res_data
+        sigs = res.keys()
+        if len(datas) != 0:
+            for data in datas:
+                key = data.get('key')
+                if 'count' not in data:
+                    value = data.get('doc_count')
+                else:
+                    value = data.get('count').get('value')
+                if key not in sigs:
+                    res.update({key: {METRICS[index]: value}})
+                else:
+                    res.get(key).update({METRICS[index]: value})
+        return res
