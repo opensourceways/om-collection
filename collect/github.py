@@ -60,8 +60,8 @@ class GithubClient(object):
             self.session.headers.update(self._set_extra_headers())
         self.tokens = tokens
         self.used_tokens = []
-        # refresh the access token
-        # self._refresh_access_token()
+        self.from_page = 1
+        self.end_page = None
 
     def getAllrepo(self):
         full_names = []
@@ -263,12 +263,12 @@ class GithubClient(object):
         url = self.urijoin(BASE_URL, 'repos', owner, repo, 'pulls')
         params = {
             'state': 'all',
-            # 'sort': 'updated',
-            'sort': 'created',
+            'sort': 'updated',
+            # 'sort': 'created',
             'direction': 'desc',
             'per_page': MAX_CATEGORY_ITEMS_PER_PAGE
         }
-        self.get_data_pre(url=url, params=params, current_page=1, func=func, repo=repo)
+        self.get_data_pre(url=url, params=params, current_page=self.from_page, func=func, repo=repo)
 
     def get_pr(self, owner, repo):
         url = self.urijoin(BASE_URL, 'repos', owner, repo, 'pulls')
@@ -361,63 +361,68 @@ class GithubClient(object):
 
     def get_data(self, url, params, current_page, datas):
         print('****** Data page: %i ******' % current_page)
+        if self.end_page and current_page > self.end_page:
+            return
+        params['page'] = current_page
         req = self.http_req(url=url, params=params)
 
         if req.status_code != 200:
-            print('Get data error, API: %s, req: %s' % (url, req.text))
-            self.change_token()
-            if url.endswith('comments'):
-                self.get_data(url, params=None, current_page=current_page, datas=datas)
-            else:
+            print('Get data error, API: %s, req: %s' % (req.url, req.text))
+            if req.headers.get('X-RateLimit-Used') is not None and req.headers.get(
+                    'X-RateLimit-Limit') is not None and int(req.headers.get('X-RateLimit-Used')) >= (
+                    int(req.headers.get('X-RateLimit-Limit')) - 1):
+                print("Thread sleeping, cause exceed the rate limit of github...")
+                self.change_token()
                 self.get_data(url, params=params, current_page=current_page, datas=datas)
-
-        if int(req.headers.get('X-RateLimit-Used')) >= int(req.headers.get('X-RateLimit-Limit')) - 1:
-            print("Thread sleeping, cause exceed the rate limit of github...")
-            self.change_token()
-            self.get_data(url, params=params, current_page=current_page, datas=datas)
-        js = req.json()
-        if type(js) == dict:
-            datas.append(js)
+            else:
+                print('No limit, API: %s, req: %s' % (req.url, req.text))
         else:
-            datas.extend(req.json())
+            print('Get success, API: %s' % req.url)
+            js = req.json()
+            if type(js) == dict:
+                datas.append(js)
+            else:
+                datas.extend(req.json())
 
-        if 'next' in req.links:
-            url_next = req.links['next']['url']
-            current_page += 1
-            self.get_data(url_next, params=params, current_page=current_page, datas=datas)
+            if 'next' in req.links:
+                url_next = req.links['next']['url']
+                current_page += 1
+                self.get_data(url_next, params=params, current_page=current_page, datas=datas)
 
     def get_data_pre(self, url, params, current_page, func, repo):
         print('******get_data_pre: Data page: %i ******' % current_page)
+        if self.end_page and current_page > self.end_page:
+            return
         datas = []
+        params['page'] = current_page
         req = self.http_req(url=url, params=params)
-
         if req.status_code != 200:
             print('Get data error, API: %s, req: %s' % (url, req.text))
-            self.change_token()
-            if url.endswith('comments'):
-                self.get_data_pre(url, params=None, current_page=current_page, func=func, repo=repo)
-            else:
+            if req.headers.get('X-RateLimit-Used') is not None and req.headers.get(
+                    'X-RateLimit-Limit') is not None and int(req.headers.get('X-RateLimit-Used')) >= (
+                    int(req.headers.get('X-RateLimit-Limit')) - 1):
+                print("Thread sleeping, cause exceed the rate limit of github...")
+                self.change_token()
                 self.get_data_pre(url, params=params, current_page=current_page, func=func, repo=repo)
-
-        if int(req.headers.get('X-RateLimit-Used')) >= int(req.headers.get('X-RateLimit-Limit')) - 1:
-            print("Thread sleeping, cause exceed the rate limit of github...")
-            self.change_token()
-            self.get_data_pre(url, params=params, current_page=current_page, func=func, repo=repo)
-
-        js = req.json()
-        if type(js) == dict:
-            datas.append(js)
+            else:
+                print('No limit, API: %s, req: %s' % (req.url, req.text))
         else:
-            datas.extend(req.json())
-        func(datas, self, repo)
+            print('Get success, API: %s' % req.url)
+            js = req.json()
+            if type(js) == dict:
+                datas.append(js)
+            else:
+                datas.extend(req.json())
+            print('start parse data')
+            func(datas, self, repo)
 
-        if 'next' in req.links:
-            url_next = req.links['next']['url']
-            current_page += 1
-            self.get_data_pre(url_next, params=params, current_page=current_page, func=func, repo=repo)
-        else:
-            print('*** No next in links, current_page: %d' % current_page)
-            return
+            if 'next' in req.links:
+                url_next = req.links['next']['url']
+                current_page += 1
+                self.get_data_pre(url_next, params=params, current_page=current_page, func=func, repo=repo)
+            else:
+                print('*** No next in links, current_page: %d' % current_page)
+                return
 
     def http_req(self, url, params, method='GET', headers=None, stream=False, auth=None):
         if headers is None:
