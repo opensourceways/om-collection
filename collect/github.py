@@ -263,8 +263,8 @@ class GithubClient(object):
         url = self.urijoin(BASE_URL, 'repos', owner, repo, 'pulls')
         params = {
             'state': 'all',
-            'sort': 'updated',
-            # 'sort': 'created',
+            # 'sort': 'updated',
+            'sort': 'created',
             'direction': 'desc',
             'per_page': MAX_CATEGORY_ITEMS_PER_PAGE
         }
