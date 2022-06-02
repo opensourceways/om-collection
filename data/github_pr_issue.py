@@ -180,6 +180,8 @@ class GitHubPrIssue(object):
                     robot_users = self.robot_user.split(',')
                     if comment.get('user') is not None and comment.get('user').get('login') is not None and comment.get('user').get('login') not in robot_users:
                         comment_times.append(self.format_time_z(comment['created_at']))
+                else:
+                    comment_times.append(self.format_time_z(comment['created_at']))
                 comments_data = {
                     'pr_id': pr['id'],
                     'pr_number': pr_num,
@@ -220,6 +222,8 @@ class GitHubPrIssue(object):
                     robot_users = self.robot_user.split(',')
                     if issue_comment.get('user') is not None and issue_comment.get('user').get('login') is not None and issue_comment.get('user').get('login') not in robot_users:
                         issue_comment_times.append(self.format_time_z(issue_comment['created_at']))
+                else:
+                    issue_comment_times.append(self.format_time_z(issue_comment['created_at']))
                 issue_comments_data = {
                     'pr_id': pr['id'],
                     'pr_number': pr_num,
