@@ -6,9 +6,6 @@ from dateutil.relativedelta import relativedelta
 from data.common import ESClient
 import math
 
-METRICS = ["D0", "D1", "D2", "Company", "PR_Merged", "PR_Review", "Issue_update", "Issue_Closed", "Issue_Comment",
-           "Contribute", "Meeting", "Attendee", "Maintainer"]
-
 
 class SigScores(object):
     def __init__(self, config=None):
@@ -20,14 +17,23 @@ class SigScores(object):
         self.url = config.get('es_url')
         self.authorization = config.get('authorization')
         self.esClient = ESClient(config)
-
         self.from_date = config.get('from_date')
-        self.params = json.loads((config.get('params')))
-
-        self.query_strs = config.get('query').split(';')
-        self.sig_contributes_query = config.get('sig_contributes_query')
-        self.sig_meetings_query = config.get('sig_meetings_query')
-        self.sig_maintainers_query = config.get('sig_maintainers_query')
+        self.is_radar = config.get('is_radar')
+        if self.is_radar == 'true':
+            self.params = json.loads((config.get('radar_params')))
+            self.metrics = config.get('radar_metrics').split(';')
+            self.products_query = config.get('products_query').split(';')
+            self.product_quality_query = config.get('product_quality_query').split(';')
+            self.process_quality_query = config.get('process_quality_query').split(';')
+            self.org_robustness_query = config.get('org_robustness_query').split(';')
+            self.influence_query = config.get('influence_query').split(';')
+        else:
+            self.params = json.loads((config.get('params')))
+            self.metrics = config.get('metrics').split(';')
+            self.query_strs = config.get('query').split(';')
+            self.sig_contributes_query = config.get('sig_contributes_query')
+            self.sig_meetings_query = config.get('sig_meetings_query')
+            self.sig_maintainers_query = config.get('sig_maintainers_query')
 
     def run(self, time=None):
         self.get_sig_score_by_days()
@@ -58,7 +64,10 @@ class SigScores(object):
         end_time = time.mktime(date.timetuple()) * 1000
         print("Compute sig score: ", date)
         created_at = date.strftime("%Y-%m-%dT00:00:01+08:00")
-        res = self.compute_sig_scores(from_time, end_time)
+        if self.is_radar == 'true':
+            res = self.compute_sig_radar_scores(from_time, end_time)
+        else:
+            res = self.compute_sig_scores(from_time, end_time)
         action = {
             "created_at": created_at,
             "sig_scores": res
@@ -68,31 +77,13 @@ class SigScores(object):
         actions += json.dumps(action) + '\n'
         return actions
 
-    def get_sig_metrics(self, from_time, end_time):
-        res_data = {}
-        metrics_index = 0
-        for query in self.query_strs:
-            gitee_data = self.get_query_data(self.index_name_gitee, query, from_time, end_time)
-            res_data = self.get_metrics_value(res_data, gitee_data, metrics_index)
-            metrics_index += 1
-
-        meeting_data = self.get_query_data(self.index_name_meeting, self.sig_meetings_query, from_time, end_time)
-        res_data = self.get_metrics_meeting(res_data, meeting_data, metrics_index)
-
-        metrics_index += 2
-        maintainer_data = self.get_query_data(self.index_name_maintainer, self.sig_maintainers_query, from_time,
-                                              end_time)
-        res_data = self.get_metrics_value(res_data, maintainer_data, metrics_index)
-
-        return res_data
-
     def compute_sig_scores(self, from_time, end_time):
         all_sigs = []
         metrics_data = self.get_sig_metrics(from_time, end_time)
         for key in metrics_data:
             sig_score = 0
             data = metrics_data.get(key)
-            for m in METRICS:
+            for m in self.metrics:
                 params = self.params.get(m)
                 value = data.get(m) if m in data else 0
                 if m == 'PR_Review':
@@ -113,6 +104,24 @@ class SigScores(object):
             rank += 1
         return all_sigs
 
+    def get_sig_metrics(self, from_time, end_time):
+        res_data = {}
+        metrics_index = 0
+        for query in self.query_strs:
+            gitee_data = self.get_query_data(self.index_name_gitee, query, from_time, end_time)
+            res_data = self.get_metrics_value(res_data, gitee_data, metrics_index)
+            metrics_index += 1
+
+        meeting_data = self.get_query_data(self.index_name_meeting, self.sig_meetings_query, from_time, end_time)
+        res_data = self.get_metrics_meeting(res_data, meeting_data, metrics_index)
+
+        metrics_index += 2
+        maintainer_data = self.get_query_data(self.index_name_maintainer, self.sig_maintainers_query, from_time,
+                                              end_time)
+        res_data = self.get_metrics_value(res_data, maintainer_data, metrics_index)
+
+        return res_data
+
     def get_metrics_meeting(self, res_data, datas, index):
         res = res_data
         sigs = res.keys()
@@ -122,11 +131,11 @@ class SigScores(object):
                 count = data.get('doc_count')
                 value = data.get('count').get('value')
                 if key not in sigs:
-                    res.update({key: {METRICS[index]: count}})
-                    res.update({key: {METRICS[index + 1]: value}})
+                    res.update({key: {self.metrics[index]: count}})
+                    res.update({key: {self.metrics[index + 1]: value}})
                 else:
-                    res.get(key).update({METRICS[index]: count})
-                    res.get(key).update({METRICS[index + 1]: value})
+                    res.get(key).update({self.metrics[index]: count})
+                    res.get(key).update({self.metrics[index + 1]: value})
         return res
 
     def get_metrics_value(self, res_data, datas, index):
@@ -140,7 +149,136 @@ class SigScores(object):
                 else:
                     value = data.get('count').get('value')
                 if key not in sigs:
-                    res.update({key: {METRICS[index]: value}})
+                    res.update({key: {self.metrics[index]: value}})
                 else:
-                    res.get(key).update({METRICS[index]: value})
+                    res.get(key).update({self.metrics[index]: value})
         return res
+
+    def compute_sig_radar_scores(self, from_time, end_time):
+        res_data = {}
+        for radar_metrics in self.metrics:
+            if radar_metrics == 'products':
+                res_data = self.get_sig_products_scores(res_data, radar_metrics, from_time, end_time)
+            if radar_metrics == 'product_quality':
+                res_data = self.get_sig_product_quality_scores(res_data, radar_metrics, from_time, end_time)
+            if radar_metrics == 'process_quality':
+                res_data = self.get_sig_process_quality_scores(res_data, radar_metrics, from_time, end_time)
+            if radar_metrics == 'org_robustness':
+                res_data = self.get_sig_org_robustness_scores(res_data, radar_metrics, from_time, end_time)
+            if radar_metrics == 'influence':
+                res_data = self.get_sig_influence_scores(res_data, radar_metrics, from_time, end_time)
+
+        return self.get_sig_radar_rank(res_data)
+
+    def get_sig_products_scores(self, res_data, radar_metrics, from_time, end_time):
+        res = res_data
+        params_dict = self.params.get(radar_metrics)
+        metrics_keys = list(params_dict.keys())
+        metrics_i = 0
+        for query in self.products_query:
+            metric = metrics_keys[metrics_i]
+            datas = self.get_query_data(self.index_name_gitee, query, from_time, end_time)
+            params = params_dict.get(metrics_keys[metrics_i])
+            res = self.get_radar_score_common(res_data, datas, radar_metrics, metric, params)
+            metrics_i += 1
+        return res
+
+    def get_sig_product_quality_scores(self, res_data, radar_metrics, from_time, end_time):
+        res = res_data
+        params_dict = self.params.get(radar_metrics)
+        metrics_keys = list(params_dict.keys())
+        metrics_i = 0
+        for query in self.product_quality_query:
+            metric = metrics_keys[metrics_i]
+            if metric == 'Issue_resolve':
+                datas = self.get_query_data(self.index_name_gitee, query, from_time, end_time)
+            else:
+                datas = []
+            params = params_dict.get(metrics_keys[metrics_i])
+            res = self.get_radar_score_common(res_data, datas, radar_metrics, metric, params)
+            metrics_i += 1
+        return res
+
+    def get_sig_process_quality_scores(self, res_data, radar_metrics, from_time, end_time):
+        res = res_data
+        params_dict = self.params.get(radar_metrics)
+        metrics_keys = list(params_dict.keys())
+        metrics_i = 0
+        for query in self.process_quality_query:
+            metric = metrics_keys[metrics_i]
+            datas = self.get_query_data(self.index_name_gitee, query, from_time, end_time)
+            params = params_dict.get(metrics_keys[metrics_i])
+            res = self.get_radar_score_common(res_data, datas, radar_metrics, metric, params)
+            metrics_i += 1
+        return res
+
+    def get_sig_org_robustness_scores(self, res_data, radar_metrics, from_time, end_time):
+        res = res_data
+        params_dict = self.params.get(radar_metrics)
+        metrics_keys = list(params_dict.keys())
+        metrics_i = 0
+        for query in self.org_robustness_query:
+            metric = metrics_keys[metrics_i]
+            if metric == 'Maintainer':
+                datas = self.get_query_data(self.index_name_maintainer, query, from_time, end_time)
+            else:
+                datas = self.get_query_data(self.index_name_gitee, query, from_time, end_time)
+
+            params = params_dict.get(metrics_keys[metrics_i])
+            res = self.get_radar_score_common(res_data, datas, radar_metrics, metric, params)
+            metrics_i += 1
+        return res
+
+    def get_sig_influence_scores(self, res_data, radar_metrics, from_time, end_time):
+        res = res_data
+        params_dict = self.params.get(radar_metrics)
+        metrics_keys = list(params_dict.keys())
+        metrics_i = 0
+        for query in self.influence_query:
+            metric = metrics_keys[metrics_i]
+            if metric == 'Download':
+                datas = self.get_query_data(self.index_name_maintainer, query, from_time, end_time)
+            else:
+                datas = self.get_query_data(self.index_name_gitee, query, from_time, end_time)
+
+            params = params_dict.get(metrics_keys[metrics_i])
+            res = self.get_radar_score_common(res_data, datas, radar_metrics, metric, params)
+            metrics_i += 1
+        return res
+
+    def get_radar_score_common(self, res_data, datas, radar_metrics, metric, params):
+        res = res_data
+        sigs = res.keys()
+        if len(datas) != 0:
+            for data in datas:
+                key = data.get('key')
+                value = data.get('count').get('value')
+                value = value if value is not None else 0
+                score = math.log(1 + value) / math.log(1 + max(value, params[1])) * params[0] * params[2]
+                if key not in sigs:
+                    res.update({key: {radar_metrics: {metric: score}}})
+                elif radar_metrics not in res.get(key):
+                    res.get(key).update({radar_metrics: {metric: score}})
+                else:
+                    res.get(key).get(radar_metrics).update({metric: score})
+        return res
+
+    def get_sig_radar_rank(self, res):
+        all_sigs = []
+        for sig in res:
+            action = {'sig_names': sig}
+            radar_value = res.get(sig)
+            for radar_metrics in self.metrics:
+                metric_value = radar_value.get(radar_metrics) if radar_value.get(radar_metrics) else []
+                score = 0
+                for metric in metric_value:
+                    score += metric_value.get(metric)
+                action.update({radar_metrics: {'score': score}})
+            all_sigs.append(action)
+
+        for radar_metrics in self.metrics:
+            all_sigs.sort(key=lambda x: (x[radar_metrics]['score']), reverse=True)
+            for rank in range(len(all_sigs)):
+                all_sigs[rank].get(radar_metrics).update({'rank': rank + 1})
+                rank += 1
+        return all_sigs
