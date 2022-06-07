@@ -195,7 +195,7 @@ class GiteeScore(object):
         for single_pull_body in whole_pull_list:
             # Only process the issue which issue title contains "文档捉虫"
             if not self.is_docDebug_issue(single_pull_body.get('title'),
-                                          single_issue_body.get('issue_type')):
+                                          single_pull_body.get('issue_type')):
                 continue
             user_login = single_pull_body.get('user').get('login')
             if user_login in self.robot_user_login:
@@ -282,6 +282,8 @@ class GiteeScore(object):
 
     def is_docDebug_issue(self, title, issue_type):
         result = False
+        # 如果标题中、或者Issue类型中带有“有奖捉虫”字样，就表示
+        # 该Issue为有奖捉虫活动的Issue
         if '有奖捉虫' in title or '有奖捉虫' in issue_type:
             result = True
         return result
