@@ -40,7 +40,8 @@ class AccountOrg(object):
         print("Collect AccountOrg data: start")
         self.csv_data = self.getEmailGiteeDict()
         self.getDataFromCla()
-        self.getDataFromCsv()
+        # 用于从csv文件中刷新用户信息
+        # self.getDataFromCsv()
         print("Collect AccountOrg data: finished")
 
     def getDataFromCla(self):
