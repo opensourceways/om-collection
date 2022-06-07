@@ -164,7 +164,8 @@ class GiteeScore(object):
             for single_issue_body in page_issue_list:
 
                 # Only process the issue which issue title contains "文档捉虫"
-                if not self.is_docDebug_issue(single_issue_body.get('title')):
+                if not self.is_docDebug_issue(single_issue_body.get('title'),
+                                              single_issue_body.get('issue_type')):
                     continue
                 issue_number = single_issue_body.get('number')
                 user_login = single_issue_body.get('user').get('login')
@@ -193,7 +194,8 @@ class GiteeScore(object):
         total_pull_bodies = []
         for single_pull_body in whole_pull_list:
             # Only process the issue which issue title contains "文档捉虫"
-            if not self.is_docDebug_issue(single_pull_body.get('title')):
+            if not self.is_docDebug_issue(single_pull_body.get('title'),
+                                          single_issue_body.get('issue_type')):
                 continue
             user_login = single_pull_body.get('user').get('login')
             if user_login in self.robot_user_login:
@@ -278,9 +280,9 @@ class GiteeScore(object):
         score = float(score_str)
         return score
 
-    def is_docDebug_issue(self, title):
+    def is_docDebug_issue(self, title, issue_type):
         result = False
-        if '有奖捉虫' in title:
+        if '有奖捉虫' in title or '有奖捉虫' in issue_type:
             result = True
         return result
 
