@@ -284,7 +284,9 @@ class GiteeScore(object):
         result = False
         # 如果标题中、或者Issue类型中带有“有奖捉虫”字样，就表示
         # 该Issue为有奖捉虫活动的Issue
-        if '有奖捉虫' in title or '有奖捉虫' in issue_type:
+        if title and '有奖捉虫' in title:
+            result = True
+        if issue_type and '有奖捉虫' in issue_type:
             result = True
         return result
 
