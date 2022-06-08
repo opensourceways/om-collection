@@ -1582,7 +1582,7 @@ class ESClient(object):
         print("set fork is_removed value to 1 success")
 
     def splitMixDockerHub(self, from_date, count_key, query=None,
-                          query_index_url=None, query_index_name=None):
+                          query_index_url=None, query_index_name=None, es_authorization=None):
         fromTime = datetime.strptime(from_date, "%Y%m%d")
         to = datetime.strptime(datetime.today().strftime("%Y%m%d"), "%Y%m%d")
 
@@ -1627,10 +1627,14 @@ class ESClient(object):
                        }''' % (fromTime.strftime("%Y-%m-%dT00:00:00+00:00"),
                                to.strftime("%Y-%m-%dT23:59:59+00:00"), query, count_key)
 
+        _headers = {
+            'Content-Type': 'application/json',
+            'Authorization': es_authorization
+        }
         res = self.request_get(self.getSearchUrl(query_index_url, query_index_name), data=data_json,
-                               headers=self.default_headers)
+                               headers=_headers)
         if res.status_code != 200:
-            return 0
+            return {}
         data = res.json()
         buckets = data['aggregations']['2']['buckets']
         time_count_dict = {}
