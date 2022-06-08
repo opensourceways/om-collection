@@ -68,13 +68,13 @@ class SigScores(object):
             res = self.compute_sig_radar_scores(from_time, end_time)
         else:
             res = self.compute_sig_scores(from_time, end_time)
-        action = {
-            "created_at": created_at,
-            "sig_scores": res
-        }
-        indexData = {"index": {"_index": self.index_name, "_id": "sigs_score_" + str(date)}}
-        actions = json.dumps(indexData) + '\n'
-        actions += json.dumps(action) + '\n'
+
+        actions = ''
+        for data in res:
+            data.update({"created_at": created_at})
+            indexData = {"index": {"_index": self.index_name, "_id": data.get('sig_names') + "_sig_score_" + str(date)}}
+            actions += json.dumps(indexData) + '\n'
+            actions += json.dumps(data) + '\n'
         return actions
 
     def compute_sig_scores(self, from_time, end_time):
@@ -257,10 +257,13 @@ class SigScores(object):
                 score = math.log(1 + value) / math.log(1 + max(value, params[1])) * params[0] * params[2]
                 if key not in sigs:
                     res.update({key: {radar_metrics: {metric: score}}})
+                    res.get(key).update({radar_metrics + '_value': {metric: value}})
                 elif radar_metrics not in res.get(key):
                     res.get(key).update({radar_metrics: {metric: score}})
+                    res.get(key).update({radar_metrics + '_value': {metric: value}})
                 else:
                     res.get(key).get(radar_metrics).update({metric: score})
+                    res.get(key).get(radar_metrics + '_value').update({metric: value})
         return res
 
     def get_sig_radar_rank(self, res):
@@ -274,6 +277,8 @@ class SigScores(object):
                 for metric in metric_value:
                     score += metric_value.get(metric)
                 action.update({radar_metrics: {'score': score}})
+                if radar_value.get(radar_metrics + '_value'):
+                    action.update({radar_metrics + '_value': radar_value.get(radar_metrics + '_value')})
             all_sigs.append(action)
 
         for radar_metrics in self.metrics:
