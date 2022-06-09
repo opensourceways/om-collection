@@ -83,6 +83,7 @@ class SigScores(object):
         for key in metrics_data:
             sig_score = 0
             data = metrics_data.get(key)
+            metric_value = {}
             for m in self.metrics:
                 params = self.params.get(m)
                 value = data.get(m) if m in data else 0
@@ -93,9 +94,11 @@ class SigScores(object):
                         'Issue_Closed') != 0 else 0
                 score = math.log(1 + value) / math.log(1 + max(value, params[1])) * params[0]
                 sig_score += score
+                metric_value.update({m: value})
             action = {
                 'sig_names': key,
-                'score': sig_score
+                'score': sig_score,
+                'value': metric_value
             }
             all_sigs.append(action)
         all_sigs.sort(key=lambda x: (x['score']), reverse=True)
