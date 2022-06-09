@@ -119,7 +119,7 @@ class SigScores(object):
         res_data = self.get_metrics_meeting(res_data, meeting_data, metrics_index)
 
         metrics_index += 2
-        maintainer_data = self.get_query_data(self.index_name_maintainer, self.sig_maintainers_query, from_time,
+        maintainer_data = self.get_query_data(self.index_name_maintainer, self.sig_maintainers_query, 0,
                                               end_time)
         res_data = self.get_metrics_value(res_data, maintainer_data, metrics_index)
 
@@ -223,7 +223,7 @@ class SigScores(object):
         for query in self.org_robustness_query:
             metric = metrics_keys[metrics_i]
             if metric == 'Maintainer':
-                datas = self.get_query_data(self.index_name_maintainer, query, from_time, end_time)
+                datas = self.get_query_data(self.index_name_maintainer, query, 0, end_time)
             else:
                 datas = self.get_query_data(self.index_name_gitee, query, from_time, end_time)
 
