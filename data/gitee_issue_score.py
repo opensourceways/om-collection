@@ -101,6 +101,8 @@ class GiteeScore(object):
             email = issue_brief[5]
 
             comment_index = issue_brief_list.index(issue_brief)
+
+            print(f'start to get issue score, issue number is : {issue_number}')
             issue_comment_list = self.get_comments_by_issue_number(issue_number)
             author_username, score = self.parse_comment_list(issue_comment_list)
             print(
@@ -268,7 +270,7 @@ class GiteeScore(object):
         return username, score
 
     def get_score_from_comment_content(self, comment_content):
-        comment_line = comment_content.split('\r\n')[0]
+        comment_line = comment_content.split('\n')[0].split('\r')[0]
         score = None
         # split by either Chinese or English colon.
         try:
