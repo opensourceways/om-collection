@@ -253,6 +253,7 @@ class SigScores(object):
         res = res_data
         sigs = res.keys()
         if len(datas) != 0:
+            sum_metric = 0
             for data in datas:
                 key = data.get('key')
                 value = data.get('count').get('value')
@@ -260,13 +261,17 @@ class SigScores(object):
                 score = math.log(1 + value) / math.log(1 + max(value, params[1])) * params[0] * params[2]
                 if key not in sigs:
                     res.update({key: {radar_metrics: {metric: score}}})
-                    res.get(key).update({radar_metrics + '_value': {metric: value}})
+                    res.get(key).get(radar_metrics).update({"metrics": {metric: value}})
                 elif radar_metrics not in res.get(key):
                     res.get(key).update({radar_metrics: {metric: score}})
-                    res.get(key).update({radar_metrics + '_value': {metric: value}})
+                    res.get(key).get(radar_metrics).update({"metrics": {metric: value}})
                 else:
                     res.get(key).get(radar_metrics).update({metric: score})
-                    res.get(key).get(radar_metrics + '_value').update({metric: value})
+                    res.get(key).get(radar_metrics).get("metrics").update({metric: value})
+                sum_metric += value
+            for sig in res.keys():
+                if res.get(sig).get(radar_metrics):
+                    res.get(sig).get(radar_metrics).get('metrics').update({metric + '_mean': sum_metric/len(datas)})
         return res
 
     def get_sig_radar_rank(self, res):
@@ -275,13 +280,14 @@ class SigScores(object):
             action = {'sig_names': sig}
             radar_value = res.get(sig)
             for radar_metrics in self.metrics:
-                metric_value = radar_value.get(radar_metrics) if radar_value.get(radar_metrics) else []
+                metric_value = radar_value.get(radar_metrics) if radar_value.get(radar_metrics) else {}
                 score = 0
                 for metric in metric_value:
-                    score += metric_value.get(metric)
+                    if metric != 'metrics':
+                        score += metric_value.get(metric)
                 action.update({radar_metrics: {'score': score}})
-                if radar_value.get(radar_metrics + '_value'):
-                    action.update({radar_metrics + '_value': radar_value.get(radar_metrics + '_value')})
+                if metric_value.get("metrics"):
+                    action.get(radar_metrics).update({"metrics": metric_value.get("metrics")})
             all_sigs.append(action)
 
         for radar_metrics in self.metrics:
@@ -289,4 +295,12 @@ class SigScores(object):
             for rank in range(len(all_sigs)):
                 all_sigs[rank].get(radar_metrics).update({'rank': rank + 1})
                 rank += 1
+
+        for radar_metrics in self.metrics:
+            sum_score = 0
+            for i in range(len(all_sigs)):
+                sum_score += all_sigs[i].get(radar_metrics).get('score')
+            mean_score = sum_score/len(all_sigs)
+            for i in range(len(all_sigs)):
+                all_sigs[i].get(radar_metrics).update({'mean': mean_score})
         return all_sigs
