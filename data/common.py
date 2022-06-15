@@ -406,7 +406,7 @@ class ESClient(object):
             giteeid_company_dict_copy.update({k1: self.giteeid_company_dict.get(k)})
         return giteeid_company_dict_copy
 
-    def getUserInfo(self, login, created_at=None):
+    def getUserInfo(self, login, created_at=None, company_info_dic=None):
         if isinstance(login, str) is True:
             login = login.lower()
         internalUsers_copy = self.users_lower()
@@ -461,6 +461,9 @@ class ESClient(object):
                     userExtra["tag_user_company"] = company
                 else:
                     continue
+
+        if company_info_dic and company_info_dic.get(userExtra['tag_user_company']):
+            userExtra.update(company_info_dic.get(userExtra['tag_user_company']))
 
         return userExtra
 
