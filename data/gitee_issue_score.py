@@ -226,6 +226,8 @@ class GiteeScore(object):
 
         for pull_comment in pull_comments:
             score_admin = pull_comment.get('user').get('login')
+            if pull_comment.get('body') is None:
+                continue
             pull_comment_body = pull_comment.get('body').strip()
             if score_admin not in self.score_admins or not pull_comment_body.startswith('得分'):
                 continue
@@ -244,7 +246,6 @@ class GiteeScore(object):
     def get_comments_by_issue_number(self, issue_number):
         issue_comment_list = []
         issue_comment_generator = self.giteeClient.issue_comments(issue_number)
-
         issue_comment_text = [issue_comment for issue_comment in issue_comment_generator][0]
         issue_comment_text = issue_comment_text.replace('\r', '').replace('\n', '\t').replace('null', 'None'). \
             replace('true', 'True').replace('false', 'False')
@@ -260,13 +261,16 @@ class GiteeScore(object):
     def parse_comment_list(self, comment_list):
         username = None
         score = None
-        for comment in comment_list:
-            author_username = comment.get('user').get('login')
-            comment_content = comment.get('body')
-            if author_username in self.score_admins and comment_content.strip().startswith("得分"):
-                score = self.get_score_from_comment_content(comment_content)
-                username = author_username
-                break
+        if comment_list is not None:
+            for comment in comment_list:
+                author_username = comment.get('user').get('login')
+                comment_content = comment.get('body')
+                if comment_content is None:
+                    continue
+                if author_username in self.score_admins and comment_content.strip().startswith("得分"):
+                    score = self.get_score_from_comment_content(comment_content)
+                    username = author_username
+                    break
         return username, score
 
     def get_score_from_comment_content(self, comment_content):
