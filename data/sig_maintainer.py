@@ -131,6 +131,8 @@ class SigMaintainer(object):
         if 'openeuler' in repo_path_dirs:
             repo_path_dir = sig_repo_path + '/' + 'openeuler'
             repo_paths = os.walk(repo_path_dir).__next__()[1]
+            if repo_paths is None:
+                return sig_repo_list
             for repo_path in repo_paths:
                 yaml_dir_path = repo_path_dir + '/' + repo_path
                 yaml_dir = os.walk(yaml_dir_path).__next__()[2]
@@ -143,6 +145,8 @@ class SigMaintainer(object):
         if 'src-openeuler' in repo_path_dirs:
             repo_path_dir = sig_repo_path + '/' + 'src-openeuler'
             repo_paths = os.walk(repo_path_dir).__next__()[1]
+            if repo_paths is None:
+                return sig_repo_list
             for repo_path in repo_paths:
                 yaml_dir_path = repo_path_dir + '/' + repo_path
                 yaml_dir = os.walk(yaml_dir_path).__next__()[2]
@@ -160,6 +164,8 @@ class SigMaintainer(object):
         for d in data:
             repos = d['repositories']
             repositories = []
+            if repos is None:
+                break
             for repo in repos:
                 if self.get_repo_name_without_sig:
                     repositories.append(repo)
@@ -266,11 +272,7 @@ class SigMaintainer(object):
         sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
         info = yaml.load_all(open(sig_info), Loader=yaml.Loader).__next__()
         datas = ''
-        repositories = info.get('repositories')
-        repos = []
-        for repo in repositories:
-            for r in repo['repo']:
-                repos.append(r)
+        repos = self.get_repo_from_yaml(info)
         users = []
         if owner_type in info and info[owner_type] is not None:
             users_info = info[owner_type]
@@ -292,16 +294,7 @@ class SigMaintainer(object):
                 ID = self.org + '_' + dir + '_' + repo + '_' + owner_type + '_' + user
                 if ID in self.exists_ids:
                     self.exists_ids.remove(ID)
-                dataw = {"sig_name": dir,
-                         "repo_name": repo,
-                         "committer": user,
-                         "user_login": user,
-                         "created_at": times,
-                         "committer_time": times_owner,
-                         "is_sig_repo_committer": 1,
-                         "owner_type": owner_type}
-                userExtra = self.esClient.getUserInfo(user)
-                dataw.update(userExtra)
+                dataw = self.writecommonData(dir, repo, owner_type, user, times, times_owner)
                 datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
                 datas += datar
                 repo_mark = False
@@ -309,19 +302,33 @@ class SigMaintainer(object):
                 ID = self.org + '_' + dir + '_null_' + owner_type + '_' + user
                 if ID in self.exists_ids:
                     self.exists_ids.remove(ID)
-                dataw = {"sig_name": dir,
-                         "repo_name": None,
-                         "committer": user,
-                         "user_login": user,
-                         "created_at": times,
-                         "committer_time": times_owner,
-                         "is_sig_repo_committer": 1,
-                         "owner_type": owner_type}
-                userExtra = self.esClient.getUserInfo(user)
-                dataw.update(userExtra)
+                dataw = self.writecommonData(dir, None, owner_type, user, times, times_owner)
                 datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
                 datas += datar
         return datas
+
+    def writecommonData(self, dir, repo, owner_type, user, times, times_owner):
+        dataw = {"sig_name": dir,
+                 "repo_name": repo,
+                 "committer": user,
+                 "user_login": user,
+                 "created_at": times,
+                 "committer_time": times_owner,
+                 "is_sig_repo_committer": 1,
+                 "owner_type": owner_type}
+        userExtra = self.esClient.getUserInfo(user)
+        dataw.update(userExtra)
+        return dataw
+
+    def get_repo_from_yaml(self, info):
+        repositories = info.get('repositories')
+        if repositories is None:
+            return []
+        repos = []
+        for repo in repositories:
+            for r in repo['repo']:
+                repos.append(r)
+        return repos
 
     def download_sigs(self):
         path = self.sigs_dir
@@ -379,18 +386,9 @@ class SigMaintainer(object):
                             ID = self.org + '_' + dir + '_' + repo + '_' + key + '_' + str(owner)
                             if ID in self.exists_ids:
                                 self.exists_ids.remove(ID)
-                            dataw = {"sig_name": dir,
-                                     "repo_name": repo,
-                                     "committer": owner,
-                                     "user_login": owner,
-                                     "created_at": times,
-                                     "committer_time": times_owner,
-                                     "is_sig_repo_committer": 1,
-                                     "owner_type": key}
+                            dataw = self.writecommonData(dir, repo, key, owner, times, times_owner)
                             if key == "maintainers":
                                 dataw.update({"maintainer_in_sigs": maintainer_sigs_dict.get(owner)})
-                            userExtra = self.esClient.getUserInfo(owner)
-                            dataw.update(userExtra)
                             datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
                             datas += datar
                             repo_mark = False
@@ -399,18 +397,9 @@ class SigMaintainer(object):
                             ID = self.org + '_' + dir + '_null_' + key + '_' + owner
                             if ID in self.exists_ids:
                                 self.exists_ids.remove(ID)
-                            dataw = {"sig_name": dir,
-                                     "repo_name": None,
-                                     "committer": owner,
-                                     "user_login": owner,
-                                     "created_at": times,
-                                     "committer_time": times_owner,
-                                     "is_sig_repo_committer": 1,
-                                     "owner_type": key}
+                            dataw = self.writecommonData(dir, None, key, owner, times, times_owner)
                             if key == "maintainers":
                                 dataw.update({"maintainer_in_sigs": maintainer_sigs_dict.get(owner)})
-                            userExtra = self.esClient.getUserInfo(owner)
-                            dataw.update(userExtra)
                             datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
                             datas += datar
                 self.esClient.safe_put_bulk(datas)
