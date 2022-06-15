@@ -98,6 +98,8 @@ class Gitee(object):
         self.thread_pool_num = int(config.get('thread_pool_num', 20))
         self.thread_max_num = threading.Semaphore(self.thread_pool_num)
         self.repo_sigs_dict = self.esClient.getRepoSigs()
+        self.csv_url = config.get('csv_url')
+        self.companyLocationDic = {}
 
     def run(self, from_time):
         print("Collect gitee data: staring")
@@ -151,6 +153,23 @@ class Gitee(object):
                                    time.gmtime(endTime - startTime))
         print("Collect all gitee data finished after %s" % spent_time)
 
+    def getCompanyLocationInfo(self):
+        dic = {}
+        data = self.esClient.request_get(self.csv_url)
+        reader = data.text.split('\r\n')
+        for item in reader:
+            company_info = item.split(';')
+            company = company_info[0]
+            if company == '':
+                continue
+            try:
+                location = company_info[1]
+                center = company_info[2]
+                dic.update({company: {'company_location': location, 'innovation_center': center}})
+            except IndexError:
+                continue
+        return dic
+
     def tagRepoSigsHistory(self):
         data = self.esClient.getAllGiteeRepo()
         for d in data['aggregations']['repos']['buckets']:
@@ -203,6 +222,10 @@ class Gitee(object):
     def writeData(self, func, from_time):
         # threads = []
         for org in self.orgs:
+            if 'openeuler' in org:
+                self.companyLocationDic = self.getCompanyLocationInfo()
+            else:
+                self.companyLocationDic = {}
             repos = self.get_repos(org)
             reposName = []
             for r in repos:
@@ -456,6 +479,9 @@ class Gitee(object):
             }
             userExtra = self.esClient.getUserInfo(action['user_login'], fork["created_at"])
             action.update(userExtra)
+            company_loc = self.companyLocationDic.get(userExtra['tag_user_company'])
+            if company_loc is not None:
+                action.update(company_loc)
 
             indexData = {
                 "index": {"_index": self.index_name, "_id": "fork_" + str(fork['id'])}}
@@ -516,6 +542,9 @@ class Gitee(object):
             }
             userExtra = self.esClient.getUserInfo(action['user_login'], star["star_at"])
             action.update(userExtra)
+            company_loc = self.companyLocationDic.get(userExtra['tag_user_company'])
+            if company_loc is not None:
+                action.update(company_loc)
             indexData = {
                 "index": {"_index": self.index_name, "_id": star_id}}
             actions += json.dumps(indexData) + '\n'
@@ -553,6 +582,9 @@ class Gitee(object):
             }
             userExtra = self.esClient.getUserInfo(action['user_login'], watch["watch_at"])
             action.update(userExtra)
+            company_loc = self.companyLocationDic.get(userExtra['tag_user_company'])
+            if company_loc is not None:
+                action.update(company_loc)
 
             indexData = {
                 "index": {"_index": self.index_name, "_id": watch_id}}
@@ -588,6 +620,9 @@ class Gitee(object):
             "is_gitee_repo": 1,
         }
         userExtra = self.esClient.getUserInfo(repo_data['owner']['login'], repo_data["created_at"])
+        company_loc = self.companyLocationDic.get(userExtra['tag_user_company'])
+        if company_loc is not None:
+            repo_detail.update(company_loc)
         repo_detail.update(userExtra)
 
         maintainerdata = self.esClient.getRepoMaintainer(self.sig_index, repo_data["full_name"])
@@ -985,6 +1020,9 @@ class Gitee(object):
 
             userExtra = self.esClient.getUserInfo(ecomment['user_login'], comment['created_at'])
             ecomment.update(userExtra)
+            company_loc = self.companyLocationDic.get(userExtra['tag_user_company'])
+            if company_loc is not None:
+                ecomment.update(company_loc)
             ecomments.append(ecomment)
 
         return ecomments
@@ -1046,6 +1084,9 @@ class Gitee(object):
 
             userExtra = self.esClient.getUserInfo(ecommit['user_login'], ecommit['created_at'])
             ecommit.update(userExtra)
+            company_loc = self.companyLocationDic.get(userExtra['tag_user_company'])
+            if company_loc is not None:
+                ecommit.update(company_loc)
             ecommits.append(ecommit)
 
         return ecommits
@@ -1165,6 +1206,9 @@ class Gitee(object):
         #    rich_pr.update(self.get_item_project(rich_pr))
         userExtra = self.esClient.getUserInfo(rich_pr['user_login'], pull_request['created_at'])
         rich_pr.update(userExtra)
+        company_loc = self.companyLocationDic.get(userExtra['tag_user_company'])
+        if company_loc is not None:
+            rich_pr.update(company_loc)
         rich_pr['addcodenum'] = pull_request['codediffadd']
         rich_pr['deletecodenum'] = pull_request['codediffdelete']
         if 'project' in item:
@@ -1305,6 +1349,9 @@ class Gitee(object):
         rich_issue['is_gitee_{}'.format(ISSUE_TYPE)] = 1
 
         userExtra = self.esClient.getUserInfo(rich_issue['user_login'], issue['created_at'])
+        company_loc = self.companyLocationDic.get(userExtra['tag_user_company'])
+        if company_loc is not None:
+            rich_issue.update(company_loc)
         rich_issue.update(userExtra)
         return rich_issue
 
@@ -1364,6 +1411,9 @@ class Gitee(object):
                 ecomment['project'] = eitem['project']
             userExtra = self.esClient.getUserInfo(ecomment['user_login'], comment['created_at'])
             ecomment.update(userExtra)
+            company_loc = self.companyLocationDic.get(userExtra['tag_user_company'])
+            if company_loc is not None:
+                ecomment.update(company_loc)
             # self.add_repository_labels(ecomment)
             # self.add_metadata_filter_raw(ecomment)
             # self.add_gelk_metadata(ecomment)
