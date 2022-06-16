@@ -98,7 +98,6 @@ class Gitee(object):
         self.thread_pool_num = int(config.get('thread_pool_num', 20))
         self.thread_max_num = threading.Semaphore(self.thread_pool_num)
         self.repo_sigs_dict = self.esClient.getRepoSigs()
-        self.csv_url = config.get('csv_url')
         self.companyLocationDic = {}
 
     def run(self, from_time):
@@ -153,23 +152,6 @@ class Gitee(object):
                                    time.gmtime(endTime - startTime))
         print("Collect all gitee data finished after %s" % spent_time)
 
-    def getCompanyLocationInfo(self):
-        dic = {}
-        data = self.esClient.request_get(self.csv_url)
-        reader = data.text.split('\r\n')
-        for item in reader:
-            company_info = item.split(';')
-            company = company_info[0]
-            if company == '':
-                continue
-            try:
-                location = company_info[1]
-                center = company_info[2]
-                dic.update({company: {'company_location': location, 'innovation_center': center}})
-            except IndexError:
-                continue
-        return dic
-
     def tagRepoSigsHistory(self):
         data = self.esClient.getAllGiteeRepo()
         for d in data['aggregations']['repos']['buckets']:
@@ -223,7 +205,7 @@ class Gitee(object):
         # threads = []
         for org in self.orgs:
             if 'openeuler' in org:
-                self.companyLocationDic = self.getCompanyLocationInfo()
+                self.companyLocationDic = self.esClient.getCompanyLocationInfo()
             else:
                 self.companyLocationDic = {}
             repos = self.get_repos(org)

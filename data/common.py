@@ -74,6 +74,7 @@ class ESClient(object):
         self.giteeid_company_change_dict = defaultdict(dict)
         if self.authorization:
             self.default_headers['Authorization'] = self.authorization
+        self.company_loc_url = config.get('company_loc_url')
 
     def getObsAllPackageName(self):
         search_json = '''{
@@ -466,6 +467,23 @@ class ESClient(object):
             userExtra.update(company_info_dic.get(userExtra['tag_user_company']))
 
         return userExtra
+
+    def getCompanyLocationInfo(self):
+        dic = {}
+        data = self.request_get(self.company_loc_url)
+        reader = data.text.split('\n')
+        for item in reader:
+            company_info = item.strip().split(';')
+            company = company_info[0]
+            if company == '':
+                continue
+            try:
+                location = company_info[1]
+                center = company_info[2]
+                dic.update({company: {'company_location': location, 'innovation_center': center}})
+            except IndexError:
+                continue
+        return dic
 
     def tagUserOrgChanged(self):
         if len(self.giteeid_company_change_dict) == 0:
