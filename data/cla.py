@@ -146,7 +146,10 @@ class Cla(object):
             if employee['email'] in self.claIds:
                 self.claIds.remove(employee['email'])
             if self.companyLocationDic.get(corporation):
-                action.update(self.companyLocationDic.get(corporation))
+                addr = self.companyLocationDic.get(corporation)
+                location = self.esClient.getIPbyLocation(addr.get('company_location'))
+                action.update(addr)
+                action.update(location)
             index_data = {"index": {"_index": self.index_name, "_id": employee['email']}}
             actions += json.dumps(index_data) + '\n'
             actions += json.dumps(action) + '\n'

@@ -41,6 +41,8 @@ import pytz
 import requests
 import yaml
 
+from geopy.geocoders import Nominatim
+
 
 class ESClient(object):
 
@@ -179,6 +181,11 @@ class ESClient(object):
         {
           "term": {
             "is_sig_original": "1"
+          }
+        },
+        {
+          "query_string": {
+            "query": "!is_removed:1"
           }
         }
       ]
@@ -464,8 +471,12 @@ class ESClient(object):
                     continue
 
         if company_info_dic and company_info_dic.get(userExtra['tag_user_company']):
-            userExtra.update(company_info_dic.get(userExtra['tag_user_company']))
-
+            addr = company_info_dic.get(userExtra['tag_user_company'])
+            location = self.getIPbyLocation(addr.get('company_location'))
+            userExtra.update(addr)
+            if location:
+                userExtra.update(location)
+            print(userExtra)
         return userExtra
 
     def getCompanyLocationInfo(self):
@@ -1528,6 +1539,17 @@ class ESClient(object):
         if data is None:
             return {}
         return data
+
+    def getIPbyLocation(self, addr):
+        gps = Nominatim(user_agent='application')
+        location = gps.geocode(addr)
+        lon = location.longitude
+        lat = location.latitude
+        res = {
+            'lon': lon,
+            'lat': lat
+        }
+        return res
 
     def getItemsByMatchs(self, matchs, size=500, aggs=None, matchs_not=None):
         '''
