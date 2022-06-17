@@ -35,10 +35,7 @@ class Cla(object):
         self.index_name_corporation = config.get('index_name_corporation')
         self.claIds = self.esClient.getEsIds(self.index_name)
         self.corporationIds = self.esClient.getEsIds(self.index_name_corporation)
-        if 'openeuler' not in self.orgs:
-            self.companyLocationDic = {}
-        else:
-            self.companyLocationDic = self.esClient.getCompanyLocationInfo()
+        self.companyLocationDic = self.esClient.getCompanyLocationInfo()
 
     def run(self, from_time):
         print("Collect CLA data: start")
