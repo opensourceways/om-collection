@@ -98,7 +98,7 @@ class Gitee(object):
         self.thread_pool_num = int(config.get('thread_pool_num', 20))
         self.thread_max_num = threading.Semaphore(self.thread_pool_num)
         self.repo_sigs_dict = self.esClient.getRepoSigs()
-        self.companyLocationDic = {}
+        self.companyLocationDic = self.esClient.getCompanyLocationInfo()
 
     def run(self, from_time):
         print("Collect gitee data: staring")
@@ -204,10 +204,6 @@ class Gitee(object):
     def writeData(self, func, from_time):
         # threads = []
         for org in self.orgs:
-            if 'openeuler' in org:
-                self.companyLocationDic = self.esClient.getCompanyLocationInfo()
-            else:
-                self.companyLocationDic = {}
             repos = self.get_repos(org)
             reposName = []
             for r in repos:
