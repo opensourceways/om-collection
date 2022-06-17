@@ -481,6 +481,8 @@ class ESClient(object):
 
     def getCompanyLocationInfo(self):
         dic = {}
+        if self.company_loc_url is None:
+            return dic
         data = self.request_get(self.company_loc_url)
         reader = data.text.split('\n')
         for item in reader:
