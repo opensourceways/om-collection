@@ -366,7 +366,7 @@ class SigMaintainer(object):
                     users = [user['gitee_id'] for user in users_info]
                     datas = self.get_sig_info('maintainers', repos, users, dir)
 
-                if committers:
+                if committers and len(committers) != 0:
                     c_users = [user['gitee_id'] for user in committers]
                     datas += self.get_sig_info('committers', repos, c_users, dir)
                 self.esClient.safe_put_bulk(datas)
