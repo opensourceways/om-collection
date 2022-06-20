@@ -265,26 +265,17 @@ class SigMaintainer(object):
         rs.append('\n'.join(loglist[n:]))
         return rs
 
-    def get_sig_info(self, owner_type, dir):
+    def get_sig_info(self, owner_type, repos, users, dir):
         repo_path = self.sigs_dirs_path + '/' + dir
         rs = self.get_sig_info_log(repo_path)
-
-        sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
-        info = yaml.load_all(open(sig_info), Loader=yaml.Loader).__next__()
         datas = ''
-        repos = self.get_repo_from_yaml(info)
-        users = []
-        if owner_type in info and info[owner_type] is not None:
-            users_info = info[owner_type]
-            for user in users_info:
-                users.append(user['gitee_id'])
         for user in users:
             times_owner = None
             times = self.get_readme_log(repo_path)
             for r in rs:
                 if r == '':
                     continue
-                if re.search(r'\+-\s*gitee_id:\s*%s\n' % user, r):
+                if re.search(r'\+\s*-\s*gitee_id:\s*%s\n' % user, r):
                     date = re.search(r'Date:\s*(.*)\n', r).group(1)
                     # time_struct = time.strptime(date, '%a %b %d %H:%M:%S %Y')
                     time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
@@ -325,10 +316,13 @@ class SigMaintainer(object):
         if repositories is None:
             return []
         repos = []
+        committers = []
         for repo in repositories:
             for r in repo['repo']:
                 repos.append(r)
-        return repos
+            if 'committers' in repo:
+                committers.extend(repo['committers'])
+        return repos, committers
 
     def download_sigs(self):
         path = self.sigs_dir
@@ -343,7 +337,7 @@ class SigMaintainer(object):
             cmdpull = 'cd %s;git pull' % gitpath
             os.system(cmdpull)
 
-    def get_sigs(self, maintainer_sigs_dict):
+    def get_sigs(self, maintainer_sigs_dict=None):
         dic = self.esClient.getOrgByGiteeID()
         self.esClient.giteeid_company_dict = dic[0]
         self.gitee.internalUsers = self.gitee.getItselfUsers(self.gitee.internal_users)
@@ -359,6 +353,21 @@ class SigMaintainer(object):
 
         for dir in dirs:
             try:
+                sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
+                info = yaml.load_all(open(sig_info), Loader=yaml.Loader).__next__()
+                repos, committers = self.get_repo_from_yaml(info)
+                datas = ''
+                if 'maintainers' in info and info['maintainers'] is not None:
+                    users_info = info['maintainers']
+                    users = [user['gitee_id'] for user in users_info]
+                    datas = self.get_sig_info('maintainers', repos, users, dir)
+
+                c_users = [user['gitee_id'] for user in committers]
+                datas += self.get_sig_info('committers', repos, c_users, dir)
+                self.esClient.safe_put_bulk(datas)
+                print("this sig done: %s" % dir)
+            except FileNotFoundError:
+                print('sig-info.yaml of %s is not exist. Using OWNER!' % dir)
                 repo_path = self.sigs_dirs_path + '/' + dir
                 owner_file = repo_path + '/' + 'OWNERS'
                 owner_logins = yaml.load_all(open(owner_file), Loader=yaml.Loader).__next__()
@@ -402,12 +411,6 @@ class SigMaintainer(object):
                                 dataw.update({"maintainer_in_sigs": maintainer_sigs_dict.get(owner)})
                             datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
                             datas += datar
-                self.esClient.safe_put_bulk(datas)
-                print("this sig done: %s" % dir)
-            except FileNotFoundError:
-                print('OWNER of %s is not exist. Using sig-info.yaml!' % dir)
-                datas = self.get_sig_info('maintainers', dir)
-                datas += self.get_sig_info('committers', dir)
                 self.esClient.safe_put_bulk(datas)
                 print("this sig done: %s" % dir)
 
