@@ -476,7 +476,6 @@ class ESClient(object):
             userExtra.update(addr)
             if location:
                 userExtra.update(location)
-            print(userExtra)
         return userExtra
 
     def getCompanyLocationInfo(self):
@@ -1545,13 +1544,16 @@ class ESClient(object):
     def getIPbyLocation(self, addr):
         gps = Nominatim(user_agent='application')
         location = gps.geocode(addr)
+        if location is None:
+            return
         lon = location.longitude
         lat = location.latitude
         res = {
             'lon': lon,
             'lat': lat
         }
-        return res
+        loc = {'location': res}
+        return loc
 
     def getItemsByMatchs(self, matchs, size=500, aggs=None, matchs_not=None):
         '''
