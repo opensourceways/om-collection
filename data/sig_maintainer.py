@@ -314,7 +314,7 @@ class SigMaintainer(object):
     def get_repo_from_yaml(self, info):
         repositories = info.get('repositories')
         if repositories is None:
-            return []
+            return
         repos = []
         committers = []
         for repo in repositories:
@@ -355,15 +355,20 @@ class SigMaintainer(object):
             try:
                 sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
                 info = yaml.load_all(open(sig_info), Loader=yaml.Loader).__next__()
-                repos, committers = self.get_repo_from_yaml(info)
+                if self.get_repo_from_yaml(info):
+                    repos, committers = self.get_repo_from_yaml(info)
+                else:
+                    repos = []
+                    committers = info['committers'] if 'committers' in info and info['committers'] is not None else None
                 datas = ''
                 if 'maintainers' in info and info['maintainers'] is not None:
                     users_info = info['maintainers']
                     users = [user['gitee_id'] for user in users_info]
                     datas = self.get_sig_info('maintainers', repos, users, dir)
 
-                c_users = [user['gitee_id'] for user in committers]
-                datas += self.get_sig_info('committers', repos, c_users, dir)
+                if committers:
+                    c_users = [user['gitee_id'] for user in committers]
+                    datas += self.get_sig_info('committers', repos, c_users, dir)
                 self.esClient.safe_put_bulk(datas)
                 print("this sig done: %s" % dir)
             except FileNotFoundError:
@@ -443,6 +448,7 @@ class SigMaintainer(object):
                 "is_sig_original": 1,
                 "created_at": times
             }
+            maintainers = []
             try:
                 sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
                 info = yaml.load_all(open(sig_info), Loader=yaml.Loader).__next__()
