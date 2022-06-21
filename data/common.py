@@ -42,6 +42,80 @@ import requests
 import yaml
 
 from geopy.geocoders import Nominatim
+from configparser import ConfigParser
+
+
+# Default sleep time and retries to deal with connection/server problems
+DEFAULT_SLEEP_TIME = 1
+MAX_RETRIES = 5
+globa_threadinfo = threading.local()
+config = ConfigParser()
+
+try:
+    config.read('config.ini', encoding='UTF-8')
+    retry_time = config.getint('general', 'retry_time', )
+    retry_sleep_time = config.getint('general', 'retry_sleep_time')
+except BaseException as ex:
+    retry_sleep_time = 10
+    retry_time = 10
+
+
+def globalExceptionHandler(func):
+    def warp(*args, **kwargs):
+        try:
+            # 第一次进来初始化重试次数变量
+            if args[len(args) - 1] != "retry":
+                globa_threadinfo.num = 0
+                # 重试是否成功0 未成功，1 成功
+                globa_threadinfo.retrystate = 0
+            newarg = []
+            # 执行func 参数去除retry标识
+            for i in args:
+                if i != 'retry':
+                    newarg.append(i)
+            response = func(*newarg, **kwargs)
+        except requests.exceptions.RequestException as ex:
+            while globa_threadinfo.num < retry_time and globa_threadinfo.retrystate == 0:
+                try:
+                    globa_threadinfo.num += 1
+                    print(
+                        "retry:" + threading.currentThread().getName() + str(func.__name__) + ":" + str(
+                            globa_threadinfo.num) + "次")
+                    print("error:" + str(ex))
+                    print(args)
+                    time.sleep(retry_sleep_time)
+                    # 防止重复添加标识
+                    if 'retry' not in args:
+                        response = warp(*args, "retry", **kwargs)
+                    else:
+                        response = warp(*args, **kwargs)
+                    return response
+                finally:
+                    pass
+        except Exception as e:
+            print("globalExceptionHandler Exception: fetch error :" + str(
+                e) + "retry:" + threading.currentThread().getName() + str(func.__name__) + ":" + str(
+                globa_threadinfo.num) + " Count")
+            raise e
+        else:
+            print(
+                "globalExceptionHandler else: check response instance." + "retry:" + threading.currentThread().getName() + str(
+                    func.__name__) + ":" + str(
+                    globa_threadinfo.num) + "次")
+            if isinstance(response, requests.models.Response):
+                if response.status_code == 401 or response.status_code == 403:
+                    print({"状态码": response.status_code})
+                else:
+                    print("globalExceptionHandler else: response.status_code is not 401 and 403.")
+            else:
+                print("globalExceptionHandler else: response is not requests.models.Response.")
+            # 重试成功，修改状态
+            globa_threadinfo.retrystate = 1
+            globa_threadinfo.num = 0
+            print("globalExceptionHandler else: retry success globa_threadinfo.retrystate set to 1.")
+            return response
+
+    return warp
 
 
 class ESClient(object):
@@ -226,7 +300,7 @@ class ESClient(object):
   }
 }'''
         res = self.request_get(self.getSearchUrl(index_name=self.index_name),
-                               data=search_json,  headers=self.default_headers)
+                               data=search_json, headers=self.default_headers)
         if res.status_code != 200:
             print("The index not exist")
             return {}
@@ -472,7 +546,7 @@ class ESClient(object):
 
         if company_info_dic and company_info_dic.get(userExtra['tag_user_company']):
             addr = company_info_dic.get(userExtra['tag_user_company'])
-            location = self.getIPbyLocation(addr.get('company_location'))
+            location = self.getLocationbyCity(addr.get('company_location'))
             userExtra.update(addr)
             if location:
                 userExtra.update(location)
@@ -769,8 +843,8 @@ class ESClient(object):
         url = self.url + '/' + index_name + '/_search'
         try:
             res = json.loads(
-                             self.request_get(url=url, headers=self.default_headers,
-                             data=querystr.encode('utf-8')).content)
+                self.request_get(url=url, headers=self.default_headers,
+                                 data=querystr.encode('utf-8')).content)
             resultdata = res['aggregations']['2']['buckets']
             count = 0
             for re in resultdata:
@@ -1541,8 +1615,10 @@ class ESClient(object):
             return {}
         return data
 
-    def getIPbyLocation(self, addr):
-        gps = Nominatim(user_agent='application')
+    @globalExceptionHandler
+    def getLocationbyCity(self, addr):
+        user_agent = str(addr.encode()) + 'application'
+        gps = Nominatim(user_agent=user_agent)
         location = gps.geocode(addr)
         if location is None:
             return
@@ -2063,7 +2139,7 @@ class ESClient(object):
             print('requests error')
             return
         res_data = res.json()
-        whole_data=[]
+        whole_data = []
         data = res_data['hits']['hits']
         print('scroll data count: %s' % len(data))
         whole_data.extend(data)
@@ -2072,7 +2148,7 @@ class ESClient(object):
         while scroll_id is not None and len(data) != 0:
             url = es_url + '/_search/scroll'
             search = '''{"scroll": "%s", "scroll_id": "%s" }''' % (scroll_duration, scroll_id)
-            res =self.request_get(url=url, headers=headers, verify=False, data=search.encode('utf-8'), timeout=60)
+            res = self.request_get(url=url, headers=headers, verify=False, data=search.encode('utf-8'), timeout=60)
             if res.status_code != 200:
                 print('Failed fetch whole data cause of some error occurs in continuous scrolling page except the first page')
                 return
@@ -2082,7 +2158,7 @@ class ESClient(object):
             print('scroll data count: %s' % len(data))
             whole_data.extend(data)
         print('scroll over')
-        
+
         return whole_data
 
     def esSearch(self, index_name, search=None, method='_search'):
@@ -2149,12 +2225,11 @@ def create_log_dir(dest_dir):
         return True
 
     try:
-        exec_out_file = subprocess.Popen(commandline, shell=True, stdout=subprocess.PIPE, 
-        stderr=subprocess.PIPE)
+        exec_out_file = subprocess.Popen(commandline, shell=True, stdout=subprocess.PIPE,
+                                         stderr=subprocess.PIPE)
     except Exception as exp:
         print(f'Failed to create log dir for reason:{exp.__repr__()}')
         return False
-
 
 
 def get_date(time):
@@ -2363,4 +2438,3 @@ def convert_to_localTime(input_datetime):
 
     local_tz = get_localzone()
     return input_datetime.astimezone(local_tz)
-
