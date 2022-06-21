@@ -258,7 +258,7 @@ class SigScores(object):
                 key = data.get('key')
                 value = data.get('count').get('value')
                 value = value if value is not None else 0
-                score = math.log(1 + value) / math.log(1 + max(value, params[1])) * params[0] * params[2]
+                score = math.log(1 + value) / math.log(1 + max(value, params[1])) * params[2]  # * params[0]
                 if key not in sigs:
                     res.update({key: {radar_metrics: {metric: score}}})
                     res.get(key).get(radar_metrics).update({"metrics": {metric: value}})
@@ -271,7 +271,7 @@ class SigScores(object):
                 sum_metric += value
             for sig in res.keys():
                 if res.get(sig).get(radar_metrics):
-                    res.get(sig).get(radar_metrics).get('metrics').update({metric + '_mean': sum_metric/len(datas)})
+                    res.get(sig).get(radar_metrics).get('metrics').update({metric + '_mean': sum_metric / len(datas)})
         return res
 
     def get_sig_radar_rank(self, res):
@@ -282,10 +282,13 @@ class SigScores(object):
             for radar_metrics in self.metrics:
                 metric_value = radar_value.get(radar_metrics) if radar_value.get(radar_metrics) else {}
                 score = 0
+                normalized_score = 0
                 for metric in metric_value:
                     if metric != 'metrics':
                         score += metric_value.get(metric)
+                        normalized_score += metric_value.get(metric) * self.params.get(radar_metrics).get(metric)[0]
                 action.update({radar_metrics: {'score': score}})
+                action.get(radar_metrics).update({"normalized_score": normalized_score})
                 if metric_value.get("metrics"):
                     action.get(radar_metrics).update({"metrics": metric_value.get("metrics")})
             all_sigs.append(action)
@@ -300,7 +303,7 @@ class SigScores(object):
             sum_score = 0
             for i in range(len(all_sigs)):
                 sum_score += all_sigs[i].get(radar_metrics).get('score')
-            mean_score = sum_score/len(all_sigs)
+            mean_score = sum_score / len(all_sigs)
             for i in range(len(all_sigs)):
                 all_sigs[i].get(radar_metrics).update({'mean': mean_score})
         return all_sigs
