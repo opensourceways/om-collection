@@ -546,10 +546,8 @@ class ESClient(object):
 
         if company_info_dic and company_info_dic.get(userExtra['tag_user_company']):
             addr = company_info_dic.get(userExtra['tag_user_company'])
-            location = self.getLocationbyCity(addr.get('company_location'))
-            userExtra.update(addr)
-            if location:
-                userExtra.update(location)
+            if addr:
+                userExtra.update(addr)
         return userExtra
 
     def getCompanyLocationInfo(self):
@@ -567,6 +565,9 @@ class ESClient(object):
                 location = company_info[1]
                 center = company_info[2]
                 dic.update({company: {'company_location': location, 'innovation_center': center}})
+                loc = self.getLocationbyCity(location)
+                if loc:
+                    dic.get(company).update(loc)
             except IndexError:
                 continue
         return dic
