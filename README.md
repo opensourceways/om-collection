@@ -58,3 +58,14 @@ docker run  -v /local_path/config.ini:/var/lib/om/config.ini -v /local_path/user
 docker tag om:0.0.2 swr.cn-north-4.myhuaweicloud.com/om/om-collection:0.0.2
 docker push swr.cn-north-4.myhuaweicloud.com/om/om-collection:0.0.2
 ```
+
+
+## How to test it
+```
+# run all unit tests
+python3 -m unittest 
+
+# run signal model test
+python3 -m unittest  test_common
+
+```
