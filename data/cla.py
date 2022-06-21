@@ -145,7 +145,7 @@ class Cla(object):
             if self.companyLocationDic.get(corporation):
                 addr = self.companyLocationDic.get(corporation)
                 action.update(addr)
-                location = self.esClient.getIPbyLocation(addr.get('company_location'))
+                location = self.esClient.getLocationbyCity(addr.get('company_location'))
                 if location:
                     action.update(location)
             index_data = {"index": {"_index": self.index_name, "_id": employee['email']}}
