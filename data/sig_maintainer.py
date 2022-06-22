@@ -318,8 +318,8 @@ class SigMaintainer(object):
         repos = []
         committers = []
         for repo in repositories:
-            for r in repo['repo']:
-                repos.append(r)
+            r = repo['repo']
+            repos.append(r)
             if 'committers' in repo:
                 committers.extend(repo['committers'])
         return repos, committers
