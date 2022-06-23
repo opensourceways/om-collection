@@ -57,6 +57,7 @@ class GitCommitLog(object):
         self.user_yaml = config.get('user_yaml')
         self.company_yaml = config.get('company_yaml')
         self.all_repo_default_branch = config.get('all_repo_default_branch', 'false')
+        self.is_gitee_enterprise = config.get('is_gitee_enterprise')
 
     def run(self, from_time):
         print("Git commit log collect: start")
@@ -304,7 +305,10 @@ class GitCommitLog(object):
 
     def gitee_repos(self, owner, token):
         client = GiteeClient(owner, None, token)
-        repos = self.getGenerator(client.org())
+        if self.is_gitee_enterprise == "true":
+            repos = self.getGenerator(client.enterprises())
+        else:
+            repos = self.getGenerator(client.org())
         repos_names = []
         for repo in repos:
             repos_names.append(repo['path'] + '->')
