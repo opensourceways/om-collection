@@ -318,8 +318,8 @@ class SigMaintainer(object):
         repos = []
         committers = []
         for repo in repositories:
-            r = repo['repo']
-            repos.append(r)
+            for r in repo['repo']:
+                repos.append(r)
             if 'committers' in repo:
                 committers.extend(repo['committers'])
         return repos, committers
@@ -353,26 +353,6 @@ class SigMaintainer(object):
 
         for dir in dirs:
             try:
-                sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
-                info = yaml.load_all(open(sig_info), Loader=yaml.Loader).__next__()
-                if self.get_repo_from_yaml(info):
-                    repos, committers = self.get_repo_from_yaml(info)
-                else:
-                    repos = []
-                    committers = info['committers'] if 'committers' in info and info['committers'] is not None else None
-                datas = ''
-                if 'maintainers' in info and info['maintainers'] is not None:
-                    users_info = info['maintainers']
-                    users = [user['gitee_id'] for user in users_info]
-                    datas = self.get_sig_info('maintainers', repos, users, dir)
-
-                if committers and len(committers) != 0:
-                    c_users = [user['gitee_id'] for user in committers]
-                    datas += self.get_sig_info('committers', repos, c_users, dir)
-                self.esClient.safe_put_bulk(datas)
-                print("this sig done: %s" % dir)
-            except FileNotFoundError:
-                print('sig-info.yaml of %s is not exist. Using OWNER!' % dir)
                 repo_path = self.sigs_dirs_path + '/' + dir
                 owner_file = repo_path + '/' + 'OWNERS'
                 owner_logins = yaml.load_all(open(owner_file), Loader=yaml.Loader).__next__()
@@ -416,6 +396,26 @@ class SigMaintainer(object):
                                 dataw.update({"maintainer_in_sigs": maintainer_sigs_dict.get(owner)})
                             datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
                             datas += datar
+                self.esClient.safe_put_bulk(datas)
+                print("this sig done: %s" % dir)
+            except FileNotFoundError:
+                print('OWNER of %s is not exist. Using sig-info.yaml!' % dir)
+                sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
+                info = yaml.load_all(open(sig_info), Loader=yaml.Loader).__next__()
+                if self.get_repo_from_yaml(info):
+                    repos, committers = self.get_repo_from_yaml(info)
+                else:
+                    repos = []
+                    committers = info['committers'] if 'committers' in info and info['committers'] is not None else None
+                datas = ''
+                if 'maintainers' in info and info['maintainers'] is not None:
+                    users_info = info['maintainers']
+                    users = [user['gitee_id'] for user in users_info]
+                    datas = self.get_sig_info('maintainers', repos, users, dir)
+
+                if committers and len(committers) != 0:
+                    c_users = [user['gitee_id'] for user in committers]
+                    datas += self.get_sig_info('committers', repos, c_users, dir)
                 self.esClient.safe_put_bulk(datas)
                 print("this sig done: %s" % dir)
 
