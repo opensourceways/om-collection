@@ -66,7 +66,7 @@ class Cla(object):
         corDict = []
         for corporation_info in corporation_infos['data']:
             admin_email = corporation_info['admin_email']
-            corporation_name = corporation_info['corporation_name']
+            corporation_name = corporation_info['corporation_name'].strip()
             admin_name = corporation_info['admin_name']
             admin_added = corporation_info['admin_added']
             pdf_uploaded = corporation_info['pdf_uploaded']
@@ -106,7 +106,7 @@ class Cla(object):
                 "cla_language": corporation["cla_language"],
                 "admin_email": corporation["admin_email"],
                 "admin_name": corporation["admin_name"],
-                "corporation_name": corporation['corporation_name'],
+                "corporation_name": corporation['corporation_name'].strip(),
                 "created_at": corporation['date'],
                 "updated_at": corporation['date'],
                 "admin_added": 1 if bool(corporation['admin_added']) else 0,
@@ -114,7 +114,7 @@ class Cla(object):
                 "is_there_employees": is_there_employees,
             }
 
-            index_id = corporation['corporation_name'] + corporation['admin_email']
+            index_id = corporation['corporation_name'].strip() + corporation['admin_email']
             if index_id in self.corporationIds:
                 self.corporationIds.remove(index_id)
             index_data = {"index": {"_index": self.index_name_corporation, "_id": index_id}}
