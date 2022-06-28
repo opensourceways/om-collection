@@ -102,6 +102,8 @@ class Gitee(object):
 
     def run(self, from_time):
         print("Collect gitee data: staring")
+        self.repo_sigs_dict = self.esClient.getRepoSigs()
+        self.companyLocationDic = self.esClient.getCompanyLocationInfo()
         self.getGiteeId2Company()
 
         self.getEnterpriseUser()
