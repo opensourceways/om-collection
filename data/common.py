@@ -1300,9 +1300,16 @@ class ESClient(object):
             print("update repo author name failed:", res.text)
             return
 
-    def reindex(self, reindex_json):
+    def reindex(self, reindex_json, query_es=None, es_authorization=None):
         url = self.url + '/' + '_reindex'
-        res = requests.post(url, headers=self.default_headers, verify=False, data=reindex_json)
+        _headers = self.default_headers
+        if query_es is not None and es_authorization is not None:
+            url = query_es + '/' + '_reindex'
+            _headers = {
+                'Content-Type': 'application/json',
+                'Authorization': es_authorization
+            }
+        res = requests.post(url, headers=_headers, verify=False, data=reindex_json)
         if res.status_code != 200:
             return 0
         data = res.json()
@@ -1331,9 +1338,19 @@ class ESClient(object):
             maintainers.append(bucket['key'])
         return maintainers
 
-    def updateByQuery(self, query):
-        url = self.url + '/' + self.index_name + '/_update_by_query?conflicts=proceed'
-        requests.post(url, headers=self.default_headers, verify=False, data=query)
+    def updateByQuery(self, query, index=None, query_es=None, es_authorization=None):
+        if index is None:
+            index = self.index_name
+        url = self.url + '/' + index + '/_update_by_query?conflicts=proceed'
+        _headers = self.default_headers
+
+        if query_es is not None and es_authorization is not None:
+            url = query_es + '/' + index + '/_update_by_query?conflicts=proceed'
+            _headers = {
+                'Content-Type': 'application/json',
+                'Authorization': es_authorization
+            }
+        requests.post(url, headers=_headers, verify=False, data=query)
 
     def getUniqueCountByDate(self, field, from_date, to_date,
                              url=None, index_name=None):
@@ -1620,6 +1637,8 @@ class ESClient(object):
     def getLocationbyCity(self, addr):
         user_agent = str(addr.encode()) + 'application'
         gps = Nominatim(user_agent=user_agent)
+        # gps.headers.update({'Connection': 'close'})
+        gps.adapter.session.verify = False
         location = gps.geocode(addr)
         if location is None:
             return

@@ -35,9 +35,10 @@ class Cla(object):
         self.index_name_corporation = config.get('index_name_corporation')
         self.claIds = self.esClient.getEsIds(self.index_name)
         self.corporationIds = self.esClient.getEsIds(self.index_name_corporation)
-        self.companyLocationDic = self.esClient.getCompanyLocationInfo()
+        self.companyLocationDic = {}
 
     def run(self, from_time):
+        self.companyLocationDic = self.esClient.getCompanyLocationInfo()
         print("Collect CLA data: start")
         self.getClaIndiviualsSigning()
         self.getClaCorporationsSigning()

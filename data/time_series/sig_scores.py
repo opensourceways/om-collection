@@ -53,9 +53,15 @@ class SigScores(object):
         now_date = datetime.date.today().strftime("%Y%m%d")
 
         actions = ""
+        count = 0
         while from_date.strftime("%Y%m%d") <= now_date:
             actions += self.get_sig_score(from_date)
             from_date += relativedelta(days=1)
+            count += 1
+            if count > 10:
+                self.esClient.safe_put_bulk(actions)
+                actions = ""
+                count = 0
         self.esClient.safe_put_bulk(actions)
 
     def get_sig_score(self, date):
