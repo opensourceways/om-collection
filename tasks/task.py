@@ -71,7 +71,8 @@ BACKEND_MAPPING = {
     'gitee_metrics': 'data.gitee_metrics.GiteeMetrics',
     'giteescore': 'data.gitee_issue_score.GiteeScore',
     'collect_pypi': 'data.pypi.CollectPypi',
-    'sigscores': 'data.time_series.sig_scores.SigScores'
+    'sigscores': 'data.time_series.sig_scores.SigScores',
+    'company_location': 'data.combine.company_location.CompanyLocation'
 }
 
 
