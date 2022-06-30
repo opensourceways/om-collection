@@ -746,8 +746,8 @@ class ESClient(object):
         data = '''{"size":10000,"query": {"bool": {%s}}}''' % search
         try:
             res = json.loads(
-                             self.request_get(url=url, headers=self.default_headers,
-                             data=data.encode('utf-8')).content)
+                self.request_get(url=url, headers=self.default_headers,
+                                 data=data.encode('utf-8')).content)
         except:
             print(traceback.format_exc())
         return res['hits']['hits']
@@ -789,8 +789,8 @@ class ESClient(object):
 }''' % repo
         try:
             res = json.loads(
-                             self.request_get(url=url, headers=self.default_headers,
-                             data=data.encode('utf-8')).content)
+                self.request_get(url=url, headers=self.default_headers,
+                                 data=data.encode('utf-8')).content)
         except:
             print(traceback.format_exc())
         maintainerdata = res['aggregations']['2']['buckets']
@@ -800,6 +800,47 @@ class ESClient(object):
                 mtstr = mtstr + str(m['key']) + ","
             mtstr = mtstr[:len(mtstr) - 1]
             result['Maintainer'] = mtstr
+        return result
+
+    def getCompanys(self, index_name):
+        result = []
+        if not index_name:
+            return result
+        url = self.url + '/' + index_name + '/_search'
+        data = '''{
+            "size": 0,
+            "query": {
+                "bool": {
+                    "filter": [
+                        {
+                            "query_string": {
+                                "analyze_wildcard": true,
+                                "query": "*"
+                            }
+                        }
+                    ]
+                }
+            },
+            "aggs": {
+                "2": {
+                    "terms": {
+                        "field": "tag_user_company.keyword",
+                        "size": 1000,
+                        "min_doc_count": 1
+                    },
+                    "aggs": {}
+                }
+            }
+        }'''
+        try:
+            res = json.loads(
+                self.request_get(url=url, headers=self.default_headers,
+                                 data=data.encode('utf-8')).content)
+            data = res['aggregations']['2']['buckets']
+            for d in data:
+                result.append(d['key'])
+        except:
+            print(traceback.format_exc())
         return result
 
     def getRepoSigCount(self, index_name, repo=None):

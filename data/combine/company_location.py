@@ -1,3 +1,10 @@
+#  Copyright (c) 2022.
+#  Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+#  Morbi non lorem porttitor neque feugiat blandit. Ut vitae ipsum eget quam lacinia accumsan.
+#  Etiam sed turpis ac ipsum condimentum fringilla. Maecenas magna.
+#  Proin dapibus sapien vel ante. Aliquam erat volutpat. Pellentesque sagittis ligula eget metus.
+#  Vestibulum commodo. Ut rhoncus gravida arcu.
+
 import json
 import time
 
@@ -59,7 +66,7 @@ class CompanyLocation(object):
         print('update loc info of %s over' % company)
 
     def reindex_sig_repo_info(self, query_es, es_authorization, query_index_name, index_name):
-        companys = self.companyLocationDic.keys()
+        companys = self.esClient.getCompanys(query_index_name)
         for company in companys:
             reindex_json = '''{
                 "source": {
@@ -78,6 +85,8 @@ class CompanyLocation(object):
             if data_num == 0:
                 continue
             print('reindex: %s -> %d over' % (company, data_num))
+            if company not in self.companyLocationDic.keys():
+                continue
             self.update_city_info(company, index_name, query_es, es_authorization)
             self.update_loc_info(company, index_name, query_es, es_authorization)
 
