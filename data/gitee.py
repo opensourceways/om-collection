@@ -98,7 +98,7 @@ class Gitee(object):
         self.thread_pool_num = int(config.get('thread_pool_num', 20))
         self.thread_max_num = threading.Semaphore(self.thread_pool_num)
         self.repo_sigs_dict = self.esClient.getRepoSigs()
-        self.companyLocationDic = self.esClient.getCompanyLocationInfo()
+        self.companyLocationDic = {}
 
     def run(self, from_time):
         print("Collect gitee data: staring")
@@ -148,7 +148,7 @@ class Gitee(object):
                 self.getSartUsersList()
 
             # self.tagUserOrgChanged()
-            self.esClient.tagUserOrgChanged()
+            self.esClient.tagUserOrgChanged(self.companyLocationDic)
         endTime = time.time()
         spent_time = time.strftime("%H:%M:%S",
                                    time.gmtime(endTime - startTime))
