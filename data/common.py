@@ -553,7 +553,7 @@ class ESClient(object):
     def getCompanyLocationInfo(self):
         dic = {}
         if self.company_loc_url is None:
-            return dic
+            return None
         data = self.request_get(self.company_loc_url)
         reader = data.text.split('\n')
         for item in reader:
@@ -572,7 +572,7 @@ class ESClient(object):
                 continue
         return dic
 
-    def tagUserOrgChanged(self):
+    def tagUserOrgChanged(self, company_location_dic=None):
         if len(self.giteeid_company_change_dict) == 0:
             return
         for key, vMap in self.giteeid_company_change_dict.items():
@@ -592,31 +592,84 @@ class ESClient(object):
                 # if company == self.internal_company_name:
                 #     is_project_internal_user = 1
 
-                query = '''{
-                            	"script": {
-                            		"source": "ctx._source['tag_user_company']='%s'"
-                            	},
-                            	"query": {
-                            		"bool": {
-                            			"must": [
-                            				{
-                            					"range": {
-                            						"created_at": {
-                            							"gte": "%s",
-                            							"lt": "%s"
-                            						}
-                            					}
-                            				},
-                            				{
-                            					"term": {
-                            						"user_login.keyword": "%s"
-                            					}
-                            				}
-                            			]
-                            		}
-                            	}
-                            }''' % (company, startTime, endTime, key)
+                if self.company_loc_url:
+                    query = self.get_update_loc_info_query(company, startTime, endTime, key, company_location_dic)
+                else:
+                    query = '''{
+                    "script": {
+                        "source": "ctx._source['tag_user_company']='%s'"
+                    },
+                    "query": {
+                        "bool": {
+                            "must": [
+                                {
+                                    "range": {
+                                        "created_at": {
+                                            "gte": "%s",
+                                            "lt": "%s"
+                                        }
+                                    }
+                                },
+                                {
+                                    "term": {
+                                        "user_login.keyword": "%s"
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }''' % (company, startTime, endTime, key)
                 self.updateByQuery(query=query.encode('utf-8'))
+
+    def get_update_loc_info_query(self, company, startTime, endTime, user, company_location_dic):
+        company_info = company_location_dic.get(company)
+        company_location = company_info.get('company_location') if company_info else ''
+        innovation_center = company_info.get('innovation_center') if company_info else ''
+        loc = company_info.get('location') if company_info else None
+        update_json = '''
+        {{
+            "script": {{
+                "source": "ctx._source.tag_user_company = params.tag_user_company;\
+                ctx._source.company_location = params.company_location;\
+                ctx._source.innovation_center = params.innovation_center;\
+                ctx._source.location = params.location",
+                "params": {{
+                    "tag_user_company": "{}",
+                    "company_location": "{}",
+                    "innovation_center": "{}",
+                    "location": {{
+                        "lon": {},
+                        "lat": {}
+                    }}
+                }}
+            }},
+            "query": {{
+                "bool": {{
+                    "must": [
+                        {{
+                            "range": {{
+                                "created_at": {{
+                                    "gte": "{}",
+                                    "lt": "{}"
+                                }}
+                            }}
+                        }},
+                        {{
+                            "term": {{
+                                "user_login.keyword": "{}"
+                            }}
+                        }}
+                    ]
+                }}
+            }}
+        }} '''
+        if loc is None:
+            update_json = update_json.format(company, company_location, innovation_center, "null",
+                                             "null", startTime, endTime, user)
+        else:
+            update_json = update_json.format(company, company_location, innovation_center,
+                                             loc.get('lon'), loc.get('lat'), startTime, endTime, user)
+        return update_json
 
     def getItselfUsers(self, filename="users"):
         try:
