@@ -184,6 +184,37 @@ class UpDownRatio(object):
                                         }
                                       }
                                     }'''
+        self.search_download_ip_count_cardinality = '''{
+                                              "size": 0,
+                                              "query": {
+                                                "bool": {
+                                                  "filter": [
+                                                    {
+                                                      "range": {
+                                                        "created_at": {
+                                                          "gte": "%s",
+                                                          "lt": "%s",
+                                                          "time_zone": "Asia/Shanghai"
+                                                        }
+                                                      }
+                                                    },
+                                                    {
+                                                      "query_string": {
+                                                        "analyze_wildcard": true,
+                                                        "query": "%s"
+                                                      }
+                                                    }
+                                                  ]
+                                                }
+                                              },
+                                              "aggs": {
+                                                "count": {
+                                                  "cardinality": {
+                                                    "field": "ip.keyword"
+                                                  }
+                                                }
+                                              }
+                                            }'''
         self.item_days = {"week_ratio": 7, "month_ratio": 30}
 
         self.download_indexes = str(config.get('download_indexes'))
@@ -262,7 +293,7 @@ class UpDownRatio(object):
         search_count = self.search_user_count
         if 'download' in key:
             query_index = self.query_download_ip_index_name
-            search_count = self.search_download_ip_count
+            search_count = self.search_download_ip_count_cardinality
 
         end_time = datetime.date.today()
         if self.from_time is None:
@@ -285,9 +316,14 @@ class UpDownRatio(object):
             single_days_ago_data = self.esClient.esSearch(index_name=query_index, search=single_days_ago_search)
             end_data = self.esClient.esSearch(index_name=query_index, search=end_search)
 
-            double_days_ago_count = len(double_days_ago_data['aggregations']['1']['buckets'])
-            single_days_ago_count = len(single_days_ago_data['aggregations']['1']['buckets'])
-            end_count = len(end_data['aggregations']['1']['buckets'])
+            if 'download' in key:
+                double_days_ago_count = double_days_ago_data['aggregations']['count']['value']
+                single_days_ago_count = single_days_ago_data['aggregations']['count']['value']
+                end_count = end_data['aggregations']['count']['value']
+            else:
+                double_days_ago_count = len(double_days_ago_data['aggregations']['1']['buckets'])
+                single_days_ago_count = len(single_days_ago_data['aggregations']['1']['buckets'])
+                end_count = len(end_data['aggregations']['1']['buckets'])
 
             prev_count = single_days_ago_count - double_days_ago_count
             last_count = end_count - single_days_ago_count
