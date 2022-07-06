@@ -77,6 +77,7 @@ class ESClient(object):
         if self.authorization:
             self.default_headers['Authorization'] = self.authorization
         self.company_loc_url = config.get('company_loc_url')
+        self.item = config.get("item")
 
     def getObsAllPackageName(self):
         search_json = '''{
@@ -1399,6 +1400,40 @@ class ESClient(object):
 
         if query_index_name is None:
             query_index_name = index_name
+
+        if self.item == "openeuler_download_ip_count":
+            data_json = '''{
+                              "size": 0,
+                              "query": {
+                                "bool": {
+                                  "filter": [
+                                    {
+                                      "range": {
+                                        "created_at": {
+                                          "gte": "%s",
+                                          "lte": "%s"
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "query_string": {
+                                          "analyze_wildcard": true,
+                                          "query": "%s"
+                                        }
+                                    }
+                                  ]
+                                }
+                              },
+                              "aggs": {
+                                "count": {
+                                  "cardinality": {
+                                    "field": "%s"
+                                  }
+                                }
+                              }
+                            }''' % (from_date, to_date, query, field)
+            return self.getCardinalityIpCount(url, query_index_name, data_json, field, from_date, to_date)
+
         res = self.request_get(self.getSearchUrl(url, query_index_name), data=data_json,
                                headers=self.default_headers)
         if res.status_code != 200:
@@ -1424,6 +1459,18 @@ class ESClient(object):
         # count = data["aggregations"]["sum"]["value"]
         # print(count)
         return count
+
+    def getCardinalityIpCount(self, url, query_index_name, data_json, field=None, from_date=None, to_date=None):
+        res = self.request_get(self.getSearchUrl(url, query_index_name), data=data_json,
+                               headers=self.default_headers)
+        if res.status_code != 200:
+            print("The field (%s) not exist from time(%s) to (%s), err=%s"
+                  % (field, from_date, to_date, res))
+            return None
+
+        data = res.json()
+        return data["aggregations"]["count"]["value"]
+
 
     def getCountByDateRange(self, matchs, from_date, to_date, interval=1):
         terms = []
