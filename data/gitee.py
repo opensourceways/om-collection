@@ -99,6 +99,7 @@ class Gitee(object):
         self.thread_max_num = threading.Semaphore(self.thread_pool_num)
         self.repo_sigs_dict = self.esClient.getRepoSigs()
         self.companyLocationDic = self.esClient.getCompanyLocationInfo()
+        self.invalid_pr_title = config.get('invalid_pr_title')
 
     def run(self, from_time):
         print("Collect gitee data: staring")
@@ -1119,6 +1120,8 @@ class Gitee(object):
             rich_pr['is_pr_associate_issue'] = 1
 
         rich_pr['pull_title'] = pull_request['title']
+        if self.invalid_pr_title and self.mark_invalid_pr_by_title(title=pull_request['title']):
+            rich_pr['is_invalid_pr'] = 1
         rich_pr['pull_state'] = pull_request['state']
         if (rich_pr['pull_state'] == 'open'):
             rich_pr["is_pull_state_open"] = 1
@@ -1178,6 +1181,12 @@ class Gitee(object):
         rich_pr['is_gitee_{}'.format(PULL_TYPE)] = 1
 
         return rich_pr
+
+    def mark_invalid_pr_by_title(self, title):
+        for item in self.invalid_pr_title.split(";"):
+            if str(title).__contains__(item):
+                return True
+        return False
 
     def get_rich_issue(self, item):
         rich_issue = {}
