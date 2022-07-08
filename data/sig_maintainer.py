@@ -265,26 +265,17 @@ class SigMaintainer(object):
         rs.append('\n'.join(loglist[n:]))
         return rs
 
-    def get_sig_info(self, owner_type, dir):
+    def get_sig_info(self, owner_type, repos, users, dir):
         repo_path = self.sigs_dirs_path + '/' + dir
         rs = self.get_sig_info_log(repo_path)
-
-        sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
-        info = yaml.load_all(open(sig_info), Loader=yaml.Loader).__next__()
         datas = ''
-        repos = self.get_repo_from_yaml(info)
-        users = []
-        if owner_type in info and info[owner_type] is not None:
-            users_info = info[owner_type]
-            for user in users_info:
-                users.append(user['gitee_id'])
         for user in users:
             times_owner = None
             times = self.get_readme_log(repo_path)
             for r in rs:
                 if r == '':
                     continue
-                if re.search(r'\+-\s*gitee_id:\s*%s\n' % user, r):
+                if re.search(r'\+\s*-\s*gitee_id:\s*%s\n' % user, r):
                     date = re.search(r'Date:\s*(.*)\n', r).group(1)
                     # time_struct = time.strptime(date, '%a %b %d %H:%M:%S %Y')
                     time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
@@ -323,12 +314,15 @@ class SigMaintainer(object):
     def get_repo_from_yaml(self, info):
         repositories = info.get('repositories')
         if repositories is None:
-            return []
+            return
         repos = []
+        committers = []
         for repo in repositories:
             for r in repo['repo']:
                 repos.append(r)
-        return repos
+            if 'committers' in repo:
+                committers.extend(repo['committers'])
+        return repos, committers
 
     def download_sigs(self):
         path = self.sigs_dir
@@ -343,7 +337,7 @@ class SigMaintainer(object):
             cmdpull = 'cd %s;git pull' % gitpath
             os.system(cmdpull)
 
-    def get_sigs(self, maintainer_sigs_dict):
+    def get_sigs(self, maintainer_sigs_dict=None):
         dic = self.esClient.getOrgByGiteeID()
         self.esClient.giteeid_company_dict = dic[0]
         self.gitee.internalUsers = self.gitee.getItselfUsers(self.gitee.internal_users)
@@ -406,8 +400,22 @@ class SigMaintainer(object):
                 print("this sig done: %s" % dir)
             except FileNotFoundError:
                 print('OWNER of %s is not exist. Using sig-info.yaml!' % dir)
-                datas = self.get_sig_info('maintainers', dir)
-                datas += self.get_sig_info('committers', dir)
+                sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
+                info = yaml.load_all(open(sig_info), Loader=yaml.Loader).__next__()
+                if self.get_repo_from_yaml(info):
+                    repos, committers = self.get_repo_from_yaml(info)
+                else:
+                    repos = []
+                    committers = info['committers'] if 'committers' in info and info['committers'] is not None else None
+                datas = ''
+                if 'maintainers' in info and info['maintainers'] is not None:
+                    users_info = info['maintainers']
+                    users = [user['gitee_id'] for user in users_info]
+                    datas = self.get_sig_info('maintainers', repos, users, dir)
+
+                if committers and len(committers) != 0:
+                    c_users = [user['gitee_id'] for user in committers]
+                    datas += self.get_sig_info('committers', repos, c_users, dir)
                 self.esClient.safe_put_bulk(datas)
                 print("this sig done: %s" % dir)
 
@@ -433,38 +441,47 @@ class SigMaintainer(object):
             repositories = []
             if dir in sig_repos_dict:
                 repositories = sig_repos_dict.get(dir)
-            # get maintainers
+            # sig actions
+            action = {
+                "sig_name": dir,
+                "repos": repositories,
+                "is_sig_original": 1,
+                "created_at": times
+            }
+            maintainers = []
             try:
-                owner_file = self.sigs_dirs_path + '/' + dir + '/' + 'OWNERS'
-                owners = yaml.load_all(open(owner_file), Loader=yaml.Loader).__next__()
-                maintainers = owners['maintainers']
+                sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
+                info = yaml.load_all(open(sig_info), Loader=yaml.Loader).__next__()
+                if 'description' in info and info['description'] is not None:
+                    action.update({'description': info['description']})
+                if 'mentors' in info and info['mentors'] is not None:
+                    action.update({'mentors': info['mentors']})
+                if 'mailing_list' in info and info['mailing_list'] is not None:
+                    action.update({'mailing_list': info['mailing_list']})
+                if 'maintainers' in info and info['maintainers'] is not None:
+                    action.update({'maintainer_info': info['maintainers']})
+                    maintainers = [user['gitee_id'] for user in info['maintainers']]
+                    action.update({'maintainers': maintainers})
+
             except FileNotFoundError:
-                maintainers = []
+                print('sig-info.yaml of %s is not exist. using owner file.' % dir)
+                # get maintainers
+                try:
+                    owner_file = self.sigs_dirs_path + '/' + dir + '/' + 'OWNERS'
+                    owners = yaml.load_all(open(owner_file), Loader=yaml.Loader).__next__()
+                    maintainers = owners['maintainers']
+                except FileNotFoundError:
+                    maintainers = []
+                action.update({'maintainers': maintainers})
+                action.update({'mailing_list': 'dev@openeuler.org'})
+
             # get maintainer sigs dict
             dt = defaultdict(dict)
             for maintainer in maintainers:
                 dt.update({maintainer: [dir]})
             combined_keys = dict_comb.keys() | dt.keys()
             dict_comb = {key: dict_comb.get(key, []) + dt.get(key, []) for key in combined_keys}
-            # sig actions
-            action = {
-                "sig_name": dir,
-                "repos": repositories,
-                "is_sig_original": 1,
-                "maintainers": maintainers,
-                "created_at": times
-            }
-            try:
-                sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
-                info = yaml.load_all(open(sig_info), Loader=yaml.Loader).__next__()
-                for i in info:
-                    if i == 'description':
-                        action.update({i: info.get(i)})
-                    if i == 'maintainers':
-                        maintainer_info = info.get(i)
-                        action.update({'maintainer_info': maintainer_info})
-            except FileNotFoundError:
-                print('sig-info.yaml of %s is not exist.' % dir)
+
             indexData = {"index": {"_index": self.index_name_sigs, "_id": dir}}
             actions += json.dumps(indexData) + '\n'
             actions += json.dumps(action) + '\n'

@@ -100,6 +100,7 @@ class Gitee(object):
         self.repo_sigs_dict = self.esClient.getRepoSigs()
         self.companyLocationDic = self.esClient.getCompanyLocationInfo()
         self.invalid_pr_title = config.get('invalid_pr_title')
+        self.companyLocationDic = {}
 
     def run(self, from_time):
         print("Collect gitee data: staring")
@@ -149,7 +150,7 @@ class Gitee(object):
                 self.getSartUsersList()
 
             # self.tagUserOrgChanged()
-            self.esClient.tagUserOrgChanged()
+            self.esClient.tagUserOrgChanged(self.companyLocationDic)
         endTime = time.time()
         spent_time = time.strftime("%H:%M:%S",
                                    time.gmtime(endTime - startTime))

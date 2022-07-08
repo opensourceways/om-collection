@@ -42,6 +42,80 @@ import requests
 import yaml
 
 from geopy.geocoders import Nominatim
+from configparser import ConfigParser
+
+
+# Default sleep time and retries to deal with connection/server problems
+DEFAULT_SLEEP_TIME = 1
+MAX_RETRIES = 5
+globa_threadinfo = threading.local()
+config = ConfigParser()
+
+try:
+    config.read('config.ini', encoding='UTF-8')
+    retry_time = config.getint('general', 'retry_time', )
+    retry_sleep_time = config.getint('general', 'retry_sleep_time')
+except BaseException as ex:
+    retry_sleep_time = 10
+    retry_time = 10
+
+
+def globalExceptionHandler(func):
+    def warp(*args, **kwargs):
+        try:
+            # 第一次进来初始化重试次数变量
+            if args[len(args) - 1] != "retry":
+                globa_threadinfo.num = 0
+                # 重试是否成功0 未成功，1 成功
+                globa_threadinfo.retrystate = 0
+            newarg = []
+            # 执行func 参数去除retry标识
+            for i in args:
+                if i != 'retry':
+                    newarg.append(i)
+            response = func(*newarg, **kwargs)
+        except requests.exceptions.RequestException as ex:
+            while globa_threadinfo.num < retry_time and globa_threadinfo.retrystate == 0:
+                try:
+                    globa_threadinfo.num += 1
+                    print(
+                        "retry:" + threading.currentThread().getName() + str(func.__name__) + ":" + str(
+                            globa_threadinfo.num) + "次")
+                    print("error:" + str(ex))
+                    print(args)
+                    time.sleep(retry_sleep_time)
+                    # 防止重复添加标识
+                    if 'retry' not in args:
+                        response = warp(*args, "retry", **kwargs)
+                    else:
+                        response = warp(*args, **kwargs)
+                    return response
+                finally:
+                    pass
+        except Exception as e:
+            print("globalExceptionHandler Exception: fetch error :" + str(
+                e) + "retry:" + threading.currentThread().getName() + str(func.__name__) + ":" + str(
+                globa_threadinfo.num) + " Count")
+            raise e
+        else:
+            print(
+                "globalExceptionHandler else: check response instance." + "retry:" + threading.currentThread().getName() + str(
+                    func.__name__) + ":" + str(
+                    globa_threadinfo.num) + "次")
+            if isinstance(response, requests.models.Response):
+                if response.status_code == 401 or response.status_code == 403:
+                    print({"状态码": response.status_code})
+                else:
+                    print("globalExceptionHandler else: response.status_code is not 401 and 403.")
+            else:
+                print("globalExceptionHandler else: response is not requests.models.Response.")
+            # 重试成功，修改状态
+            globa_threadinfo.retrystate = 1
+            globa_threadinfo.num = 0
+            print("globalExceptionHandler else: retry success globa_threadinfo.retrystate set to 1.")
+            return response
+
+    return warp
 
 
 class ESClient(object):
@@ -227,7 +301,7 @@ class ESClient(object):
   }
 }'''
         res = self.request_get(self.getSearchUrl(index_name=self.index_name),
-                               data=search_json,  headers=self.default_headers)
+                               data=search_json, headers=self.default_headers)
         if res.status_code != 200:
             print("The index not exist")
             return {}
@@ -473,17 +547,14 @@ class ESClient(object):
 
         if company_info_dic and company_info_dic.get(userExtra['tag_user_company']):
             addr = company_info_dic.get(userExtra['tag_user_company'])
-            location = self.getIPbyLocation(addr.get('company_location'))
-            userExtra.update(addr)
-            if location:
-                userExtra.update(location)
-            print(userExtra)
+            if addr:
+                userExtra.update(addr)
         return userExtra
 
     def getCompanyLocationInfo(self):
         dic = {}
         if self.company_loc_url is None:
-            return dic
+            return None
         data = self.request_get(self.company_loc_url)
         reader = data.text.split('\n')
         for item in reader:
@@ -495,11 +566,14 @@ class ESClient(object):
                 location = company_info[1]
                 center = company_info[2]
                 dic.update({company: {'company_location': location, 'innovation_center': center}})
+                loc = self.getLocationbyCity(location)
+                if loc:
+                    dic.get(company).update(loc)
             except IndexError:
                 continue
         return dic
 
-    def tagUserOrgChanged(self):
+    def tagUserOrgChanged(self, company_location_dic=None):
         if len(self.giteeid_company_change_dict) == 0:
             return
         for key, vMap in self.giteeid_company_change_dict.items():
@@ -519,31 +593,84 @@ class ESClient(object):
                 # if company == self.internal_company_name:
                 #     is_project_internal_user = 1
 
-                query = '''{
-                            	"script": {
-                            		"source": "ctx._source['tag_user_company']='%s'"
-                            	},
-                            	"query": {
-                            		"bool": {
-                            			"must": [
-                            				{
-                            					"range": {
-                            						"created_at": {
-                            							"gte": "%s",
-                            							"lt": "%s"
-                            						}
-                            					}
-                            				},
-                            				{
-                            					"term": {
-                            						"user_login.keyword": "%s"
-                            					}
-                            				}
-                            			]
-                            		}
-                            	}
-                            }''' % (company, startTime, endTime, key)
+                if self.company_loc_url:
+                    query = self.get_update_loc_info_query(company, startTime, endTime, key, company_location_dic)
+                else:
+                    query = '''{
+                    "script": {
+                        "source": "ctx._source['tag_user_company']='%s'"
+                    },
+                    "query": {
+                        "bool": {
+                            "must": [
+                                {
+                                    "range": {
+                                        "created_at": {
+                                            "gte": "%s",
+                                            "lt": "%s"
+                                        }
+                                    }
+                                },
+                                {
+                                    "term": {
+                                        "user_login.keyword": "%s"
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }''' % (company, startTime, endTime, key)
                 self.updateByQuery(query=query.encode('utf-8'))
+
+    def get_update_loc_info_query(self, company, startTime, endTime, user, company_location_dic):
+        company_info = company_location_dic.get(company)
+        company_location = company_info.get('company_location') if company_info else ''
+        innovation_center = company_info.get('innovation_center') if company_info else ''
+        loc = company_info.get('location') if company_info else None
+        update_json = '''
+        {{
+            "script": {{
+                "source": "ctx._source.tag_user_company = params.tag_user_company;\
+                ctx._source.company_location = params.company_location;\
+                ctx._source.innovation_center = params.innovation_center;\
+                ctx._source.location = params.location",
+                "params": {{
+                    "tag_user_company": "{}",
+                    "company_location": "{}",
+                    "innovation_center": "{}",
+                    "location": {{
+                        "lon": {},
+                        "lat": {}
+                    }}
+                }}
+            }},
+            "query": {{
+                "bool": {{
+                    "must": [
+                        {{
+                            "range": {{
+                                "created_at": {{
+                                    "gte": "{}",
+                                    "lt": "{}"
+                                }}
+                            }}
+                        }},
+                        {{
+                            "term": {{
+                                "user_login.keyword": "{}"
+                            }}
+                        }}
+                    ]
+                }}
+            }}
+        }} '''
+        if loc is None:
+            update_json = update_json.format(company, company_location, innovation_center, "null",
+                                             "null", startTime, endTime, user)
+        else:
+            update_json = update_json.format(company, company_location, innovation_center,
+                                             loc.get('lon'), loc.get('lat'), startTime, endTime, user)
+        return update_json
 
     def getItselfUsers(self, filename="users"):
         try:
@@ -673,8 +800,8 @@ class ESClient(object):
         data = '''{"size":10000,"query": {"bool": {%s}}}''' % search
         try:
             res = json.loads(
-                             self.request_get(url=url, headers=self.default_headers,
-                             data=data.encode('utf-8')).content)
+                self.request_get(url=url, headers=self.default_headers,
+                                 data=data.encode('utf-8')).content)
         except:
             print(traceback.format_exc())
         return res['hits']['hits']
@@ -716,8 +843,8 @@ class ESClient(object):
 }''' % repo
         try:
             res = json.loads(
-                             self.request_get(url=url, headers=self.default_headers,
-                             data=data.encode('utf-8')).content)
+                self.request_get(url=url, headers=self.default_headers,
+                                 data=data.encode('utf-8')).content)
         except:
             print(traceback.format_exc())
         maintainerdata = res['aggregations']['2']['buckets']
@@ -727,6 +854,47 @@ class ESClient(object):
                 mtstr = mtstr + str(m['key']) + ","
             mtstr = mtstr[:len(mtstr) - 1]
             result['Maintainer'] = mtstr
+        return result
+
+    def getCompanys(self, index_name):
+        result = []
+        if not index_name:
+            return result
+        url = self.url + '/' + index_name + '/_search'
+        data = '''{
+            "size": 0,
+            "query": {
+                "bool": {
+                    "filter": [
+                        {
+                            "query_string": {
+                                "analyze_wildcard": true,
+                                "query": "*"
+                            }
+                        }
+                    ]
+                }
+            },
+            "aggs": {
+                "2": {
+                    "terms": {
+                        "field": "tag_user_company.keyword",
+                        "size": 1000,
+                        "min_doc_count": 1
+                    },
+                    "aggs": {}
+                }
+            }
+        }'''
+        try:
+            res = json.loads(
+                self.request_get(url=url, headers=self.default_headers,
+                                 data=data.encode('utf-8')).content)
+            data = res['aggregations']['2']['buckets']
+            for d in data:
+                result.append(d['key'])
+        except:
+            print(traceback.format_exc())
         return result
 
     def getRepoSigCount(self, index_name, repo=None):
@@ -771,8 +939,8 @@ class ESClient(object):
         url = self.url + '/' + index_name + '/_search'
         try:
             res = json.loads(
-                             self.request_get(url=url, headers=self.default_headers,
-                             data=querystr.encode('utf-8')).content)
+                self.request_get(url=url, headers=self.default_headers,
+                                 data=querystr.encode('utf-8')).content)
             resultdata = res['aggregations']['2']['buckets']
             count = 0
             for re in resultdata:
@@ -1227,9 +1395,16 @@ class ESClient(object):
             print("update repo author name failed:", res.text)
             return
 
-    def reindex(self, reindex_json):
+    def reindex(self, reindex_json, query_es=None, es_authorization=None):
         url = self.url + '/' + '_reindex'
-        res = requests.post(url, headers=self.default_headers, verify=False, data=reindex_json)
+        _headers = self.default_headers
+        if query_es is not None and es_authorization is not None:
+            url = query_es + '/' + '_reindex'
+            _headers = {
+                'Content-Type': 'application/json',
+                'Authorization': es_authorization
+            }
+        res = requests.post(url, headers=_headers, verify=False, data=reindex_json)
         if res.status_code != 200:
             return 0
         data = res.json()
@@ -1258,9 +1433,19 @@ class ESClient(object):
             maintainers.append(bucket['key'])
         return maintainers
 
-    def updateByQuery(self, query):
-        url = self.url + '/' + self.index_name + '/_update_by_query?conflicts=proceed'
-        requests.post(url, headers=self.default_headers, verify=False, data=query)
+    def updateByQuery(self, query, index=None, query_es=None, es_authorization=None):
+        if index is None:
+            index = self.index_name
+        url = self.url + '/' + index + '/_update_by_query?conflicts=proceed'
+        _headers = self.default_headers
+
+        if query_es is not None and es_authorization is not None:
+            url = query_es + '/' + index + '/_update_by_query?conflicts=proceed'
+            _headers = {
+                'Content-Type': 'application/json',
+                'Authorization': es_authorization
+            }
+        requests.post(url, headers=_headers, verify=False, data=query)
 
     def getUniqueCountByDate(self, field, from_date, to_date,
                              url=None, index_name=None):
@@ -1589,16 +1774,23 @@ class ESClient(object):
             return {}
         return data
 
-    def getIPbyLocation(self, addr):
-        gps = Nominatim(user_agent='application')
+    @globalExceptionHandler
+    def getLocationbyCity(self, addr):
+        user_agent = str(addr.encode()) + 'application'
+        gps = Nominatim(user_agent=user_agent)
+        # gps.headers.update({'Connection': 'close'})
+        gps.adapter.session.verify = False
         location = gps.geocode(addr)
+        if location is None:
+            return
         lon = location.longitude
         lat = location.latitude
         res = {
             'lon': lon,
             'lat': lat
         }
-        return res
+        loc = {'location': res}
+        return loc
 
     def getItemsByMatchs(self, matchs, size=500, aggs=None, matchs_not=None):
         '''
@@ -2108,7 +2300,7 @@ class ESClient(object):
             print('requests error')
             return
         res_data = res.json()
-        whole_data=[]
+        whole_data = []
         data = res_data['hits']['hits']
         print('scroll data count: %s' % len(data))
         whole_data.extend(data)
@@ -2117,7 +2309,7 @@ class ESClient(object):
         while scroll_id is not None and len(data) != 0:
             url = es_url + '/_search/scroll'
             search = '''{"scroll": "%s", "scroll_id": "%s" }''' % (scroll_duration, scroll_id)
-            res =self.request_get(url=url, headers=headers, verify=False, data=search.encode('utf-8'), timeout=60)
+            res = self.request_get(url=url, headers=headers, verify=False, data=search.encode('utf-8'), timeout=60)
             if res.status_code != 200:
                 print('Failed fetch whole data cause of some error occurs in continuous scrolling page except the first page')
                 return
@@ -2127,7 +2319,7 @@ class ESClient(object):
             print('scroll data count: %s' % len(data))
             whole_data.extend(data)
         print('scroll over')
-        
+
         return whole_data
 
     def esSearch(self, index_name, search=None, method='_search'):
@@ -2194,12 +2386,11 @@ def create_log_dir(dest_dir):
         return True
 
     try:
-        exec_out_file = subprocess.Popen(commandline, shell=True, stdout=subprocess.PIPE, 
-        stderr=subprocess.PIPE)
+        exec_out_file = subprocess.Popen(commandline, shell=True, stdout=subprocess.PIPE,
+                                         stderr=subprocess.PIPE)
     except Exception as exp:
         print(f'Failed to create log dir for reason:{exp.__repr__()}')
         return False
-
 
 
 def get_date(time):
@@ -2408,4 +2599,3 @@ def convert_to_localTime(input_datetime):
 
     local_tz = get_localzone()
     return input_datetime.astimezone(local_tz)
-

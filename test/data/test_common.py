@@ -27,6 +27,15 @@ sys.path.append("../..")
 
 from data import common
 
+# Mock reueqst response
+class MockResponse(object):
+    def __init__(self, json_data, status_code):
+        self.json_data = json_data
+        self.status_code = status_code
+    
+    def json(self):
+        return self.json_data
+
 
 class TestCommon(unittest.TestCase):
     """Common unit test"""
@@ -93,6 +102,18 @@ class TestCommon(unittest.TestCase):
         input_time = datetime.datetime.strptime('2022-01-01', '%Y-%m-%d')
         res = common.convert_to_localTime(input_time)
         self.assertIn('+', str(res))
+
+    def test_getRepoSigs(self):
+        """test get all repo sigs"""
+        esClient = common.ESClient({
+            "sig_index": "test_sig_index_name",
+            "index_name": "test_index_name",
+            "es_url": "test_es_url"})
+
+        mock_get = MockResponse({'hits': {'hits': [{'_source': {'sig_name': 'Infra', 'repos': ['website']}}]}}, 200)
+        esClient.request_get = mock.Mock(return_value=mock_get)
+        sigs = esClient.getRepoSigs()
+        self.assertEqual(sigs, {'website': ['Infra']})
 
 
 if __name__ == '__main__':
