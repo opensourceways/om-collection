@@ -98,7 +98,6 @@ class Gitee(object):
         self.thread_pool_num = int(config.get('thread_pool_num', 20))
         self.thread_max_num = threading.Semaphore(self.thread_pool_num)
         self.repo_sigs_dict = self.esClient.getRepoSigs()
-        self.companyLocationDic = self.esClient.getCompanyLocationInfo()
         self.invalid_pr_title = config.get('invalid_pr_title')
         self.companyLocationDic = {}
 
