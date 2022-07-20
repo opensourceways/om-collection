@@ -783,7 +783,7 @@ class Gitee(object):
             firstreplyprtime = ""
             lastreplyprtime = ""
             for ec in ecomments:
-                if ec['user_login'] in self.robot_user_logins:
+                if ec['user_login'] in self.robot_user_logins or ec['user_login'] == eitem['user_login']:
                     firstreplyprtime = firstreplyprtime
                     lastreplyprtime = lastreplyprtime
                 else:
@@ -859,7 +859,7 @@ class Gitee(object):
             lastreplyissuetime = ""
             issue_comments = self.get_rich_issue_comments(issue_comments, issue_item)
             for ic in issue_comments:
-                if ic['user_login'] in self.robot_user_logins:
+                if ic['user_login'] in self.robot_user_logins or ic['user_login'] == issue_item['user_login']:
                     firstreplyissuetime = firstreplyissuetime
                     lastreplyissuetime = lastreplyissuetime
                 else:
