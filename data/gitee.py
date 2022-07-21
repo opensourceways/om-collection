@@ -109,7 +109,6 @@ class Gitee(object):
         self.getEnterpriseUser()
         startTime = time.time()
         self.internalUsers = self.getItselfUsers(self.internal_users)
-        # self.writePullSingleRepo('openeuler', '')
 
         # refresh repo`s sigs history
         if self.tag_repo_sigs_history == 'true':
