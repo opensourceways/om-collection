@@ -110,9 +110,9 @@ class GitHubPrIssue(object):
         print('****** Finish collection repos of org, count=%i ******' % len(repos))
 
     def parse_pr(self, prs, client, repo):
-        actions = ''
         # 获取PR信息
         for pr in prs:
+            actions = ''
             pr_num = pr.get('number')
             print('****** Start collection pull num=%i ******' % pr_num)
             if pr_num is None:
@@ -136,7 +136,9 @@ class GitHubPrIssue(object):
                     review_user_login = review['user']['login']
                 if self.robot_user:
                     robot_users = self.robot_user.split(',')
-                    if review.get('user') is not None and review.get('user').get('login') is not None and review.get('user').get('login') not in robot_users:
+                    if review.get('user') is not None and review.get('user').get('login') is not None and \
+                            review.get('user').get('login') not in robot_users and \
+                            review.get('user').get('login') != pr['user']['login']:
                         review_times.append(self.format_time_z(submitted_at))
                 else:
                     review_times.append(self.format_time_z(submitted_at))
@@ -163,7 +165,8 @@ class GitHubPrIssue(object):
                 index_data = {"index": {"_index": self.index_name, "_id": index_id}}
                 review_actions += json.dumps(index_data) + '\n'
                 review_actions += json.dumps(reviews_data) + '\n'
-            self.esClient.safe_put_bulk(review_actions)
+            actions += review_actions
+            # self.esClient.safe_put_bulk(review_actions)
 
             # 获取PR的代码提交代码review时的comment信息
             comments = client.get_pr_comment(owner=self.org, repo=repo, pr_num=pr_num)
@@ -178,7 +181,9 @@ class GitHubPrIssue(object):
                     comment_user_login = comment['user']['login']
                 if self.robot_user:
                     robot_users = self.robot_user.split(',')
-                    if comment.get('user') is not None and comment.get('user').get('login') is not None and comment.get('user').get('login') not in robot_users:
+                    if comment.get('user') is not None and comment.get('user').get('login') is not None and \
+                            comment.get('user').get('login') not in robot_users and \
+                            comment.get('user').get('login') != pr['user']['login']:
                         comment_times.append(self.format_time_z(comment['created_at']))
                 else:
                     comment_times.append(self.format_time_z(comment['created_at']))
@@ -204,7 +209,8 @@ class GitHubPrIssue(object):
                 index_data = {"index": {"_index": self.index_name, "_id": index_id}}
                 comment_actions += json.dumps(index_data) + '\n'
                 comment_actions += json.dumps(comments_data) + '\n'
-            self.esClient.safe_put_bulk(comment_actions)
+            actions += comment_actions
+            # self.esClient.safe_put_bulk(comment_actions)
 
             # 获取直接回复PR的评论信息
             # 注:不是代码review，在pr下方评论框回复，由于pr源于issue，因此被叫做issue comment
@@ -220,7 +226,9 @@ class GitHubPrIssue(object):
                     issue_comment_user_login = issue_comment['user']['login']
                 if self.robot_user:
                     robot_users = self.robot_user.split(',')
-                    if issue_comment.get('user') is not None and issue_comment.get('user').get('login') is not None and issue_comment.get('user').get('login') not in robot_users:
+                    if issue_comment.get('user') is not None and issue_comment.get('user').get('login') is not None \
+                            and issue_comment.get('user').get('login') not in robot_users \
+                            and issue_comment.get('user').get('login') != pr['user']['login']:
                         issue_comment_times.append(self.format_time_z(issue_comment['created_at']))
                 else:
                     issue_comment_times.append(self.format_time_z(issue_comment['created_at']))
@@ -246,7 +254,8 @@ class GitHubPrIssue(object):
                 index_data = {"index": {"_index": self.index_name, "_id": index_id}}
                 issue_comment_actions += json.dumps(index_data) + '\n'
                 issue_comment_actions += json.dumps(issue_comments_data) + '\n'
-            self.esClient.safe_put_bulk(issue_comment_actions)
+            actions += issue_comment_actions
+            # self.esClient.safe_put_bulk(issue_comment_actions)
 
             # pr
             pr_data = {
@@ -309,7 +318,8 @@ class GitHubPrIssue(object):
             index_data = {"index": {"_index": self.index_name, "_id": index_id}}
             actions += json.dumps(index_data) + '\n'
             actions += json.dumps(pr_data) + '\n'
-        self.esClient.safe_put_bulk(actions)
+            self.esClient.safe_put_bulk(actions)
+        # self.esClient.safe_put_bulk(actions)
         print('****** Finish collection pulls of repo, repo=%s, pr_count=%i ******' % (repo, len(prs)))
 
     # 每获取一页的PR信息就写入数据库
@@ -324,9 +334,9 @@ class GitHubPrIssue(object):
         self.parse_pr(prs, client, repo)
 
     def parse_issue(self, issues, client, repo):
-        actions = ''
         count = 0
         for issue in issues:
+            actions = ''
             issue_num = issue.get('number')
             print('****** Start collection issue, num=%i ******' % issue_num)
             if issue_num is not None and ('/issues/%i' % issue_num) not in issue['html_url']:
@@ -347,7 +357,9 @@ class GitHubPrIssue(object):
                     comment_user_login = comment['user']['login']
                 if self.robot_user:
                     robot_users = self.robot_user.split(',')
-                    if comment.get('user') is not None and comment.get('user').get('login') is not None and comment.get('user').get('login') not in robot_users:
+                    if comment.get('user') is not None and comment.get('user').get('login') is not None and \
+                            comment.get('user').get('login') not in robot_users and \
+                            comment.get('user').get('login') != issue['user']['login']:
                         comment_times.append(self.format_time_z(comment['created_at']))
                 else:
                     comment_times.append(self.format_time_z(comment['created_at']))
@@ -371,7 +383,8 @@ class GitHubPrIssue(object):
                 index_data = {"index": {"_index": self.index_name, "_id": index_id}}
                 comment_actions += json.dumps(index_data) + '\n'
                 comment_actions += json.dumps(comments_data) + '\n'
-            self.esClient.safe_put_bulk(comment_actions)
+            actions += comment_actions
+            # self.esClient.safe_put_bulk(comment_actions)
 
             # issue
             issue_data = {
@@ -409,7 +422,8 @@ class GitHubPrIssue(object):
             index_data = {"index": {"_index": self.index_name, "_id": index_id}}
             actions += json.dumps(index_data) + '\n'
             actions += json.dumps(issue_data) + '\n'
-        self.esClient.safe_put_bulk(actions)
+            self.esClient.safe_put_bulk(actions)
+        # self.esClient.safe_put_bulk(actions)
         print('****** Finish collection issues of repo, repo=%s, issue_count=%i ******' % (repo, count))
 
     # 每获取一页就入库
