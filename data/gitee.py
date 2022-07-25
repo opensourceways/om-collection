@@ -148,7 +148,6 @@ class Gitee(object):
             if self.is_set_sigs_star == 'true':
                 self.getSartUsersList()
 
-            # self.tagUserOrgChanged()
             self.esClient.tagUserOrgChanged(self.companyLocationDic)
         endTime = time.time()
         spent_time = time.strftime("%H:%M:%S",
@@ -217,7 +216,7 @@ class Gitee(object):
                 #         target=func,
                 #         args=(org, r, from_time))
                 # threads.append(t)
-                    # t.start()
+                # t.start()
 
                 # if len(threads) % self.thread_pool_num == 0:
                 #     for t in threads:
@@ -591,7 +590,8 @@ class Gitee(object):
             "gitee_repo": re.sub('.git$', '', repo_data['html_url']),
             "is_gitee_repo": 1,
         }
-        userExtra = self.esClient.getUserInfo(repo_data['owner']['login'], repo_data["created_at"], self.companyLocationDic)
+        userExtra = self.esClient.getUserInfo(repo_data['owner']['login'], repo_data["created_at"],
+                                              self.companyLocationDic)
         repo_detail.update(userExtra)
 
         maintainerdata = self.esClient.getRepoMaintainer(self.sig_index, repo_data["full_name"])
@@ -732,18 +732,18 @@ class Gitee(object):
 
         client = GiteeClient(owner, repo, self.gitee_token)
 
-        if public == True:
+        if public:
             client = GiteeClient(owner, repo, self.gitee_token)
             print("repo is public")
 
         # collect pull request
-        actions = ""
         pull_data = self.getGenerator(
             client.pulls(state='all', once_update_num_of_pr=once_update_num_of_pr, direction='desc',
                          sort='updated'))
         print(('collection %d pulls' % (len(pull_data))))
         for x in pull_data:
-            print(x['number'])
+            actions = ""
+            print('pull number = ', x['number'])
             if common.str_to_datetime(x['updated_at']) < from_date:
                 continue
             if x['user']['login'] in self.skip_user:
@@ -771,50 +771,23 @@ class Gitee(object):
             x['codediffadd'] = codediffadd
             x['codediffdelete'] = codediffdelete
             eitem = self.__get_rich_pull(x, merged_item)
-
-            ecommits = self.get_rich_pull_commits(pull_commits, eitem, owner)
-            for ec in ecommits:
-                ec['sig_names'] = sig_names
-                indexData = {
-                    "index": {"_index": self.index_name, "_id": 'commit_' + ec['sha']}}
-                actions += json.dumps(indexData) + '\n'
-                actions += json.dumps(ec) + '\n'
+            actions += self.write_pull_commit_data(pull_commits, eitem, owner, sig_names)
 
             ecomments = self.get_rich_pull_reviews(pull_review_comments, eitem, owner)
-            firstreplyprtime = ""
-            lastreplyprtime = ""
-            for ec in ecomments:
-                if ec['user_login'] in self.robot_user_logins or ec['user_login'] == eitem['user_login']:
-                    firstreplyprtime = firstreplyprtime
-                    lastreplyprtime = lastreplyprtime
-                else:
-                    if not firstreplyprtime:
-                        firstreplyprtime = str(ec['created_at'])
-                        lastreplyprtime = str(ec['created_at'])
-                    else:
-                        ectime = str(ec['created_at'])
-                        if ectime < firstreplyprtime:
-                            firstreplyprtime = ectime
-                        if ectime > lastreplyprtime:
-                            lastreplyprtime = ectime
-                print(ec['pull_comment_id'])
-                if ec['user_login'] in self.skip_user:
-                    continue
-                ec['sig_names'] = sig_names
-                indexData = {
-                    "index": {"_index": self.index_name, "_id": ec['pull_comment_id']}}
-                actions += json.dumps(indexData) + '\n'
-                actions += json.dumps(ec) + '\n'
+            res_comment = self.write_pull_comment_data(ecomments, eitem, sig_names)
+            actions += res_comment[0]
             try:
-                if ecomments:
-                    eitem['firstreplyprtime'] = (datetime.datetime.strptime(firstreplyprtime,
-                                                                            '%Y-%m-%dT%H:%M:%S+08:00') - datetime.datetime.strptime(
+                comment_times = res_comment[1]
+                if comment_times:
+                    firstreplyprtime = min(comment_times)
+                    lastreplyprtime = max(comment_times)
+                    eitem['firstreplyprtime'] = (datetime.datetime.strptime(
+                        firstreplyprtime, '%Y-%m-%dT%H:%M:%S+08:00') - datetime.datetime.strptime(
                         eitem['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).total_seconds()
                     eitem['lastreplyprtime'] = (datetime.datetime.now() + datetime.timedelta(hours=8) - (
                         datetime.datetime.strptime(lastreplyprtime, '%Y-%m-%dT%H:%M:%S+08:00'))).total_seconds()
             except Exception as e:
                 print(e)
-                print(firstreplyprtime)
                 print(eitem['created_at'])
             eitem['prcommentscount'] = len(ecomments)
             if self.sig_index:
@@ -823,11 +796,37 @@ class Gitee(object):
             indexData = {"index": {"_index": self.index_name, "_id": eitem['id']}}
             actions += json.dumps(indexData) + '\n'
             actions += json.dumps(eitem) + '\n'
-        self.esClient.safe_put_bulk(actions)
+            self.esClient.safe_put_bulk(actions)
 
         endTime = datetime.datetime.now()
         print("Collect pull request data finished, spend %s seconds" % (
                 endTime - startTime).total_seconds())
+
+    def write_pull_commit_data(self, pull_commits, eitem, owner, sig_names):
+        actions = ''
+        ecommits = self.get_rich_pull_commits(pull_commits, eitem, owner)
+        for ec in ecommits:
+            ec['sig_names'] = sig_names
+            indexData = {
+                "index": {"_index": self.index_name, "_id": 'commit_' + ec['sha']}}
+            actions += json.dumps(indexData) + '\n'
+            actions += json.dumps(ec) + '\n'
+        return actions
+
+    def write_pull_comment_data(self, ecomments, eitem, sig_names):
+        actions = ''
+        comment_times = []
+        for ec in ecomments:
+            if ec['user_login'] in self.skip_user:
+                continue
+            if ec['user_login'] is not None and ec['user_login'] != eitem.get('user_login') and eitem.get('created_at'):
+                comment_times.append(str(ec['created_at']))
+            ec['sig_names'] = sig_names
+            indexData = {
+                "index": {"_index": self.index_name, "_id": ec['pull_comment_id']}}
+            actions += json.dumps(indexData) + '\n'
+            actions += json.dumps(ec) + '\n'
+        return actions, comment_times
 
     def writeIssueData(self, owner, repo, public, from_date=None, sig_names=None):
         startTime = datetime.datetime.now()
@@ -844,7 +843,7 @@ class Gitee(object):
             owner, repo, from_date))
 
         # common.
-        if public == True:
+        if public:
             client = GiteeClient(owner, repo, self.gitee_token)
             print("repo is public")
 
@@ -989,7 +988,8 @@ class Gitee(object):
             ecomment['is_gitee_{}'.format(REVIEW_COMMENT_TYPE)] = 1
             ecomment['is_gitee_comment'] = 1
 
-            userExtra = self.esClient.getUserInfo(ecomment['user_login'], comment['created_at'], self.companyLocationDic)
+            userExtra = self.esClient.getUserInfo(ecomment['user_login'], comment['created_at'],
+                                                  self.companyLocationDic)
             ecomment.update(userExtra)
             ecomments.append(ecomment)
 
@@ -1141,7 +1141,7 @@ class Gitee(object):
             rich_pr['pull_closed_at'] = pull_request['closed_at']
         rich_pr['url'] = pull_request['html_url']
         rich_pr['pull_url'] = pull_request['html_url']
-        #rich_pr['issue_url'] = pull_request['html_url']
+        # rich_pr['issue_url'] = pull_request['html_url']
 
         labels = []
         [labels.append(label['name']) for label in pull_request['labels'] if 'labels' in pull_request]
@@ -1171,7 +1171,8 @@ class Gitee(object):
 
         # if self.prjs_map:
         #    rich_pr.update(self.get_item_project(rich_pr))
-        userExtra = self.esClient.getUserInfo(rich_pr['user_login'], pull_request['created_at'], self.companyLocationDic)
+        userExtra = self.esClient.getUserInfo(rich_pr['user_login'], pull_request['created_at'],
+                                              self.companyLocationDic)
         rich_pr.update(userExtra)
         rich_pr['addcodenum'] = pull_request['codediffadd']
         rich_pr['deletecodenum'] = pull_request['codediffdelete']
@@ -1376,7 +1377,8 @@ class Gitee(object):
 
             if 'project' in eitem:
                 ecomment['project'] = eitem['project']
-            userExtra = self.esClient.getUserInfo(ecomment['user_login'], comment['created_at'], self.companyLocationDic)
+            userExtra = self.esClient.getUserInfo(ecomment['user_login'], comment['created_at'],
+                                                  self.companyLocationDic)
             ecomment.update(userExtra)
             # self.add_repository_labels(ecomment)
             # self.add_metadata_filter_raw(ecomment)
@@ -1749,7 +1751,8 @@ class Gitee(object):
                         user['user_name'] = user['name']
                         user['author_name'] = user['name']
                         user['org_name'] = self.orgs[index]
-                        userExtra = self.esClient.getUserInfo(user['login'], user['created_at'], self.companyLocationDic)
+                        userExtra = self.esClient.getUserInfo(user['login'], user['created_at'],
+                                                              self.companyLocationDic)
                         user.update(userExtra)
                         action = common.getSingleAction(self.index_name_all[index], id, user)
                         self.esClient.safe_put_bulk(action)
