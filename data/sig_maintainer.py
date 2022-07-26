@@ -265,7 +265,7 @@ class SigMaintainer(object):
         rs.append('\n'.join(loglist[n:]))
         return rs
 
-    def get_sig_info(self, owner_type, repos, users, dir):
+    def get_sig_info(self, owner_type, repos, users, dir, users_dict=None):
         repo_path = self.sigs_dirs_path + '/' + dir
         rs = self.get_sig_info_log(repo_path)
         datas = ''
@@ -285,7 +285,7 @@ class SigMaintainer(object):
                 ID = self.org + '_' + dir + '_' + repo + '_' + owner_type + '_' + user
                 if ID in self.exists_ids:
                     self.exists_ids.remove(ID)
-                dataw = self.writecommonData(dir, repo, owner_type, user, times, times_owner)
+                dataw = self.writecommonData(dir, repo, owner_type, user, times, times_owner, users_dict)
                 datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
                 datas += datar
                 repo_mark = False
@@ -293,12 +293,12 @@ class SigMaintainer(object):
                 ID = self.org + '_' + dir + '_null_' + owner_type + '_' + user
                 if ID in self.exists_ids:
                     self.exists_ids.remove(ID)
-                dataw = self.writecommonData(dir, None, owner_type, user, times, times_owner)
+                dataw = self.writecommonData(dir, None, owner_type, user, times, times_owner, users_dict)
                 datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
                 datas += datar
         return datas
 
-    def writecommonData(self, dir, repo, owner_type, user, times, times_owner):
+    def writecommonData(self, dir, repo, owner_type, user, times, times_owner, users_dict=None):
         dataw = {"sig_name": dir,
                  "repo_name": repo,
                  "committer": user,
@@ -307,6 +307,8 @@ class SigMaintainer(object):
                  "committer_time": times_owner,
                  "is_sig_repo_committer": 1,
                  "owner_type": owner_type}
+        if users_dict is not None and user in users_dict:
+            dataw['organization'] = users_dict[user]
         userExtra = self.esClient.getUserInfo(user)
         dataw.update(userExtra)
         return dataw
@@ -411,11 +413,15 @@ class SigMaintainer(object):
                 if 'maintainers' in info and info['maintainers'] is not None:
                     users_info = info['maintainers']
                     users = [user['gitee_id'] for user in users_info]
-                    datas = self.get_sig_info('maintainers', repos, users, dir)
+                    users_dict = {}
+                    for user in users_info:
+                        if 'organization' in user:
+                            users_dict[user['gitee_id']] = user['organization']
+                    datas = self.get_sig_info('maintainers', repos, users, dir, users_dict)
 
                 if committers and len(committers) != 0:
                     c_users = [user['gitee_id'] for user in committers]
-                    datas += self.get_sig_info('committers', repos, c_users, dir)
+                    datas += self.get_sig_info('committers', repos, c_users, dir, None)
                 self.esClient.safe_put_bulk(datas)
                 print("this sig done: %s" % dir)
 
