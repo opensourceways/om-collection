@@ -97,7 +97,8 @@ class Gitee(object):
         self.is_update_removed_data = config.get('is_update_removed_data', 'false')
         self.thread_pool_num = int(config.get('thread_pool_num', 20))
         self.thread_max_num = threading.Semaphore(self.thread_pool_num)
-        self.repo_sigs_dict = self.esClient.getRepoSigs()
+        self.repo_sigs_dict = {}
+        self.last_repo_sig = {}
         self.companyLocationDic = {}
 
     def run(self, from_time):
@@ -147,6 +148,8 @@ class Gitee(object):
             if self.is_set_sigs_star == 'true':
                 self.getSartUsersList()
 
+            change_repo_sig_dic = self.get_change_repo_sig_dict()
+            self.esClient.tagRepoSigChanged(change_repo_sig_dic)
             self.esClient.tagUserOrgChanged(self.companyLocationDic)
         endTime = time.time()
         spent_time = time.strftime("%H:%M:%S",
@@ -195,6 +198,14 @@ class Gitee(object):
 }""" % sig_names
         self.esClient.updateByQuery(query=queryNoRepo)
         print('***** No Repo No Sig *****')
+
+    def get_change_repo_sig_dict(self):
+        change_repo_sig_dic = {}
+        self.last_repo_sig = self.esClient.getLastRepoSigs()
+        for repo in self.repo_sigs_dict:
+            if self.last_repo_sig.get(repo) and self.repo_sigs_dict[repo] != self.last_repo_sig.get(repo):
+                change_repo_sig_dic[repo] = self.repo_sigs_dict[repo]
+        return change_repo_sig_dic
 
     def getGiteeId2Company(self):
         self.giteeid_company_dict_last = self.esClient.giteeid_company_dict
@@ -382,7 +393,7 @@ class Gitee(object):
                 "value": gitee_repo,
             }
         ]'''
-        if newdata is None or len(newdata) == 0 or not isinstance(newdata, list):
+        if newdata is None or not isinstance(newdata, list):
             return original_ids
         data = self.esClient.getItemsByMatchs(matches, size=10000, matchs_not=matchs_not)
         newdataids = []

@@ -283,6 +283,58 @@ class ESClient(object):
                 dict_comb = {key: dict_comb.get(key, []) + dt.get(key, []) for key in combined_keys}
         return dict_comb
 
+    def getLastRepoSigs(self):
+        dict_comb = defaultdict(dict)
+        if self.index_name is None:
+            return {}
+        search = '''{
+            "size": 0,
+            "query": {
+                "bool": {
+                    "filter": [
+                        {
+                            "query_string": {
+                                "analyze_wildcard": true,
+                                "query": "!is_removed:1"
+                            }
+                        }
+                    ]
+                }
+            },
+            "aggs": {
+                "2": {
+                    "terms": {
+                        "field": "sig_names.keyword",
+                        "size": 500
+                    },
+                    "aggs": {
+                        "3": {
+                            "terms": {
+                                "field": "gitee_repo.keyword",
+                                "size": 1000
+                            },
+                            "aggs": {}
+                        }
+                    }
+                }
+            }
+        }'''
+        res = self.request_get(self.getSearchUrl(index_name=self.index_name),
+                               data=search, headers=self.default_headers)
+        if res.status_code != 200:
+            print("The index not exist")
+            return dict_comb
+        data = res.json()
+        for d in data['aggregations']['2']['buckets']:
+            repos = [repo['key'][18:] for repo in d['3']['buckets']]
+            sig = d['key']
+            dt = defaultdict(dict)
+            for repo in repos:
+                dt.update({repo: [sig]})
+            combined_keys = dict_comb.keys() | dt.keys()
+            dict_comb = {key: dict_comb.get(key, []) + dt.get(key, []) for key in combined_keys}
+        return dict_comb
+
     def getAllGiteeRepo(self):
         search_json = '''{
   "size": 0,
@@ -620,6 +672,35 @@ class ESClient(object):
                     }
                 }''' % (company, startTime, endTime, key)
                 self.updateByQuery(query=query.encode('utf-8'))
+
+    def tagRepoSigChanged(self, repo_sig_dict=None):
+        if len(repo_sig_dict) == 0:
+            return
+        for key in repo_sig_dict:
+            gitee_repo = "https://gitee.com/" + key
+            sig_names = repo_sig_dict.get(key)
+            query_str = '''
+            {{
+                "script": {{
+                    "source": "ctx._source.sig_names=params.sig",
+                    "params": {{
+                        "sig": {sig_names}
+                    }}
+                }},
+                "query": {{
+                    "bool": {{
+                        "must": [
+                            {{
+                                "term": {{
+                                    "gitee_repo.keyword": "{gitee_repo}"
+                                }}
+                            }}
+                        ]
+                    }}
+                }}
+            }}'''
+            query = query_str.format(sig_names=sig_names, gitee_repo=gitee_repo).replace("'", "\"")
+            self.updateByQuery(query=query.encode('utf-8'))
 
     def get_update_loc_info_query(self, company, startTime, endTime, user, company_location_dic):
         company_info = company_location_dic.get(company)
@@ -2264,7 +2345,8 @@ class ESClient(object):
             search = '''{"scroll": "%s", "scroll_id": "%s" }''' % (scroll_duration, scroll_id)
             res = self.request_get(url=url, headers=headers, verify=False, data=search.encode('utf-8'), timeout=60)
             if res.status_code != 200:
-                print('Failed fetch whole data cause of some error occurs in continuous scrolling page except the first page')
+                print(
+                    'Failed fetch whole data cause of some error occurs in continuous scrolling page except the first page')
                 return
             res_data = res.json()
             scroll_id = res_data['_scroll_id']
