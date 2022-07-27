@@ -265,10 +265,12 @@ class ActivitiesPractice(object):
             giteeid = self.getCellValue(r, 'giteeid', sh, cell_name_index_dict)
             email = self.getCellValue(r, 'email', sh, cell_name_index_dict)
             status = self.getCellValue(r, 'status(1:新增；2：删除)', sh, cell_name_index_dict)
+            community = self.getCellValue(r, 'community', sh, cell_name_index_dict)
             action = {'student_giteeid': giteeid,
                       'email': email,
                       'status': status,
-                      'created_at': now}
+                      'created_at': now,
+                      'community': community}
 
             index_data = {"index": {"_index": self.student_index_name, "_id": giteeid}}
             actions += json.dumps(index_data) + '\n'

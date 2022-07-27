@@ -330,6 +330,16 @@ class CVE(object):
             res['issue_url'] = issue['issue_url']
             res['rpm_public_time'] = rpm_public_time
 
+            version_str = cve['version']
+            if version_str is None:
+                res['versions'] = []
+            else:
+                versions_temp = version_str.split(',')
+                def version_filter(item):
+                    return item != ""
+                versions = list(filter(version_filter, versions_temp))
+                res['versions'] = versions
+
             indexData = {"index": {"_index": self.index_name, "_id": res['issue_id'] + '_' + res['CVE_num']}}
             actions += json.dumps(indexData) + '\n'
             actions += json.dumps(res) + '\n'
