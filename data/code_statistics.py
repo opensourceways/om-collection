@@ -13,6 +13,7 @@
 # Create: 2020-05
 #
 import base64
+import datetime
 import hashlib
 import json
 import os
@@ -73,9 +74,6 @@ class CodeStatistics(object):
         # 仓库对应的sig
         repo_sigs_dict = self.esClient.getRepoSigs()
 
-        # 仓库对应的版本
-        repo_versions = self.get_obs_meta()
-
         for org in self.orgs.split(';'):
             # 获取组织下所有的仓库
             repos = self.get_repos(owner=org)
@@ -108,6 +106,8 @@ class CodeStatistics(object):
 
                 # 统计每个版本的代码量
                 if self.is_version_statistic == 'true' and org == self.obs_meta_org:
+                    # 仓库对应的版本
+                    repo_versions = self.get_obs_meta()
                     self.statistics_code_of_version(owner=org, repo=repo, repo_info=repo_info,
                                                     repo_versions=repo_versions)
 
@@ -137,9 +137,10 @@ class CodeStatistics(object):
         action = repo_info.copy()
         repo_path = self.git_clone_or_pull_repo(platform=self.platform, owner=owner, repo_name=repo)
         try:
-            actions = ''
             git_repo = git.Repo(repo_path)
             for branch in branches:
+                s_time = datetime.datetime.now()
+                actions = ''
                 # 切换到版本分支
                 git_repo.git.checkout(branch)
                 print('*** branch : %s' % branch)
@@ -157,7 +158,7 @@ class CodeStatistics(object):
                 action['obs_version'] = branch
 
                 # 删除解压文件
-                cmd_clean = 'cd %s;git clean -df' % repo_path
+                cmd_clean = 'cd %s;git clean -f -d -x' % repo_path
                 os.system(cmd_clean)
 
                 id_str = action['repo_url'] + '-' + branch
@@ -166,7 +167,10 @@ class CodeStatistics(object):
                 actions += json.dumps(index_data) + '\n'
                 actions += json.dumps(action) + '\n'
 
-            self.esClient.safe_put_bulk(actions)
+                self.esClient.safe_put_bulk(actions)
+                e_time = datetime.datetime.now()
+                seconds = (e_time - s_time).seconds
+                print('*** %s/%s %s : %d seconds' % (owner, repo, branch, seconds))
             print('*** statistics_code_of_version finish : %s/%s' % (owner, repo))
         except Exception:
             print('*** statistics_code_of_version fail : %s/%s' % (owner, repo))
@@ -177,6 +181,7 @@ class CodeStatistics(object):
         action = repo_info.copy()
         repo_path = self.git_clone_or_pull_repo(platform=self.platform, owner=owner, repo_name=repo)
         try:
+            s_time = datetime.datetime.now()
             git_repo = git.Repo(repo_path)
             # 识别主分支
             default_branch = 'master'
@@ -187,6 +192,10 @@ class CodeStatistics(object):
                     break
             # 切换到主分支
             git_repo.git.checkout(default_branch)
+
+            # 清理未追踪文件
+            cmd_clean = 'cd %s;git clean -f -d -x' % repo_path
+            os.system(cmd_clean)
 
             cmd_cloc = 'cloc %s --json' % repo_path
             res_cloc = os.popen(cmd_cloc)
@@ -208,6 +217,9 @@ class CodeStatistics(object):
                 actions += json.dumps(action) + '\n'
 
             self.esClient.safe_put_bulk(actions)
+            e_time = datetime.datetime.now()
+            seconds = (e_time - s_time).seconds
+            print('*** %s/%s : %d seconds' % (owner, repo, seconds))
             print('*** statistics_code_of_repo finish : %s/%s' % (owner, repo))
         except Exception:
             print('*** statistics_code_of_repo fail : %s/%s' % (owner, repo))
