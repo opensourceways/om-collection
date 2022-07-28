@@ -128,6 +128,7 @@ class CodeStatistics(object):
         return company_aliases_dict
 
     def statistics_code_of_version(self, owner, repo, repo_info, repo_versions):
+        print('*** statistics_code_of_version start : %s/%s' % (owner, repo))
         if repo not in repo_versions:
             print('*** repo has no versions : %s/%s' % (owner, repo))
             return
@@ -141,12 +142,12 @@ class CodeStatistics(object):
             for branch in branches:
                 # 切换到版本分支
                 git_repo.git.checkout(branch)
-                cmd_cd = 'cd %s' % repo_path
-                os.system(cmd_cd)
+                print('*** branch : %s' % branch)
                 # 解压压缩文件
                 self.decompress(repo_path)
                 # 统计代码量
-                res_cloc = os.popen('cloc . --json')
+                cmd_cloc = 'cloc %s --json' % repo_path
+                res_cloc = os.popen(cmd_cloc)
                 res_json = json.loads(res_cloc.read())
                 sum_code = res_json.get('SUM')
                 action['files'] = int(sum_code.get('nFiles'))
@@ -156,7 +157,7 @@ class CodeStatistics(object):
                 action['obs_version'] = branch
 
                 # 删除解压文件
-                cmd_clean = 'git clean -df'
+                cmd_clean = 'cd %s;git clean -df' % repo_path
                 os.system(cmd_clean)
 
                 id_str = action['repo_url'] + '-' + branch
@@ -166,16 +167,15 @@ class CodeStatistics(object):
                 actions += json.dumps(action) + '\n'
 
             self.esClient.safe_put_bulk(actions)
-            print('statistics_code_of_version finish : %s/%s' % (owner, repo))
+            print('*** statistics_code_of_version finish : %s/%s' % (owner, repo))
         except Exception:
             print('*** statistics_code_of_version fail : %s/%s' % (owner, repo))
             return
 
     def statistics_code_of_repo(self, owner, repo, repo_info):
+        print('*** statistics_code_of_repo start : %s/%s' % (owner, repo))
         action = repo_info.copy()
         repo_path = self.git_clone_or_pull_repo(platform=self.platform, owner=owner, repo_name=repo)
-        cmd_cd = 'cd %s' % repo_path
-        os.system(cmd_cd)
         try:
             git_repo = git.Repo(repo_path)
             # 识别主分支
@@ -188,7 +188,8 @@ class CodeStatistics(object):
             # 切换到主分支
             git_repo.git.checkout(default_branch)
 
-            res_cloc = os.popen('cloc . --json')
+            cmd_cloc = 'cloc %s --json' % repo_path
+            res_cloc = os.popen(cmd_cloc)
             res_json = json.loads(res_cloc.read())
             actions = ''
             for k, v in res_json.items():
@@ -207,9 +208,9 @@ class CodeStatistics(object):
                 actions += json.dumps(action) + '\n'
 
             self.esClient.safe_put_bulk(actions)
-            print('statistics_code_of_repo finish : %s/%s' % (owner, repo))
+            print('*** statistics_code_of_repo finish : %s/%s' % (owner, repo))
         except Exception:
-            print('statistics_code_of_repo fail : %s/%s' % (owner, repo))
+            print('*** statistics_code_of_repo fail : %s/%s' % (owner, repo))
             return
 
     def get_obs_meta(self):
@@ -344,6 +345,6 @@ class CodeStatistics(object):
 
         compressed_files = list(filter(check_compressed_file, files))
         for file in compressed_files:
-            cmd_tar = 'tar -xvf %s' % file
+            cmd_tar = 'cd %s;tar -xvf %s' % (path, file)
             os.system(cmd_tar)
             print('*** decompress file : %s/%s' % (path, file))
