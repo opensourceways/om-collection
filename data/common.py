@@ -343,6 +343,8 @@ class ESClient(object):
                             print('*** Not found company aliases: %s' % org_name)
                     org_names.append(org_name)
                 dict_comb[repo_name] = org_names
+        return dict_comb
+
     def getLastRepoSigs(self):
         dict_comb = defaultdict(dict)
         if self.index_name is None:
