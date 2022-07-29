@@ -15,7 +15,7 @@ RUN apt-get update && \
     pip3 install google-api-python-client && \
     pip3 install --upgrade oauth2client
 
-
+RUN apt install cloc
 
 
 RUN wget https://github.com/huaweicloud/huaweicloud-sdk-python-obs/archive/v3.20.7.tar.gz && \
