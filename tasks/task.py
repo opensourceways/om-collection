@@ -73,7 +73,8 @@ BACKEND_MAPPING = {
     'collect_pypi': 'data.pypi.CollectPypi',
     'sigscores': 'data.time_series.sig_scores.SigScores',
     'company_location': 'data.combine.company_location.CompanyLocation',
-    'ndcg': 'data.ndcg.Ndcg'
+    'ndcg': 'data.ndcg.Ndcg',
+    'code_statistics': 'data.code_statistics.CodeStatistics'
 }
 
 

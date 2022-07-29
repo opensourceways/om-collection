@@ -284,6 +284,65 @@ class ESClient(object):
                 dict_comb = {key: dict_comb.get(key, []) + dt.get(key, []) for key in combined_keys}
         return dict_comb
 
+    def getRepoOrganizations(self, field, company_aliases_dict, is_sig_info_yaml=True):
+        dict_comb = defaultdict(dict)
+        if self.sig_index:
+            search = '''{
+                          "size": 0,
+                          "query": {
+                            "bool": {
+                              "filter": [
+                                {
+                                  "query_string": {
+                                    "analyze_wildcard": true,
+                                    "query": "owner_type.keyword:\\"maintainers\\" AND !is_removed:1"
+                                  }
+                                }
+                              ]
+                            }
+                          },
+                          "aggs": {
+                            "repos": {
+                              "terms": {
+                                "field": "repo_name.keyword",
+                                "size": 20000,
+                                "min_doc_count": 1
+                              },
+                              "aggs": {
+                                "orgs": {
+                                  "terms": {
+                                    "field": "%s.keyword",
+                                    "size": 10000,
+                                    "min_doc_count": 1
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }''' % field
+            res = self.request_get(self.getSearchUrl(index_name=self.sig_index),
+                                   data=search, headers=self.default_headers)
+            if res.status_code != 200:
+                print("The index not exist")
+                return dict_comb
+            data = res.json()
+            for repo in data['aggregations']['repos']['buckets']:
+                repo_name = repo['key']
+                buckets = repo['orgs']['buckets']
+                if len(buckets) == 0:
+                    continue
+                org_names = []
+                for bucket in buckets:
+                    org_name = bucket['key']
+                    if org_name == 'NA':
+                        continue
+                    if company_aliases_dict is not None:
+                        if org_name in company_aliases_dict:
+                            org_name = company_aliases_dict[org_name]
+                        elif is_sig_info_yaml:
+                            print('*** Not found company aliases: %s' % org_name)
+                    org_names.append(org_name)
+                dict_comb[repo_name] = org_names
     def getLastRepoSigs(self):
         dict_comb = defaultdict(dict)
         if self.index_name is None:
