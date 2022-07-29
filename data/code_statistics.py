@@ -161,7 +161,7 @@ class CodeStatistics(object):
                 cmd_clean = 'cd %s;git clean -f -d -x' % repo_path
                 os.system(cmd_clean)
 
-                id_str = action['repo_url'] + '-' + branch
+                id_str = action['repo_url'] + '-' + branch + self.time_now
                 index_id = hashlib.md5(id_str.encode('utf-8')).hexdigest()
                 index_data = {"index": {"_index": self.version_index_name, "_id": index_id}}
                 actions += json.dumps(index_data) + '\n'
@@ -210,7 +210,7 @@ class CodeStatistics(object):
                 action['comment'] = int(v.get('comment'))
                 action['code'] = int(v.get('code'))
 
-                id_str = action['repo_url'] + '-' + k
+                id_str = action['repo_url'] + '-' + k + self.time_now
                 index_id = hashlib.md5(id_str.encode('utf-8')).hexdigest()
                 index_data = {"index": {"_index": self.repo_index_name, "_id": index_id}}
                 actions += json.dumps(index_data) + '\n'
