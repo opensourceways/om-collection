@@ -166,12 +166,6 @@ class CodeStatistics(object):
                 cmd_clean = 'cd %s;git clean -f -d -x' % repo_path
                 os.system(cmd_clean)
 
-                id_str = action['repo_url'] + '-' + branch + self.time_now
-                index_id = hashlib.md5(id_str.encode('utf-8')).hexdigest()
-                index_data = {"index": {"_index": self.version_index_name, "_id": index_id}}
-                actions += json.dumps(index_data) + '\n'
-                actions += json.dumps(action) + '\n'
-
                 update_script = "repo_url.keyword: \\\"%s\\\" AND obs_version.keyword:\\\"%s\\\"" % (
                     action['repo_url'], branch)
                 self.tagLastUpdateAt(index=self.version_index_name, query_str=update_script)
@@ -181,6 +175,8 @@ class CodeStatistics(object):
                 index_data = {"index": {"_index": self.version_index_name, "_id": index_id}}
                 actions += json.dumps(index_data) + '\n'
                 actions += json.dumps(action) + '\n'
+
+                self.esClient.safe_put_bulk(actions)
 
                 e_time = datetime.datetime.now()
                 seconds = (e_time - s_time).seconds
