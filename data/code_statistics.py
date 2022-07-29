@@ -66,10 +66,14 @@ class CodeStatistics(object):
         company_aliases_dict = self.getCompanyAliasesName()
 
         # 仓库 -> 维护仓库的企业（根据maintainer的gitee_id识别）
-        repo_company_dict = self.esClient.getRepoOrganizations(field='tag_user_company', company_aliases_dict=company_aliases_dict, is_sig_info_yaml=False)
+        repo_company_dict = self.esClient.getRepoOrganizations(field='tag_user_company',
+                                                               company_aliases_dict=company_aliases_dict,
+                                                               is_sig_info_yaml=False)
 
         # 仓库 -> 维护仓库的组织（根据sig-info.yaml记录识别）
-        repo_org_dict = self.esClient.getRepoOrganizations(field='organization', company_aliases_dict=company_aliases_dict, is_sig_info_yaml=True)
+        repo_org_dict = self.esClient.getRepoOrganizations(field='organization',
+                                                           company_aliases_dict=company_aliases_dict,
+                                                           is_sig_info_yaml=True)
 
         # 仓库对应的sig
         repo_sigs_dict = self.esClient.getRepoSigs()
@@ -98,7 +102,8 @@ class CodeStatistics(object):
                              'repo_url': repo_url,
                              'update_at': self.time_now,
                              'sig_names': sig_names,
-                             'tag_user_company': tag_user_companies}
+                             'tag_user_company': tag_user_companies,
+                             'is_last': 1}
 
                 # 统计每个仓库的代码量
                 if self.is_repo_statistic == 'true':
@@ -167,7 +172,16 @@ class CodeStatistics(object):
                 actions += json.dumps(index_data) + '\n'
                 actions += json.dumps(action) + '\n'
 
-                self.esClient.safe_put_bulk(actions)
+                update_script = "repo_url.keyword: \\\"%s\\\" AND obs_version.keyword:\\\"%s\\\"" % (
+                    action['repo_url'], branch)
+                self.tagLastUpdateAt(index=self.version_index_name, query_str=update_script)
+
+                id_str = action['repo_url'] + '-' + branch + self.time_now
+                index_id = hashlib.md5(id_str.encode('utf-8')).hexdigest()
+                index_data = {"index": {"_index": self.version_index_name, "_id": index_id}}
+                actions += json.dumps(index_data) + '\n'
+                actions += json.dumps(action) + '\n'
+
                 e_time = datetime.datetime.now()
                 seconds = (e_time - s_time).seconds
                 print('*** %s/%s %s : %d seconds' % (owner, repo, branch, seconds))
@@ -216,7 +230,11 @@ class CodeStatistics(object):
                 actions += json.dumps(index_data) + '\n'
                 actions += json.dumps(action) + '\n'
 
+            update_script = "repo_url.keyword: \\\"%s\\\"" % action['repo_url']
+            self.tagLastUpdateAt(index=self.repo_index_name, query_str=update_script)
+
             self.esClient.safe_put_bulk(actions)
+
             e_time = datetime.datetime.now()
             seconds = (e_time - s_time).seconds
             print('*** %s/%s : %d seconds' % (owner, repo, seconds))
@@ -236,6 +254,7 @@ class CodeStatistics(object):
         else:
             def check_version(s):
                 return s.startswith("openEuler-")
+
             inter_versions = list(filter(check_version, dirs))
 
         repo_versions = {}
@@ -360,3 +379,22 @@ class CodeStatistics(object):
             cmd_tar = 'cd %s;tar -xvf %s' % (path, file)
             os.system(cmd_tar)
             print('*** decompress file : %s/%s' % (path, file))
+
+    # 标记数据是否是最近更新
+    def tagLastUpdateAt(self, index, query_str):
+        try:
+            query = '''{
+                          "script": {
+                            "source": "ctx._source['is_last']=0"
+                          },
+                          "query": {
+                            "query_string": {
+                              "analyze_wildcard": true,
+                              "query": "%s"
+                            }
+                          }
+                        }''' % query_str
+            self.esClient.updateByQuery(query, index=index, query_es=self.esClient.url,
+                                        es_authorization=self.esClient.authorization)
+        except Exception:
+            pass
