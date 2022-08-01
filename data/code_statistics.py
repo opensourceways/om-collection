@@ -60,7 +60,7 @@ class CodeStatistics(object):
     def run(self, from_time):
         print("code statistics: start")
         # 代码统计时间
-        self.time_now = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+        self.time_now = time.strftime("%Y-%m-%dT%H:%M:%S+08:00", time.localtime())
 
         # 企业别名
         company_aliases_dict = self.getCompanyAliasesName()
