@@ -141,14 +141,20 @@ class CodeStatistics(object):
 
         action = repo_info.copy()
         repo_path = self.git_clone_or_pull_repo(platform=self.platform, owner=owner, repo_name=repo)
+        git_repo = None
         try:
             git_repo = git.Repo(repo_path)
-            for branch in branches:
+        except Exception:
+            print('*** repo clone or pull fail : %s/%s' % (owner, repo))
+
+        for branch in branches:
+            try:
+                print('*** branch : %s' % branch)
                 s_time = datetime.datetime.now()
                 actions = ''
                 # 切换到版本分支
                 git_repo.git.checkout(branch)
-                print('*** branch : %s' % branch)
+                print('*** checkout branch : %s' % branch)
                 # 解压压缩文件
                 self.decompress(repo_path)
                 # 统计代码量
@@ -181,10 +187,10 @@ class CodeStatistics(object):
                 e_time = datetime.datetime.now()
                 seconds = (e_time - s_time).seconds
                 print('*** %s/%s %s : %d seconds' % (owner, repo, branch, seconds))
-            print('*** statistics_code_of_version finish : %s/%s' % (owner, repo))
-        except Exception:
-            print('*** statistics_code_of_version fail : %s/%s' % (owner, repo))
-            return
+            except Exception:
+                print('*** statistics_code_of_version fail : %s/%s' % (owner, repo))
+                continue
+        print('*** statistics_code_of_version finish : %s/%s' % (owner, repo))
 
     def statistics_code_of_repo(self, owner, repo, repo_info):
         print('*** statistics_code_of_repo start : %s/%s' % (owner, repo))
