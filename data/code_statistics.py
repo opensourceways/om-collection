@@ -153,7 +153,11 @@ class CodeStatistics(object):
                 s_time = datetime.datetime.now()
                 actions = ''
                 # 切换到版本分支
-                git_repo.git.checkout(branch)
+                try:
+                    git_repo.git.checkout(branch)
+                except Exception:
+                    print('*** %s/%s has no branch : %s' % (owner, repo, branch))
+                    continue
                 print('*** checkout branch : %s' % branch)
                 # 解压压缩文件
                 self.decompress(repo_path)
