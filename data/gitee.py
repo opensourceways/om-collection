@@ -101,6 +101,9 @@ class Gitee(object):
         self.last_repo_sig = {}
         self.invalid_pr_title = config.get('invalid_pr_title')
         self.companyLocationDic = {}
+        self.command = None
+        if config.get('command_list'):
+            self.command = config.get('command_list').split(',')
 
     def run(self, from_time):
         print("Collect gitee data: staring")
@@ -785,11 +788,11 @@ class Gitee(object):
             actions += self.write_pull_commit_data(pull_commits, eitem, owner, sig_names)
 
             ecomments = self.get_rich_pull_reviews(pull_review_comments, eitem, owner)
-            res_comment = self.write_pull_comment_data(ecomments, eitem, sig_names)
+            res_comment = self.write_comment_data(ecomments, eitem, sig_names, data_type='pull')
             actions += res_comment[0]
             try:
                 comment_times = res_comment[1]
-                if comment_times:
+                if comment_times and len(comment_times) != 0:
                     firstreplyprtime = min(comment_times)
                     lastreplyprtime = max(comment_times)
                     eitem['firstreplyprtime'] = (datetime.datetime.strptime(
@@ -797,6 +800,9 @@ class Gitee(object):
                         eitem['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).total_seconds()
                     eitem['lastreplyprtime'] = (datetime.datetime.now() + datetime.timedelta(hours=8) - (
                         datetime.datetime.strptime(lastreplyprtime, '%Y-%m-%dT%H:%M:%S+08:00'))).total_seconds()
+                else:
+                    eitem['time_to_not_reply'] = (datetime.datetime.now() + datetime.timedelta(hours=8) - (
+                        datetime.datetime.strptime(eitem['created_at'], '%Y-%m-%dT%H:%M:%S+08:00'))).total_seconds()
             except Exception as e:
                 print(e)
                 print(eitem['created_at'])
@@ -824,24 +830,8 @@ class Gitee(object):
             actions += json.dumps(ec) + '\n'
         return actions
 
-    def write_pull_comment_data(self, ecomments, eitem, sig_names):
-        actions = ''
-        comment_times = []
-        for ec in ecomments:
-            if ec['user_login'] in self.skip_user:
-                continue
-            if ec['user_login'] is not None and ec['user_login'] != eitem.get('user_login') and eitem.get('created_at'):
-                comment_times.append(str(ec['created_at']))
-            ec['sig_names'] = sig_names
-            indexData = {
-                "index": {"_index": self.index_name, "_id": ec['pull_comment_id']}}
-            actions += json.dumps(indexData) + '\n'
-            actions += json.dumps(ec) + '\n'
-        return actions, comment_times
-
     def writeIssueData(self, owner, repo, public, from_date=None, sig_names=None):
         startTime = datetime.datetime.now()
-
         client = GiteeClient(owner, repo, self.gitee_token)
         if from_date is None:
             from_date = self.esClient.get_from_date(
@@ -866,39 +856,22 @@ class Gitee(object):
             issue_comments = self.getGenerator(client.issue_comments(i['number']))
             i['comments_data'] = issue_comments
             issue_item = self.get_rich_issue(i)
-            firstreplyissuetime = ""
-            lastreplyissuetime = ""
             issue_comments = self.get_rich_issue_comments(issue_comments, issue_item)
-            for ic in issue_comments:
-                if ic['user_login'] in self.robot_user_logins or ic['user_login'] == issue_item['user_login']:
-                    firstreplyissuetime = firstreplyissuetime
-                    lastreplyissuetime = lastreplyissuetime
-                else:
-                    if not firstreplyissuetime:
-                        firstreplyissuetime = str(ic['created_at'])
-                        lastreplyissuetime = str(ic['created_at'])
-                    else:
-                        ictime = str(ic['created_at'])
-                        if ictime < firstreplyissuetime:
-                            firstreplyissuetime = ictime
-                        if ictime > lastreplyissuetime:
-                            lastreplyissuetime = ictime
-                if ic['user_login'] in self.skip_user:
-                    continue
-                ic['sig_names'] = sig_names
-                print(ic['issue_comment_id'])
-                indexData = {
-                    "index": {"_index": self.index_name,
-                              "_id": ic['issue_comment_id']}}
-                actions += json.dumps(indexData) + '\n'
-                actions += json.dumps(ic) + '\n'
+            res_comment = self.write_comment_data(issue_comments, issue_item, sig_names, data_type='issue')
             try:
-                if issue_comments:
-                    issue_item['firstreplyissuetime'] = (datetime.datetime.strptime(firstreplyissuetime,
-                                                                                    '%Y-%m-%dT%H:%M:%S+08:00') - datetime.datetime.strptime(
+                comment_times = res_comment[1]
+                actions += res_comment[0]
+                if comment_times and len(comment_times) != 0:
+                    firstreplyprtime = min(comment_times)
+                    lastreplyprtime = max(comment_times)
+                    issue_item['firstreplyissuetime'] = (datetime.datetime.strptime(
+                        firstreplyprtime, '%Y-%m-%dT%H:%M:%S+08:00') - datetime.datetime.strptime(
                         issue_item['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).total_seconds()
                     issue_item['lastreplyissuetime'] = (datetime.datetime.now() + datetime.timedelta(hours=8) - (
-                        datetime.datetime.strptime(lastreplyissuetime, '%Y-%m-%dT%H:%M:%S+08:00'))).total_seconds()
+                        datetime.datetime.strptime(lastreplyprtime, '%Y-%m-%dT%H:%M:%S+08:00'))).total_seconds()
+                else:
+                    issue_item['time_to_not_reply'] = (datetime.datetime.now() + datetime.timedelta(hours=8) - (
+                        datetime.datetime.strptime(issue_item['created_at'], '%Y-%m-%dT%H:%M:%S+08:00'))).total_seconds()
             except Exception as e:
                 print(e)
             issue_item['sig_names'] = sig_names
@@ -911,6 +884,50 @@ class Gitee(object):
         endTime = datetime.datetime.now()
         print("Collect repo(%s/%s) issue data finished, spend %s seconds" % (
             owner, repo, (endTime - startTime).total_seconds()))
+
+    def write_comment_data(self, ecomments, eitem, sig_names, data_type):
+        if data_type == 'pull':
+            id_str = 'pull_comment_id'
+        else:
+            id_str = 'issue_comment_id'
+        ecomments.sort(key=lambda x: (x['created_at'] if x['created_at'] else '-1'))
+        actions = ''
+        comment_times = []
+        creator_comments = []
+        commenter_comments = []
+        last_reply_time = eitem.get('created_at')
+        for ec in ecomments:
+            if ec['user_login'] is None or ec['user_login'] in self.skip_user:
+                continue
+            if ec['user_login'] != eitem.get('user_login') and eitem.get('created_at'):
+                comment_times.append(str(ec['created_at']))
+
+            if ec['user_login'] == eitem.get('user_login'):
+                creator_comments.append(ec)
+            else:
+                ec['time_to_reply'] = (datetime.datetime.strptime(
+                        ec['created_at'], '%Y-%m-%dT%H:%M:%S+08:00') - datetime.datetime.strptime(
+                        last_reply_time, '%Y-%m-%dT%H:%M:%S+08:00')).total_seconds()
+                last_reply_time = ec['created_at']
+                commenter_comments.append(ec)
+        actions += self.write_comment_by_role(commenter_comments, sig_names, id_str, role='commenter')
+        actions += self.write_comment_by_role(creator_comments, sig_names, id_str, role='creator')
+        return actions, comment_times
+
+    def write_comment_by_role(self, comments, sig_names, id_str, role):
+        index = 0
+        actions = ''
+        for ec in comments:
+            index += 1
+            if role == 'commenter' and index == len(comments):
+                ec['is_first_reply'] = 1
+            ec['role_type_of_comment_user'] = role
+            ec['sig_names'] = sig_names
+            indexData = {
+                "index": {"_index": self.index_name, "_id": ec[id_str]}}
+            actions += json.dumps(indexData) + '\n'
+            actions += json.dumps(ec) + '\n'
+        return actions
 
     def getGenerator(self, response):
         data = []
@@ -1078,7 +1095,8 @@ class Gitee(object):
 
         if pull_request['state'] != 'closed':
             rich_pr['time_open_days'] = \
-                common.get_time_diff_days(pull_request['created_at'], common.datetime_utcnow().replace(tzinfo=None))
+                common.get_time_diff_days(pull_request['created_at'],
+                                          (common.datetime_utcnow() + datetime.timedelta(hours=8)).replace(tzinfo=None))
         else:
             rich_pr['time_open_days'] = rich_pr['time_to_close_days']
 
@@ -1210,7 +1228,8 @@ class Gitee(object):
 
         if issue['state'] != 'closed':
             rich_issue['time_open_days'] = \
-                common.get_time_diff_days(issue['created_at'], common.datetime_utcnow().replace(tzinfo=None))
+                common.get_time_diff_days(issue['created_at'],
+                                          (common.datetime_utcnow() + datetime.timedelta(hours=8)).replace(tzinfo=None))
         else:
             rich_issue['time_open_days'] = rich_issue['time_to_close_days']
 
@@ -1385,6 +1404,10 @@ class Gitee(object):
             ecomment['id'] = comment['id']
             ecomment['is_gitee_{}'.format(ISSUE_COMMENT_TYPE)] = 1
             ecomment['is_gitee_comment'] = 1
+
+            if ecomment['body'].strip() in self.command:
+                ecomment['is_invalid_comment'] = 1
+                print(ecomment['body'])
 
             if 'project' in eitem:
                 ecomment['project'] = eitem['project']
