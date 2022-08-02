@@ -862,13 +862,13 @@ class Gitee(object):
                 comment_times = res_comment[1]
                 actions += res_comment[0]
                 if comment_times and len(comment_times) != 0:
-                    firstreplyprtime = min(comment_times)
-                    lastreplyprtime = max(comment_times)
+                    firstreplyissuetime = min(comment_times)
+                    lastreplyissuetime = max(comment_times)
                     issue_item['firstreplyissuetime'] = (datetime.datetime.strptime(
-                        firstreplyprtime, '%Y-%m-%dT%H:%M:%S+08:00') - datetime.datetime.strptime(
+                        firstreplyissuetime, '%Y-%m-%dT%H:%M:%S+08:00') - datetime.datetime.strptime(
                         issue_item['created_at'], '%Y-%m-%dT%H:%M:%S+08:00')).total_seconds()
                     issue_item['lastreplyissuetime'] = (datetime.datetime.now() + datetime.timedelta(hours=8) - (
-                        datetime.datetime.strptime(lastreplyprtime, '%Y-%m-%dT%H:%M:%S+08:00'))).total_seconds()
+                        datetime.datetime.strptime(lastreplyissuetime, '%Y-%m-%dT%H:%M:%S+08:00'))).total_seconds()
                 else:
                     issue_item['time_to_not_reply'] = (datetime.datetime.now() + datetime.timedelta(hours=8) - (
                         datetime.datetime.strptime(issue_item['created_at'], '%Y-%m-%dT%H:%M:%S+08:00'))).total_seconds()
