@@ -315,7 +315,7 @@ class CodeStatistics(object):
         # 本地仓库已存在执行git pull；否则执行git clone
         self.removeGitLockFile(code_path)
         if os.path.exists(code_path):
-            cmd_pull = 'cd %s;git pull' % code_path
+            cmd_pull = 'cd %s;git checkout .;git pull' % code_path
             os.system(cmd_pull)
         else:
             if clone_url is None:
@@ -378,15 +378,15 @@ class CodeStatistics(object):
         root, dirs, files = os.walk(path).__next__()
 
         def check_tar_file(s):
-            return s.endswith("tar.gz") or s.endswith("tar.xz") or s.endswith("tar.bz2") \
-                   or s.endswith("tar_2.gz") or s.endswith(".tgz") or s.endswith("tar.z") \
-                   or s.endswith("tar.bz") or s.endswith(".tar")
+            return s.endswith(".tar.gz") or s.endswith(".tar.xz") or s.endswith(".tar.bz2") \
+                   or s.endswith(".tar_2.gz") or s.endswith(".tgz") or s.endswith(".tar.z") \
+                   or s.endswith(".tar.bz") or s.endswith(".tar")
 
         def check_zip_file(s):
             return s.endswith(".zip") or s.endswith(".xpi") or s.endswith(".jar")
 
         def check_gz_file(s):
-            return s.endswith(".dat.gz") or s.endswith(".gz")
+            return s.endswith(".dat.gz") or (s.endswith(".gz") and not str(s).__contains__(".tar."))
 
         tar_files = list(filter(check_tar_file, files))
         for file in tar_files:
@@ -396,7 +396,7 @@ class CodeStatistics(object):
 
         zip_files = list(filter(check_zip_file, files))
         for file in zip_files:
-            cmd_tar = 'cd %s;unzip %s' % (path, file)
+            cmd_tar = 'cd %s;unzip -o %s' % (path, file)
             os.system(cmd_tar)
             print('*** decompress zip file : %s/%s' % (path, file))
 
