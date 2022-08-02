@@ -377,14 +377,34 @@ class CodeStatistics(object):
     def decompress(self, path):
         root, dirs, files = os.walk(path).__next__()
 
-        def check_compressed_file(s):
-            return s.endswith("tar.gz") or s.endswith("tar.xz") or s.endswith("tar.bz2")
+        def check_tar_file(s):
+            return s.endswith("tar.gz") or s.endswith("tar.xz") or s.endswith("tar.bz2") \
+                   or s.endswith("tar_2.gz") or s.endswith(".tgz") or s.endswith("tar.z") \
+                   or s.endswith("tar.bz") or s.endswith(".tar")
 
-        compressed_files = list(filter(check_compressed_file, files))
-        for file in compressed_files:
+        def check_zip_file(s):
+            return s.endswith(".zip") or s.endswith(".xpi") or s.endswith(".jar")
+
+        def check_gz_file(s):
+            return s.endswith(".dat.gz") or s.endswith(".gz")
+
+        tar_files = list(filter(check_tar_file, files))
+        for file in tar_files:
             cmd_tar = 'cd %s;tar -xvf %s' % (path, file)
             os.system(cmd_tar)
-            print('*** decompress file : %s/%s' % (path, file))
+            print('*** decompress tar file : %s/%s' % (path, file))
+
+        zip_files = list(filter(check_zip_file, files))
+        for file in zip_files:
+            cmd_tar = 'cd %s;unzip %s' % (path, file)
+            os.system(cmd_tar)
+            print('*** decompress zip file : %s/%s' % (path, file))
+
+        gz_files = list(filter(check_gz_file, files))
+        for file in gz_files:
+            cmd_tar = 'cd %s;gzip -d %s' % (path, file)
+            os.system(cmd_tar)
+            print('*** decompress gz file : %s/%s' % (path, file))
 
     # 标记数据是否是最近更新
     def tagLastUpdateAt(self, index, query_str):
