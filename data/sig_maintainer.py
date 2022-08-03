@@ -25,7 +25,6 @@ from data.common import ESClient
 from data.gitee import Gitee
 
 
-
 class SigMaintainer(object):
 
     def __init__(self, config=None):
@@ -265,7 +264,7 @@ class SigMaintainer(object):
         rs.append('\n'.join(loglist[n:]))
         return rs
 
-    def get_sig_info(self, owner_type, repos, users, dir, users_dict=None):
+    def get_sig_info(self, owner_type, repos, users, dir, users_dict=None, repo_committer_dic=None):
         repo_path = self.sigs_dirs_path + '/' + dir
         rs = self.get_sig_info_log(repo_path)
         datas = ''
@@ -282,10 +281,11 @@ class SigMaintainer(object):
                     times_owner = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
             repo_mark = True
             for repo in repos:
+                committers = repo_committer_dic.get(repo) if repo_committer_dic else None
                 ID = self.org + '_' + dir + '_' + repo + '_' + owner_type + '_' + user
                 if ID in self.exists_ids:
                     self.exists_ids.remove(ID)
-                dataw = self.writecommonData(dir, repo, owner_type, user, times, times_owner, users_dict)
+                dataw = self.writecommonData(dir, repo, owner_type, user, times, times_owner, users_dict, committers)
                 datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
                 datas += datar
                 repo_mark = False
@@ -298,7 +298,7 @@ class SigMaintainer(object):
                 datas += datar
         return datas
 
-    def writecommonData(self, dir, repo, owner_type, user, times, times_owner, users_dict=None):
+    def writecommonData(self, dir, repo, owner_type, user, times, times_owner, users_dict=None, committers=None):
         dataw = {"sig_name": dir,
                  "repo_name": repo,
                  "committer": user,
@@ -309,11 +309,13 @@ class SigMaintainer(object):
                  "owner_type": owner_type}
         if users_dict is not None and user in users_dict:
             dataw['organization'] = users_dict[user]
+        if committers is not None and user in committers:
+            dataw['is_repo_committer'] = 1
         userExtra = self.esClient.getUserInfo(user)
         dataw.update(userExtra)
         return dataw
 
-    def get_repo_from_yaml(self, info):
+    def get_repo_from_yaml(self, info, repo_committer_dict):
         repositories = info.get('repositories')
         if repositories is None:
             return
@@ -322,9 +324,12 @@ class SigMaintainer(object):
         for repo in repositories:
             for r in repo['repo']:
                 repos.append(r)
+                if repo.get('committers'):
+                    user_login = [user['gitee_id'] for user in repo['committers']]
+                    repo_committer_dict.update({r: user_login})
             if 'committers' in repo:
                 committers.extend(repo['committers'])
-        return repos, committers
+        return repos, committers, repo_committer_dict
 
     def download_sigs(self):
         path = self.sigs_dir
@@ -402,10 +407,11 @@ class SigMaintainer(object):
                 print("this sig done: %s" % dir)
             except FileNotFoundError:
                 print('OWNER of %s is not exist. Using sig-info.yaml!' % dir)
+                repo_committer_dic = {}
                 sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
                 info = yaml.load_all(open(sig_info), Loader=yaml.Loader).__next__()
-                if self.get_repo_from_yaml(info):
-                    repos, committers = self.get_repo_from_yaml(info)
+                if self.get_repo_from_yaml(info, repo_committer_dic):
+                    repos, committers, repo_committer_dic = self.get_repo_from_yaml(info, repo_committer_dic)
                 else:
                     repos = []
                     committers = info['committers'] if 'committers' in info and info['committers'] is not None else None
@@ -421,7 +427,8 @@ class SigMaintainer(object):
 
                 if committers and len(committers) != 0:
                     c_users = [user['gitee_id'] for user in committers]
-                    datas += self.get_sig_info('committers', repos, c_users, dir, None)
+                    datas += self.get_sig_info('committers', repos, c_users, dir,
+                                               users_dict=None, repo_committer_dic=repo_committer_dic)
                 self.esClient.safe_put_bulk(datas)
                 print("this sig done: %s" % dir)
 
