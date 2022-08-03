@@ -300,15 +300,18 @@ class CVE(object):
             res['CVE_num'] = str(cve['CVE_num']).replace('漏洞处理', '')
             # 推送时间（issue的创建时间）
             res['created_at'] = issue['created_at']
-            # 漏洞感知时长(小时) TODO 需要使用 cve['CVE_vtopic_rec_time']
+            # 漏洞感知时长(小时) TODO 需要确认CVE_public_time是否能精确到时分秒
             rec_time = cve['CVE_vtopic_rec_time']
-            if rec_time is None or rec_time == '':
+            pub_time = res['CVE_public_time']
+            if pub_time is not None and pub_time != '':
                 res['cve_rec_duration'] = self.getDuration(res['created_at'], '%Y-%m-%dT%H:%M:%S+08:00',
-                                                           res['CVE_public_time'], '%Y-%m-%d')
-            else:
+                                                           pub_time, '%Y-%m-%d')
+            elif rec_time is not None and rec_time != '':
                 res['cve_rec_duration'] = self.getDuration(res['created_at'], '%Y-%m-%dT%H:%M:%S+08:00',
                                                            self.format_time(str(rec_time).split('.')[0]),
                                                            '%Y-%m-%d %H:%M:%S')
+            else:
+                res['cve_rec_duration'] = 0
 
             res['user_login'] = issue['user_login']
             res['issue_state'] = issue['issue_state']
