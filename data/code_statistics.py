@@ -19,6 +19,7 @@ import json
 import os
 import subprocess
 import time
+import traceback
 import types
 from json import JSONDecodeError
 
@@ -48,6 +49,7 @@ class CodeStatistics(object):
         self.obs_meta_dir = config.get('obs_meta_dir')
         self.obs_versions = config.get('obs_versions')
         self.code_base_path = config.get('code_base_path')
+        self.cloc_bin_path = config.get('cloc_bin_path')
         self.username = config.get('username')
         self.password = config.get('password')
         self.is_gitee_enterprise = config.get('is_gitee_enterprise')
@@ -133,7 +135,7 @@ class CodeStatistics(object):
         return company_aliases_dict
 
     def statistics_code_of_version(self, owner, repo, repo_info, repo_versions):
-        print('*** statistics_code_of_version start : %s/%s' % (owner, repo))
+        print('**** statistics_code_of_version start : %s/%s' % (owner, repo))
         if repo not in repo_versions:
             print('*** repo has no versions : %s/%s' % (owner, repo))
             return
@@ -150,6 +152,11 @@ class CodeStatistics(object):
         for branch in branches:
             try:
                 print('*** branch : %s' % branch)
+                # 清理未追踪文件
+                cmd_clean = 'cd %s;git clean -f -d -x' % repo_path
+                os.system(cmd_clean)
+                print('*** git clean success ***')
+
                 s_time = datetime.datetime.now()
                 actions = ''
                 # 切换到版本分支
@@ -159,10 +166,11 @@ class CodeStatistics(object):
                     print('*** %s/%s has no branch : %s' % (owner, repo, branch))
                     continue
                 print('*** checkout branch : %s' % branch)
+
                 # 解压压缩文件
                 self.decompress(repo_path)
                 # 统计代码量
-                cmd_cloc = 'cloc %s --json' % repo_path
+                cmd_cloc = '%s/cloc %s --json' % (self.cloc_bin_path, repo_path)
                 res_cloc = os.popen(cmd_cloc)
                 res_json = json.loads(res_cloc.read())
                 sum_code = res_json.get('SUM')
@@ -175,6 +183,7 @@ class CodeStatistics(object):
                 # 删除解压文件
                 cmd_clean = 'cd %s;git clean -f -d -x' % repo_path
                 os.system(cmd_clean)
+                print('*** git clean decompress file success ***')
 
                 update_script = "repo_url.keyword: \\\"%s\\\" AND obs_version.keyword:\\\"%s\\\"" % (
                     action['repo_url'], branch)
@@ -190,14 +199,19 @@ class CodeStatistics(object):
 
                 e_time = datetime.datetime.now()
                 seconds = (e_time - s_time).seconds
-                print('*** %s/%s %s : %d seconds' % (owner, repo, branch, seconds))
+                print('*** statistics_code_of_version %s/%s %s : %d seconds' % (owner, repo, branch, seconds))
             except Exception:
+                traceback.print_exc()
+                # 删除解压文件
+                cmd_clean = 'cd %s;git clean -f -d -x' % repo_path
+                os.system(cmd_clean)
+                print('*** git clean when statistics fail ***')
                 print('*** statistics_code_of_version fail : %s/%s' % (owner, repo))
                 continue
-        print('*** statistics_code_of_version finish : %s/%s' % (owner, repo))
+        print('**** statistics_code_of_version finish : %s/%s' % (owner, repo))
 
     def statistics_code_of_repo(self, owner, repo, repo_info):
-        print('*** statistics_code_of_repo start : %s/%s' % (owner, repo))
+        print('**** statistics_code_of_repo start : %s/%s' % (owner, repo))
         action = repo_info.copy()
         repo_path = self.git_clone_or_pull_repo(platform=self.platform, owner=owner, repo_name=repo)
         try:
@@ -216,8 +230,9 @@ class CodeStatistics(object):
             # 清理未追踪文件
             cmd_clean = 'cd %s;git clean -f -d -x' % repo_path
             os.system(cmd_clean)
+            print('*** git clean success ***')
 
-            cmd_cloc = 'cloc %s --json' % repo_path
+            cmd_cloc = '%s/cloc %s --json' % (self.cloc_bin_path, repo_path)
             res_cloc = os.popen(cmd_cloc)
             res_json = json.loads(res_cloc.read())
             actions = ''
@@ -243,10 +258,15 @@ class CodeStatistics(object):
 
             e_time = datetime.datetime.now()
             seconds = (e_time - s_time).seconds
-            print('*** %s/%s : %d seconds' % (owner, repo, seconds))
-            print('*** statistics_code_of_repo finish : %s/%s' % (owner, repo))
+            print('*** statistics_code_of_repo %s/%s : %d seconds' % (owner, repo, seconds))
+            print('**** statistics_code_of_repo finish : %s/%s' % (owner, repo))
         except Exception:
-            print('*** statistics_code_of_repo fail : %s/%s' % (owner, repo))
+            traceback.print_exc()
+            # 清理未追踪文件
+            cmd_clean = 'cd %s;git clean -f -d -x' % repo_path
+            os.system(cmd_clean)
+            print('*** git clean when statistics fail ***')
+            print('**** statistics_code_of_repo fail : %s/%s' % (owner, repo))
             return
 
     def get_obs_meta(self):
