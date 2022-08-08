@@ -19,6 +19,7 @@ import json
 import os
 import re
 import types
+from collections import defaultdict
 from json import JSONDecodeError
 
 import git
@@ -52,6 +53,7 @@ class GitCommitLog(object):
         self.esClient = ESClient(config)
         self.email_orgs_dict = {}
         self.domain_orgs_dict = {}
+        self.repo_sigs_dict = defaultdict(dict)
         self.white_box_yaml = config.get('white_box_yaml')
         self.upstream_yaml = config.get('upstream_yaml')
         self.user_yaml = config.get('user_yaml')
@@ -63,6 +65,9 @@ class GitCommitLog(object):
         print("Git commit log collect: start")
         # 邮箱 -> 企业
         self.email_orgs_dict = self.esClient.getOrgByEmail()
+
+        # 仓库对应的sig
+        self.repo_sigs_dict = self.esClient.getRepoSigs()
 
         # 配置默认获取最近 <before_days> 天的数据
         if self.start_date is None and self.before_days:
@@ -205,6 +210,11 @@ class GitCommitLog(object):
             elif self.domain_orgs_dict and email_domain in self.domain_orgs_dict:
                 company = self.domain_orgs_dict[email_domain]
 
+            sigs = []
+            owner_repo = '%s/%s' % (owner, repo_name)
+            if self.repo_sigs_dict and owner_repo in self.repo_sigs_dict:
+                sigs = self.repo_sigs_dict[owner_repo]
+
             mess = commit.message
             action = {
                 'commit_id': commit.hexsha,
@@ -212,6 +222,7 @@ class GitCommitLog(object):
                 'author': commit.author.name,
                 'email': commit.author.email,
                 'tag_user_company': company,
+                'sig_names': sigs,
                 'title': commit.summary,
                 'body': mess,
                 'file_changed': file_code['files'],
