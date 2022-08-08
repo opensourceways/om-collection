@@ -210,7 +210,7 @@ class GitCommitLog(object):
             elif self.domain_orgs_dict and email_domain in self.domain_orgs_dict:
                 company = self.domain_orgs_dict[email_domain]
 
-            sigs = []
+            sigs = ['No-SIG']
             owner_repo = '%s/%s' % (owner, repo_name)
             if self.repo_sigs_dict and owner_repo in self.repo_sigs_dict:
                 sigs = self.repo_sigs_dict[owner_repo]
