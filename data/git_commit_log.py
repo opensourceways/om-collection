@@ -214,6 +214,7 @@ class GitCommitLog(object):
             owner_repo = '%s/%s' % (owner, repo_name)
             if self.repo_sigs_dict and owner_repo in self.repo_sigs_dict:
                 sigs = self.repo_sigs_dict[owner_repo]
+            sig_names = str(sigs).replace("'", "\"").replace(r"\n", "")
 
             mess = commit.message
             action = {
@@ -222,7 +223,7 @@ class GitCommitLog(object):
                 'author': commit.author.name,
                 'email': commit.author.email,
                 'tag_user_company': company,
-                'sig_names': sigs,
+                'sig_names': sig_names,
                 'title': commit.summary,
                 'body': mess,
                 'file_changed': file_code['files'],
