@@ -99,6 +99,7 @@ class GiteeScore(object):
             version_num = issue_brief[3]
             folder_name = issue_brief[4]
             email = issue_brief[5]
+            state = issue_brief[6]
 
             comment_index = issue_brief_list.index(issue_brief)
 
@@ -118,7 +119,8 @@ class GiteeScore(object):
             content_body['version_num'] = version_num
             content_body['folder_name'] = folder_name
             content_body['email'] = email
-            content_body['data_type'] = 'issue'
+            content_body['data_type'] = 'issue',
+            content_body['state'] = state,
             content_body['is_gitee_issue'] = 1
             action = common.getSingleAction(self.index_name, issue_number, content_body)
             actions += action
@@ -138,6 +140,7 @@ class GiteeScore(object):
             # pull_score should not be null, guaranteed by get_repo_pull_content_list
             pull_score = pull_brief[pullScore_indice]
             score_admin = pull_brief[scoreAdmin_indice]
+            state = pull_brief[5]
 
             comment_index = pull_brief_list.index(pull_brief)
             print(
@@ -150,6 +153,7 @@ class GiteeScore(object):
                 'created_at': pull_created_at,
                 'user_login': user_login,
                 'data_type': 'pull_request',
+                'state': state,
                 'is_gitee_pull_request': 1}
             action = common.getSingleAction(self.index_name, pull_number, content_body)
             actions += action
