@@ -119,8 +119,8 @@ class GiteeScore(object):
             content_body['version_num'] = version_num
             content_body['folder_name'] = folder_name
             content_body['email'] = email
-            content_body['data_type'] = 'issue',
-            content_body['state'] = state,
+            content_body['data_type'] = 'issue'
+            content_body['state'] = state
             content_body['is_gitee_issue'] = 1
             action = common.getSingleAction(self.index_name, issue_number, content_body)
             actions += action
