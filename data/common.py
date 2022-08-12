@@ -2331,6 +2331,7 @@ class ESClient(object):
                 "is_project_internal_user": u.get("_source").get("is_project_internal_user"),
                 "updated_at": u.get("_source").get("updated_at"),
                 "created_at": u.get("_source").get("created_at"),
+                "gitee_repo": u.get("_source").get("gitee_repo"),
                 "is_first" + key_prefix + key: 1
             }
             if "is_removed" in u.get("_source"):

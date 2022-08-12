@@ -74,7 +74,8 @@ BACKEND_MAPPING = {
     'sigscores': 'data.time_series.sig_scores.SigScores',
     'company_location': 'data.combine.company_location.CompanyLocation',
     'ndcg': 'data.ndcg.Ndcg',
-    'code_statistics': 'data.code_statistics.CodeStatistics'
+    'code_statistics': 'data.code_statistics.CodeStatistics',
+    'xihe_downoload': 'data.xihe_download.XiheDown'
 }
 
 

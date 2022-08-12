@@ -174,6 +174,7 @@ class GiteeScore(object):
                 if user_login in self.robot_user_login:
                     continue  # Remove this issues which created by robot user
                 created_at = single_issue_body.get('created_at')
+                state = single_issue_body.get('state')
                 version_num, folder_name, bug_fragment = self.parse_single_issue_body(single_issue_body)
 
                 email = None
@@ -182,7 +183,7 @@ class GiteeScore(object):
 
                 if not email:
                     self.failed_parse_issue_body.append(issue_number)
-                page_issue_bodies.append((issue_number, user_login, created_at, version_num, folder_name, email))
+                page_issue_bodies.append((issue_number, user_login, created_at, version_num, folder_name, email, state))
             total_issue_bodies.extend(page_issue_bodies)
 
         print(f'Succeed to collect issue numbers: {len(total_issue_bodies)}')
@@ -204,13 +205,14 @@ class GiteeScore(object):
                 continue  # Remove this issues which created by robot user
             pull_number = single_pull_body.get('number')
             created_at = single_pull_body.get('created_at')
+            state = single_pull_body.get('state')
             comments_generator = self.giteeClient.pull_review_comments(pull_number)
             score_admin, pull_score = self.parse_pull_comments(comments_generator)
 
             if not pull_score:
                 continue
 
-            total_pull_bodies.append((pull_number, user_login, created_at, pull_score, score_admin))
+            total_pull_bodies.append((pull_number, user_login, created_at, pull_score, score_admin, state))
 
         print(f'Succeed to collect pull numbers: {len(total_pull_bodies)}')
         return total_pull_bodies

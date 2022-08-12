@@ -199,7 +199,7 @@ class SigScores(object):
         metrics_i = 0
         for query in self.product_quality_query:
             metric = metrics_keys[metrics_i]
-            if metric == 'Issue_resolve':
+            if metric == 'comment':
                 datas = self.get_query_data(self.index_name_gitee, query, from_time, end_time)
             else:
                 datas = []
@@ -228,10 +228,11 @@ class SigScores(object):
         metrics_i = 0
         for query in self.org_robustness_query:
             metric = metrics_keys[metrics_i]
-            if metric == 'Maintainer':
-                datas = self.get_query_data(self.index_name_maintainer, query, 0, end_time)
-            else:
-                datas = self.get_query_data(self.index_name_gitee, query, from_time, end_time)
+            # if metric == 'Maintainer':
+            #     datas = self.get_query_data(self.index_name_maintainer, query, 0, end_time)
+            # else:
+            #     datas = self.get_query_data(self.index_name_gitee, query, from_time, end_time)
+            datas = self.get_query_data(self.index_name_gitee, query, from_time, end_time)
 
             params = params_dict.get(metrics_keys[metrics_i])
             res = self.get_radar_score_common(res_data, datas, radar_metrics, metric, params)
@@ -286,13 +287,16 @@ class SigScores(object):
             action = {'sig_names': sig}
             radar_value = res.get(sig)
             for radar_metrics in self.metrics:
+                weight = [-1, 1] if radar_metrics == 'process_quality' else [1, 0]
                 metric_value = radar_value.get(radar_metrics) if radar_value.get(radar_metrics) else {}
                 score = 0
                 normalized_score = 0
                 for metric in metric_value:
                     if metric != 'metrics':
-                        score += metric_value.get(metric)
-                        normalized_score += metric_value.get(metric) * self.params.get(radar_metrics).get(metric)[0]
+                        w = self.params.get(radar_metrics).get(metric)[2]
+                        m_value = metric_value.get(metric) * weight[0] + weight[1] * w
+                        score += m_value
+                        normalized_score += m_value * w
                 action.update({radar_metrics: {'score': score}})
                 action.get(radar_metrics).update({"normalized_score": normalized_score})
                 if metric_value.get("metrics"):
