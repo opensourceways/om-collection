@@ -463,6 +463,18 @@ class SigMaintainer(object):
             }
             maintainers = []
             try:
+                # get maintainers
+                owner_file = self.sigs_dirs_path + '/' + dir + '/' + 'OWNERS'
+                owners = yaml.load_all(open(owner_file), Loader=yaml.Loader).__next__()
+                try:
+                    maintainers = owners['maintainers']
+                except FileNotFoundError:
+                    print('maintainers of %s is null.' % dir)
+                    maintainers = []
+                action.update({'maintainers': maintainers})
+                action.update({'mailing_list': 'dev@openeuler.org'})
+            except FileNotFoundError:
+                print('owner file of %s is not exist. using sig-info.yaml.' % dir)
                 sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
                 info = yaml.load_all(open(sig_info), Loader=yaml.Loader).__next__()
                 if 'description' in info and info['description'] is not None:
@@ -475,18 +487,11 @@ class SigMaintainer(object):
                     action.update({'maintainer_info': info['maintainers']})
                     maintainers = [user['gitee_id'] for user in info['maintainers']]
                     action.update({'maintainers': maintainers})
-
-            except FileNotFoundError:
-                print('sig-info.yaml of %s is not exist. using owner file.' % dir)
-                # get maintainers
-                try:
-                    owner_file = self.sigs_dirs_path + '/' + dir + '/' + 'OWNERS'
-                    owners = yaml.load_all(open(owner_file), Loader=yaml.Loader).__next__()
-                    maintainers = owners['maintainers']
-                except FileNotFoundError:
-                    maintainers = []
-                action.update({'maintainers': maintainers})
-                action.update({'mailing_list': 'dev@openeuler.org'})
+                if self.get_repo_from_yaml(info, {}):
+                    committers_info = self.get_repo_from_yaml(info, {})[1]
+                    action.update({'committer_info': committers_info})
+                    committers = [user['gitee_id'] for user in committers_info]
+                    action.update({'committers': committers})
 
             # get maintainer sigs dict
             dt = defaultdict(dict)

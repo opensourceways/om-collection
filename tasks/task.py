@@ -75,7 +75,8 @@ BACKEND_MAPPING = {
     'company_location': 'data.combine.company_location.CompanyLocation',
     'ndcg': 'data.ndcg.Ndcg',
     'code_statistics': 'data.code_statistics.CodeStatistics',
-    'xihe_downoload': 'data.xihe_download.XiheDown'
+    'xihe_downoload': 'data.xihe_download.XiheDown',
+    'download_count': 'data.combine.download.DownloadCount'
 }
 
 
