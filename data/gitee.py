@@ -1015,6 +1015,10 @@ class Gitee(object):
             # ecomment.update(self.get_grimoire_fields(comment['updated_at'], REVIEW_COMMENT_TYPE))
             # due to backtrack compatibility, `is_gitee2_*` is replaced with `is_gitee_*`
 
+            if ecomment['body'].strip() in self.command:
+                ecomment['is_invalid_comment'] = 1
+                print(ecomment['body'])
+
             ecomment['is_gitee_{}'.format(REVIEW_COMMENT_TYPE)] = 1
             ecomment['is_gitee_comment'] = 1
 
