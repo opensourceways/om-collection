@@ -1017,7 +1017,6 @@ class Gitee(object):
 
             if ecomment['body'].strip() in self.command:
                 ecomment['is_invalid_comment'] = 1
-                print(ecomment['body'])
 
             ecomment['is_gitee_{}'.format(REVIEW_COMMENT_TYPE)] = 1
             ecomment['is_gitee_comment'] = 1
@@ -1413,7 +1412,6 @@ class Gitee(object):
 
             if ecomment['body'].strip() in self.command:
                 ecomment['is_invalid_comment'] = 1
-                print(ecomment['body'])
 
             if 'project' in eitem:
                 ecomment['project'] = eitem['project']
