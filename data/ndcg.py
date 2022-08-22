@@ -88,6 +88,7 @@ class Ndcg(object):
         self.push_to_es(dfg)
 
     def agg_func(self, df_agg):
+        df_agg['search_key'] = df_agg['search_key'].apply(lambda _: ','.join(_) if isinstance(_, list) else _)
         df = df_agg.drop_duplicates(keep='last', inplace=False)
         df.sort_values('created_at', inplace=True)
 
