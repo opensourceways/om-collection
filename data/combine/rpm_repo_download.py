@@ -122,7 +122,7 @@ class RpmRepoDownload(object):
         return download_indexes
 
     def getAllPrimaryXml(self):
-        cmd_rsync = '''rsync -a -v -r --include={'*primary.xml.gz','*/'} --exclude=* --partial --progress --delete %s %s''' % (
+        cmd_rsync = 'rsync -a -v -r --include=*primary.xml.gz --include=*/ --exclude=* --partial --progress --delete %s %s' % (
             self.rsync, self.rsync_local_path)
         if self.is_sync_update == 'true':
             files_pop = os.popen(cmd_rsync)
