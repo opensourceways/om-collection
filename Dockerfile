@@ -15,6 +15,8 @@ RUN apt-get update && \
     pip3 install google-api-python-client && \
     pip3 install --upgrade oauth2client
 
+RUN apt-get install -y rsync
+
 RUN wget -P /var/lib/ https://github.com/AlDanial/cloc/releases/download/v1.94/cloc-1.94.tar.gz && \
     cd /var/lib/ && \
     tar -zxvf cloc-1.94.tar.gz
