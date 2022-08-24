@@ -1787,6 +1787,7 @@ class Gitee(object):
                         user['user_name'] = user['name']
                         user['author_name'] = user['name']
                         user['org_name'] = self.orgs[index]
+                        user['gitee_repo'] = 'default'
                         userExtra = self.esClient.getUserInfo(user['login'], user['created_at'],
                                                               self.companyLocationDic)
                         user.update(userExtra)
