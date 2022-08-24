@@ -2331,16 +2331,23 @@ class ESClient(object):
                 "is_project_internal_user": u.get("_source").get("is_project_internal_user"),
                 "updated_at": u.get("_source").get("updated_at"),
                 "created_at": u.get("_source").get("created_at"),
-                "gitee_repo": u.get("_source").get("gitee_repo"),
                 "is_first" + key_prefix + key: 1
             }
             if "is_removed" in u.get("_source"):
                 user.update({"is_removed": 1})
-                org_name = self.getOrgNameByLogin(u.get("_source").get("user_login"), query, query_index_name)
+                org_name = self.getOrgNameByLogin(u.get("_source").get("user_login"),
+                                                  query, query_index_name, "org_name.keyword")
+                gitee_repo = self.getOrgNameByLogin(u.get("_source").get("user_login"),
+                                                    query, query_index_name, "gitee_repo.keyword")
                 user.update({"org_name": org_name})
+                user.update({"gitee_repo": gitee_repo})
             else:
-                org_name = self.getOrgNameByLogin(u.get("_source").get("user_login"), query_removed, query_index_name)
+                org_name = self.getOrgNameByLogin(u.get("_source").get("user_login"),
+                                                  query_removed, query_index_name, "org_name.keyword")
+                gitee_repo = self.getOrgNameByLogin(u.get("_source").get("user_login"),
+                                                    query_removed, query_index_name, "gitee_repo.keyword")
                 user.update({"org_name": org_name})
+                user.update({"gitee_repo": gitee_repo})
             if key:
                 gitee_id = key.split(".keyword")[0]
                 id = str(u["_source"].get(gitee_id)) + "_is" + key_prefix
@@ -2352,7 +2359,7 @@ class ESClient(object):
         self.safe_put_bulk(actions)
         print(key_prefix, 'collect over...')
 
-    def getOrgNameByLogin(self, login, query, query_index):
+    def getOrgNameByLogin(self, login, query, query_index, field):
         query_json = '''{
             "size": 0,
             "query": {
@@ -2376,7 +2383,7 @@ class ESClient(object):
             "aggs": {
                 "2": {
                     "terms": {
-                        "field": "org_name.keyword",
+                        "field": "%s",
                         "size": 10000,
                         "order": {
                             "_key": "desc"
@@ -2386,23 +2393,23 @@ class ESClient(object):
                     "aggs": {}
                 }
             }
-        }''' % (login, query)
+        }''' % (login, query, field)
         if query_index is None:
             query_index = self.index_name
         res = requests.get(self.getSearchUrl(index_name=query_index), data=query_json,
                            headers=self.default_headers, verify=False, timeout=60)
         if res.status_code != 200:
-            print("get org name By Key(%s), err=%s" % (login, res))
+            print("get field name By Key(%s), err=%s" % (login, res))
             return None
-        org_data = res.json()
-        buckets = org_data["aggregations"]["2"]["buckets"]
+        field_data = res.json()
+        buckets = field_data["aggregations"]["2"]["buckets"]
         if len(buckets) == 0:
             return None
-        orgs = []
+        fields = []
         for bucket in buckets:
-            orgs.append(bucket['key'])
+            fields.append(bucket['key'])
         # print('user contributed in orgs: ', orgs)
-        return orgs
+        return fields
 
     def scrollSearch(self, index_name, search=None, scroll_duration='1m', func=None):
         url = self.url + '/' + index_name + '/_search?scroll=' + scroll_duration
