@@ -637,3 +637,7 @@ class GiteeClient():
     def gitee_metrics(self, owner, repo):
         metric_url = self.urijoin(self.base_url, "repos", owner, repo, "git", "gitee_metrics")
         return self.fetch(metric_url, {})
+
+    def gitee_user(self, user):
+        url = self.urijoin(self.base_url, 'users', user)
+        return self.fetch(url)
