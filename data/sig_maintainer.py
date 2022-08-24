@@ -21,6 +21,7 @@ import yaml
 import subprocess
 
 from collections import defaultdict
+from collect.gitee import GiteeClient
 from data.common import ESClient
 from data.gitee import Gitee
 
@@ -466,13 +467,15 @@ class SigMaintainer(object):
                 # get maintainers
                 owner_file = self.sigs_dirs_path + '/' + dir + '/' + 'OWNERS'
                 owners = yaml.load_all(open(owner_file), Loader=yaml.Loader).__next__()
-                try:
-                    maintainers = owners['maintainers']
-                except FileNotFoundError:
-                    print('maintainers of %s is null.' % dir)
-                    maintainers = []
+                maintainers = owners['maintainers']
                 action.update({'maintainers': maintainers})
                 action.update({'mailing_list': 'dev@openeuler.org'})
+                action.update({'maintainer_info': self.attach_user_info(maintainers)})
+                try:
+                    committers = owners['committers']
+                    action.update({'committer_info': self.attach_user_info(committers)})
+                except KeyError:
+                    print('committers of %s is null.' % dir)
             except FileNotFoundError:
                 print('owner file of %s is not exist. using sig-info.yaml.' % dir)
                 sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
@@ -484,12 +487,13 @@ class SigMaintainer(object):
                 if 'mailing_list' in info and info['mailing_list'] is not None:
                     action.update({'mailing_list': info['mailing_list']})
                 if 'maintainers' in info and info['maintainers'] is not None:
-                    action.update({'maintainer_info': info['maintainers']})
+                    maintainer_list = info['maintainers']
+                    action.update({'maintainer_info': self.attach_user_info(maintainer_list)})
                     maintainers = [user['gitee_id'] for user in info['maintainers']]
                     action.update({'maintainers': maintainers})
                 if self.get_repo_from_yaml(info, {}):
                     committers_info = self.get_repo_from_yaml(info, {})[1]
-                    action.update({'committer_info': committers_info})
+                    action.update({'committer_info': self.attach_user_info(committers_info)})
                     committers = [user['gitee_id'] for user in committers_info]
                     action.update({'committers': committers})
 
@@ -505,3 +509,28 @@ class SigMaintainer(object):
             actions += json.dumps(action) + '\n'
         self.esClient.safe_put_bulk(actions)
         return dict_comb
+
+    def get_user_info(self, user):
+        if user is None:
+            return
+        client = GiteeClient(self.org, None, self.gitee_token)
+        res = client.gitee_user(user)
+        if res.status_code != 200:
+            return
+        user = res.json()
+        return user.get('avatar_url')
+
+    def attach_user_info(self, users):
+        if users is None or len(users) == 0:
+            return
+        user_list = []
+        for user in users:
+            try:
+                gitee_id = user.get('gitee_id')
+                user_dict = user
+            except AttributeError:
+                user_dict = {'gitee_id': user}
+            avatar_url = self.get_user_info(user_dict.get('gitee_id'))
+            user_dict.update({'avatar_url': avatar_url})
+            user_list.append(user_dict)
+        return user_list
