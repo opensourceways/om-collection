@@ -2335,16 +2335,16 @@ class ESClient(object):
             }
             if "is_removed" in u.get("_source"):
                 user.update({"is_removed": 1})
-                org_name = self.getOrgNameByLogin(u.get("_source").get("user_login"),
+                org_name = self.getFieldNameByLogin(u.get("_source").get("user_login"),
                                                   query, query_index_name, "org_name.keyword")
-                gitee_repo = self.getOrgNameByLogin(u.get("_source").get("user_login"),
+                gitee_repo = self.getFieldNameByLogin(u.get("_source").get("user_login"),
                                                     query, query_index_name, "gitee_repo.keyword")
                 user.update({"org_name": org_name})
                 user.update({"gitee_repo": gitee_repo})
             else:
-                org_name = self.getOrgNameByLogin(u.get("_source").get("user_login"),
+                org_name = self.getFieldNameByLogin(u.get("_source").get("user_login"),
                                                   query_removed, query_index_name, "org_name.keyword")
-                gitee_repo = self.getOrgNameByLogin(u.get("_source").get("user_login"),
+                gitee_repo = self.getFieldNameByLogin(u.get("_source").get("user_login"),
                                                     query_removed, query_index_name, "gitee_repo.keyword")
                 user.update({"org_name": org_name})
                 user.update({"gitee_repo": gitee_repo})
@@ -2359,7 +2359,7 @@ class ESClient(object):
         self.safe_put_bulk(actions)
         print(key_prefix, 'collect over...')
 
-    def getOrgNameByLogin(self, login, query, query_index, field):
+    def getFieldNameByLogin(self, login, query, query_index, field):
         query_json = '''{
             "size": 0,
             "query": {
