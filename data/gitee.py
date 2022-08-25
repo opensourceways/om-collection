@@ -1098,7 +1098,7 @@ class Gitee(object):
         rich_pr['time_to_close_days'] = \
             common.get_time_diff_days(pull_request['created_at'], pull_request['closed_at'])
 
-        if pull_request['state'] != 'closed':
+        if pull_request['state'] != 'closed' or pull_request['state'] != 'merged':
             rich_pr['time_open_days'] = \
                 common.get_time_diff_days(pull_request['created_at'],
                                           (common.datetime_utcnow() + datetime.timedelta(hours=8)).replace(tzinfo=None))
@@ -1157,11 +1157,11 @@ class Gitee(object):
         if self.invalid_pr_title and self.mark_invalid_pr_by_title(title=pull_request['title']):
             rich_pr['is_invalid_pr'] = 1
         rich_pr['pull_state'] = pull_request['state']
-        if (rich_pr['pull_state'] == 'open'):
+        if rich_pr['pull_state'] == 'open':
             rich_pr["is_pull_state_open"] = 1
-        elif (rich_pr['pull_state'] == 'closed'):
+        elif rich_pr['pull_state'] == 'closed':
             rich_pr["is_pull_state_closed"] = 1
-        elif (rich_pr['pull_state'] == 'merged'):
+        elif rich_pr['pull_state'] == 'merged':
             rich_pr["is_pull_state_merged"] = 1
         rich_pr['pull_created_at'] = pull_request['created_at']
         rich_pr['pull_updated_at'] = pull_request['updated_at']
