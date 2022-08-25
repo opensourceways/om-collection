@@ -61,7 +61,7 @@ class RpmRepoDownload(object):
                 for key, value in counter.items():
                     action = {
                         'repo': repo,
-                        'package_version': key,
+                        'package_version': key.lower(),
                         'download_count': value,
                         'created_at': date_str
                     }
