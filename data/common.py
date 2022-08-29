@@ -30,6 +30,8 @@ import dateutil.parser
 import dateutil.rrule
 import dateutil.tz
 import urllib3
+from dateutil.relativedelta import relativedelta
+
 from collect.gitee import GiteeClient
 from dateutil import parser
 from tzlocal import get_localzone
@@ -2010,85 +2012,171 @@ class ESClient(object):
     def splitMixDockerHub(self, from_date, count_key, query=None,
                           query_index_url=None, query_index_name=None, es_authorization=None):
         fromTime = datetime.strptime(from_date, "%Y%m%d")
-        to = datetime.strptime(datetime.today().strftime("%Y%m%d"), "%Y%m%d")
-
-        data_json = '''{
-                         "size": 0,
-                         "query": {
-                           "bool": {
-                             "filter": [
-                               {
-                                 "range": {
-                                   "metadata__updated_on": {
-                                     "gte": "%s",
-                                     "lte": "%s"
-                                   }
-                                 }
-                               },
-                               {
-                                 "query_string": {
-                                   "analyze_wildcard": true,
-                                   "query": "%s"
-                                 }
-                               }
-                             ]
-                           }
-                         },
-                         "aggs": {
-                           "2": {
-                             "date_histogram": {
-                               "interval": "1d",
-                               "field": "metadata__updated_on",
-                               "min_doc_count": 0
-                             },
-                             "aggs": {
-                               "maxCount": {
-                                 "max": {
-                                   "field": "%s"
-                                 }
-                               }
-                             }
-                           }
-                         }
-                       }''' % (fromTime.strftime("%Y-%m-%dT00:00:00+00:00"),
-                               to.strftime("%Y-%m-%dT23:59:59+00:00"), query, count_key)
-
-        _headers = {
-            'Content-Type': 'application/json',
-            'Authorization': es_authorization
-        }
-        res = self.request_get(self.getSearchUrl(query_index_url, query_index_name), data=data_json,
-                               headers=_headers)
-        if res.status_code != 200:
-            return {}
-        data = res.json()
-        buckets = data['aggregations']['2']['buckets']
+        to = datetime.today().strftime("%Y%m%d")
         time_count_dict = {}
-        for bucket in buckets:
-            timestamp = bucket['key']
-            max_count = bucket['maxCount']['value']
-            if max_count is None:
-                max_count = 0
-            time_count_dict.update({timestamp: max_count})
+        while fromTime.strftime("%Y%m%d") <= to:
+            create = fromTime.strftime("%Y-%m-%dT23:59:59+08:00")
+            if fromTime.strftime("%Y%m%d") == to:
+                create = fromTime.strftime("%Y-%m-%dT00:00:01+08:00")
+                print(fromTime)
+            data_json = '''{
+            "size": 0,
+            "query": {
+                "bool": {
+                    "filter": [
+                        {
+                            "range": {
+                                "metadata__updated_on": {
+                                    "lte": "%s"
+                                }
+                            }
+                        },
+                        {
+                            "query_string": {
+                                "analyze_wildcard": true,
+                                "query": "%s"
+                            }
+                        }
+                    ]
+                }
+            },
+            "aggs": {
+                "3": {
+                    "terms": {
+                        "field": "origin",
+                        "size": 10,
+                        "order": {
+                            "_key": "desc"
+                        },
+                        "min_doc_count": 1
+                    },
+                    "aggs": {
+                        "2": {
+                            "date_histogram": {
+                                "field": "metadata__updated_on",
+                                "format": "epoch_millis",
+                                "interval": "10000d"
+                            },
+                            "aggs": {
+                                "maxCount": {
+                                    "max": {
+                                        "field": "%s"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }''' % (fromTime.strftime("%Y-%m-%dT23:59:59+08:00"), query, count_key)
 
-        last_not_0_count = 0
-        count_dict = {}
-        for key, value in time_count_dict.items():
-            dt = time.strftime("%Y%m%d", time.localtime(key / 1000))
-            created_at = datetime.strptime(dt, "%Y%m%d").strftime("%Y-%m-%dT23:59:59+08:00")
-            if datetime.strptime(dt, "%Y%m%d") == to:
-                created_at = datetime.strptime(dt, "%Y%m%d").strftime("%Y-%m-%dT00:00:01+08:00")
+            _headers = {
+                'Content-Type': 'application/json',
+                'Authorization': es_authorization
+            }
+            res = self.request_get(self.getSearchUrl(query_index_url, query_index_name), data=data_json,
+                                   headers=_headers)
+            if res.status_code != 200:
+                return {}
+            data = res.json()
+            buckets_data = data['aggregations']['3']['buckets']
+            for bucket_data in buckets_data:
+                buckets = bucket_data['2']['buckets']
+                for bucket in buckets:
+                    max_count = bucket['maxCount']['value']
+                    if max_count is None:
+                        max_count = 0
+                    if create in time_count_dict:
+                        max_count += time_count_dict.get(create)
+                    time_count_dict.update({create: max_count})
+            fromTime += relativedelta(days=1)
 
-            before_value = time_count_dict.get(key - 86400000)
-            if value == 0 or before_value is None:
-                count_dict.update({created_at: value})
-            elif before_value != 0:
-                count_dict.update({created_at: value - before_value})
-                last_not_0_count = value
-            else:
-                count_dict.update({created_at: value - last_not_0_count})
+        # last_not_0_count = 0
+        # count_dict = {}
+        # res_dict = {}
+        # for key, value in time_count_dict.items():
+        #     dt = time.strftime("%Y%m%d", time.localtime(key / 1000))
+        #     created_at = datetime.strptime(dt, "%Y%m%d").strftime("%Y-%m-%dT23:59:59+08:00")
+        #     res_dict.update({created_at: value})
+        #     if datetime.strptime(dt, "%Y%m%d") == to:
+        #         created_at = datetime.strptime(dt, "%Y%m%d").strftime("%Y-%m-%dT00:00:01+08:00")
+        #
+        #     before_value = time_count_dict.get(key - 86400000)
+        #     if value == 0 or before_value is None:
+        #         count_dict.update({created_at: value})
+        #     elif before_value != 0:
+        #         count_dict.update({created_at: value - before_value})
+        #         last_not_0_count = value
+        #     else:
+        #         count_dict.update({created_at: value - last_not_0_count})
+        # print(res_dict)
+        return time_count_dict
 
-        return count_dict
+    def getTotalXiheDown(self, from_date, count_key, query=None, query_index_name=None):
+        fromTime = datetime.strptime(from_date, "%Y%m%d")
+        to = datetime.today().strftime("%Y%m%d")
+        query = '*' if query is None else query
+        time_count_dict = {}
+        while fromTime.strftime("%Y%m%d") <= to:
+            create = fromTime.strftime("%Y-%m-%dT23:59:59+08:00")
+            if fromTime.strftime("%Y%m%d") == to:
+                create = fromTime.strftime("%Y-%m-%dT00:00:01+08:00")
+            data_json = '''{
+            "size": 0,
+            "query": {
+                "bool": {
+                    "filter": [
+                        {
+                            "range": {
+                                "update_time": {
+                                    "lte": "%s"
+                                }
+                            }
+                        },
+                        {
+                            "query_string": {
+                                "analyze_wildcard": true,
+                                "query": "%s"
+                            }
+                        }
+                    ]
+                }
+            },
+
+            "aggs": {
+                "2": {
+                    "date_histogram": {
+                        "field": "update_time",
+                        "format": "epoch_millis",
+                        "interval": "10000d"
+                    },
+                    "aggs": {
+                        "maxCount": {
+                            "max": {
+                                "field": "%s"
+                            }
+                        }
+                    }
+                }
+            }
+
+        }''' % (fromTime.strftime("%Y-%m-%dT23:59:59+08:00"), query, count_key)
+
+            res = self.request_get(self.getSearchUrl(index_name=query_index_name), data=data_json,
+                                   headers=self.default_headers)
+            if res.status_code != 200:
+                return {}
+            data = res.json()
+            buckets = data['aggregations']['2']['buckets']
+            for bucket in buckets:
+                max_count = bucket['maxCount']['value']
+                if max_count is None:
+                    max_count = 0
+                if create in time_count_dict:
+                    max_count += time_count_dict.get(create)
+                time_count_dict.update({create: max_count})
+            fromTime += relativedelta(days=1)
+        return time_count_dict
 
     def getTotalCountMix(self, from_date, count_key,
                          field=None, query=None, key_prefix=None):
@@ -2098,12 +2186,9 @@ class ESClient(object):
 
         time_count_dict = {}
         while fromTime.strftime("%Y%m%d") <= to:
-            print(fromTime)
-
             created_at = fromTime.strftime("%Y-%m-%dT23:59:59+08:00")
             if fromTime.strftime("%Y%m%d") == to:
                 created_at = fromTime.strftime("%Y-%m-%dT00:00:01+08:00")
-
             c = self.getCountByTermDate(
                 field,
                 count_key,
@@ -2118,7 +2203,7 @@ class ESClient(object):
             fromTime = fromTime + timedelta(days=1)
         return time_count_dict
 
-    def writeMixDownload(self, time_count_dict, item):
+    def writeMixDownload(self, time_count_dict, item, oversea=None):
         actions = ''
         for key, value in time_count_dict.items():
             user = {
@@ -2127,6 +2212,9 @@ class ESClient(object):
                 "is_%s" % item: 1
             }
             id = key.split("T")[0] + item
+            if oversea is not None:
+                user.update(({"is_oversea": oversea}))
+                id = id + '_' + str(oversea)
             action = getSingleAction(self.index_name, id, user)
             actions += action
         self.safe_put_bulk(actions)
