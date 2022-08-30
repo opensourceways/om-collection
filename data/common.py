@@ -2018,7 +2018,6 @@ class ESClient(object):
             create = fromTime.strftime("%Y-%m-%dT23:59:59+08:00")
             if fromTime.strftime("%Y%m%d") == to:
                 create = fromTime.strftime("%Y-%m-%dT00:00:01+08:00")
-                print(fromTime)
             data_json = '''{
             "size": 0,
             "query": {
@@ -2090,26 +2089,6 @@ class ESClient(object):
                         max_count += time_count_dict.get(create)
                     time_count_dict.update({create: max_count})
             fromTime += relativedelta(days=1)
-
-        # last_not_0_count = 0
-        # count_dict = {}
-        # res_dict = {}
-        # for key, value in time_count_dict.items():
-        #     dt = time.strftime("%Y%m%d", time.localtime(key / 1000))
-        #     created_at = datetime.strptime(dt, "%Y%m%d").strftime("%Y-%m-%dT23:59:59+08:00")
-        #     res_dict.update({created_at: value})
-        #     if datetime.strptime(dt, "%Y%m%d") == to:
-        #         created_at = datetime.strptime(dt, "%Y%m%d").strftime("%Y-%m-%dT00:00:01+08:00")
-        #
-        #     before_value = time_count_dict.get(key - 86400000)
-        #     if value == 0 or before_value is None:
-        #         count_dict.update({created_at: value})
-        #     elif before_value != 0:
-        #         count_dict.update({created_at: value - before_value})
-        #         last_not_0_count = value
-        #     else:
-        #         count_dict.update({created_at: value - last_not_0_count})
-        # print(res_dict)
         return time_count_dict
 
     def getTotalXiheDown(self, from_date, count_key, query=None, query_index_name=None):
@@ -2203,7 +2182,7 @@ class ESClient(object):
             fromTime = fromTime + timedelta(days=1)
         return time_count_dict
 
-    def writeMixDownload(self, time_count_dict, item, oversea=None):
+    def writeMixDownload(self, time_count_dict, item, oversea=None, origin=None):
         actions = ''
         for key, value in time_count_dict.items():
             user = {
@@ -2212,9 +2191,16 @@ class ESClient(object):
                 "is_%s" % item: 1
             }
             id = key.split("T")[0] + item
-            if oversea is not None:
-                user.update(({"is_oversea": oversea}))
-                id = id + '_' + str(oversea)
+            if origin:
+                user.update({"is_%s" % origin: 1})
+                user.update({"origin": origin})
+                id = id + origin
+            if oversea and oversea == 'true':
+                user.update(({"is_oversea": 1}))
+                id = id + '_oversea'
+            else:
+                user.update(({"is_oversea": 0}))
+                id = id + '_not_oversea'
             action = getSingleAction(self.index_name, id, user)
             actions += action
         self.safe_put_bulk(actions)
