@@ -1655,9 +1655,11 @@ class ESClient(object):
         return max_id
 
     def getCountByTermDate(self, term=None, field=None, from_date=None, to_date=None,
-                           url=None, index_name=None, query=None, query_index_name=None):
+                           url=None, index_name=None, query=None, query_index_name=None, origin=None):
         if query:
-            if field:
+            if origin == 'qinghua':
+                agg_json = '''"aggs": {"2": {"sum": {"field": "%s"}}}''' % field
+            elif field:
                 agg_json = '''"aggs": {"2": {"terms": {"field": "%s","size": 100000,"min_doc_count": 1}}}''' % field
             else:
                 agg_json = '''"aggs": {"2": {"date_histogram": {"interval": "10000d","field": "created_at","min_doc_count": 0}}}'''
@@ -1771,10 +1773,11 @@ class ESClient(object):
             return None
 
         data = res.json()
-        # print(data)
         count = 0
         if query:
-            if not field:
+            if origin == 'qinghua':
+                count = data["aggregations"]["2"]["value"]
+            elif not field:
                 for bucket in data["aggregations"]["2"]["buckets"]:
                     count += bucket["doc_count"]
             else:
@@ -2015,10 +2018,7 @@ class ESClient(object):
         to = datetime.today().strftime("%Y%m%d")
         time_count_dict = {}
         while fromTime.strftime("%Y%m%d") <= to:
-            create = fromTime.strftime("%Y-%m-%dT23:59:59+08:00")
-            if fromTime.strftime("%Y%m%d") == to:
-                create = fromTime.strftime("%Y-%m-%dT00:00:01+08:00")
-                print(fromTime)
+            id_key = time.mktime(fromTime.timetuple()) * 1000
             data_json = '''{
             "size": 0,
             "query": {
@@ -2080,37 +2080,22 @@ class ESClient(object):
                 return {}
             data = res.json()
             buckets_data = data['aggregations']['3']['buckets']
+            fromTime += relativedelta(days=1)
+            if len(buckets_data) == 0:
+                time_count_dict.update({id_key: 0})
+                continue
             for bucket_data in buckets_data:
                 buckets = bucket_data['2']['buckets']
                 for bucket in buckets:
                     max_count = bucket['maxCount']['value']
                     if max_count is None:
                         max_count = 0
-                    if create in time_count_dict:
-                        max_count += time_count_dict.get(create)
-                    time_count_dict.update({create: max_count})
-            fromTime += relativedelta(days=1)
+                    if id_key in time_count_dict:
+                        max_count += time_count_dict.get(id_key)
+                    time_count_dict.update({id_key: max_count})
 
-        # last_not_0_count = 0
-        # count_dict = {}
-        # res_dict = {}
-        # for key, value in time_count_dict.items():
-        #     dt = time.strftime("%Y%m%d", time.localtime(key / 1000))
-        #     created_at = datetime.strptime(dt, "%Y%m%d").strftime("%Y-%m-%dT23:59:59+08:00")
-        #     res_dict.update({created_at: value})
-        #     if datetime.strptime(dt, "%Y%m%d") == to:
-        #         created_at = datetime.strptime(dt, "%Y%m%d").strftime("%Y-%m-%dT00:00:01+08:00")
-        #
-        #     before_value = time_count_dict.get(key - 86400000)
-        #     if value == 0 or before_value is None:
-        #         count_dict.update({created_at: value})
-        #     elif before_value != 0:
-        #         count_dict.update({created_at: value - before_value})
-        #         last_not_0_count = value
-        #     else:
-        #         count_dict.update({created_at: value - last_not_0_count})
-        # print(res_dict)
-        return time_count_dict
+        res_dict = self.get_day_download(time_count_dict, to)
+        return res_dict
 
     def getTotalXiheDown(self, from_date, count_key, query=None, query_index_name=None):
         fromTime = datetime.strptime(from_date, "%Y%m%d")
@@ -2118,9 +2103,7 @@ class ESClient(object):
         query = '*' if query is None else query
         time_count_dict = {}
         while fromTime.strftime("%Y%m%d") <= to:
-            create = fromTime.strftime("%Y-%m-%dT23:59:59+08:00")
-            if fromTime.strftime("%Y%m%d") == to:
-                create = fromTime.strftime("%Y-%m-%dT00:00:01+08:00")
+            id_key = time.mktime(fromTime.timetuple()) * 1000
             data_json = '''{
             "size": 0,
             "query": {
@@ -2168,18 +2151,44 @@ class ESClient(object):
                 return {}
             data = res.json()
             buckets = data['aggregations']['2']['buckets']
+            fromTime += relativedelta(days=1)
+            if len(buckets) == 0:
+                time_count_dict.update({id_key: 0})
+                continue
             for bucket in buckets:
                 max_count = bucket['maxCount']['value']
                 if max_count is None:
                     max_count = 0
-                if create in time_count_dict:
-                    max_count += time_count_dict.get(create)
-                time_count_dict.update({create: max_count})
-            fromTime += relativedelta(days=1)
-        return time_count_dict
+                if id_key in time_count_dict:
+                    max_count += time_count_dict.get(id_key)
+                time_count_dict.update({id_key: max_count})
+
+        res_dict = self.get_day_download(time_count_dict, to)
+        return res_dict
+
+    def get_day_download(self, time_count_dict, to):
+        last_not_0_count = 0
+        count_dict = {}
+        res_dict = {}
+        for key, value in time_count_dict.items():
+            dt = time.strftime("%Y%m%d", time.localtime(key / 1000))
+            created_at = datetime.strptime(dt, "%Y%m%d").strftime("%Y-%m-%dT23:59:59+08:00")
+            res_dict.update({created_at: value})
+            if dt == to:
+                created_at = datetime.strptime(dt, "%Y%m%d").strftime("%Y-%m-%dT00:00:01+08:00")
+            before_value = time_count_dict.get(key - 86400000)
+
+            if value == 0 or before_value is None:
+                count_dict.update({created_at: value})
+            elif before_value != 0:
+                count_dict.update({created_at: value - before_value})
+                last_not_0_count = value
+            else:
+                count_dict.update({created_at: value - last_not_0_count})
+        return count_dict
 
     def getTotalCountMix(self, from_date, count_key,
-                         field=None, query=None, key_prefix=None):
+                         field=None, query=None, origin=None):
         starTime = datetime.strptime(from_date, "%Y%m%d")
         fromTime = datetime.strptime(from_date, "%Y%m%d")
         to = datetime.today().strftime("%Y%m%d")
@@ -2192,18 +2201,19 @@ class ESClient(object):
             c = self.getCountByTermDate(
                 field,
                 count_key,
-                starTime.strftime("%Y-%m-%dT00:00:00+08:00"),
-                fromTime.strftime("%Y-%m-%dT23:59:59+08:00"),
+                fromTime.strftime("%Y-%m-%d"),
+                fromTime.strftime("%Y-%m-%d"),
                 index_name=self.index_name,
                 query_index_name=self.query_index_name,
-                query=query)
+                query=query,
+                origin=origin)
             if c is None:
                 c = 0
             time_count_dict.update({created_at: c})
             fromTime = fromTime + timedelta(days=1)
         return time_count_dict
 
-    def writeMixDownload(self, time_count_dict, item, oversea=None):
+    def writeMixDownload(self, time_count_dict, item, oversea=None, origin=None):
         actions = ''
         for key, value in time_count_dict.items():
             user = {
@@ -2212,9 +2222,16 @@ class ESClient(object):
                 "is_%s" % item: 1
             }
             id = key.split("T")[0] + item
-            if oversea is not None:
-                user.update(({"is_oversea": oversea}))
-                id = id + '_' + str(oversea)
+            if origin:
+                user.update({"is_%s" % origin: 1})
+                user.update({"origin": origin})
+                id = id + origin
+            if oversea and oversea == 'true':
+                user.update(({"is_oversea": 1}))
+                id = id + '_oversea'
+            else:
+                user.update(({"is_oversea": 0}))
+                id = id + '_not_oversea'
             action = getSingleAction(self.index_name, id, user)
             actions += action
         self.safe_put_bulk(actions)
