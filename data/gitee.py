@@ -725,7 +725,8 @@ class Gitee(object):
         if from_date is None:
             from_date = self.esClient.get_from_date(filters)
             if from_date is None:
-                from_date = common.str_to_datetime(self.config.get('from_data'))
+                from_date = common.str_to_datetime(self.config.get('f'
+                                                                   'rom_data'))
         else:
             from_date = common.str_to_datetime(from_date)
         return from_date
@@ -902,7 +903,7 @@ class Gitee(object):
                 if content.__contains__('please contact the owner in first: @'):
                     sub_str = content.split('please contact the owner in first: @')[1]
                     subs = sub_str.split(' ,\nand then any of the maintainers')[0]
-                    responsible = subs.split(' , @')
+                    responsible = subs.split(' ,@')
 
             if ec['user_login'] != eitem.get('user_login') and eitem.get('created_at') \
                     and ec['user_login'] not in self.robot_user_logins \
