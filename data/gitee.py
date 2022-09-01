@@ -132,13 +132,13 @@ class Gitee(object):
                 self.writeData(self.writeIssueSingleRepo, from_time)
                 self.writeData(self.writeRepoSingleRepo, from_time)
                 self.writeData(self.writeForkSingleRepo, from_time)
-            elif self.is_set_issue == 'true':
+            if self.is_set_issue == 'true':
                 self.writeData(self.writeIssueSingleRepo, from_time)
-            elif self.is_set_pr == 'true':
+            if self.is_set_pr == 'true':
                 self.writeData(self.writePullSingleRepo, from_time)
-            elif self.is_set_repo == 'true':
+            if self.is_set_repo == 'true':
                 self.writeData(self.writeRepoSingleRepo, from_time)
-            elif self.is_set_fork == 'true':
+            if self.is_set_fork == 'true':
                 self.writeData(self.writeForkSingleRepo, from_time)
 
             self.externalUpdateRepo()
