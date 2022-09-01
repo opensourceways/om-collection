@@ -281,7 +281,7 @@ class ESClient(object):
                 repos = source['repos']
                 dt = defaultdict(dict)
                 for repo in repos:
-                    dt.update({repo: [sig]})
+                    dt.update({repo.lower(): [sig]})
                 combined_keys = dict_comb.keys() | dt.keys()
                 dict_comb = {key: dict_comb.get(key, []) + dt.get(key, []) for key in combined_keys}
         return dict_comb
@@ -737,13 +737,12 @@ class ESClient(object):
                 }''' % (company, startTime, endTime, key)
                 self.updateByQuery(query=query.encode('utf-8'))
 
-    def tagRepoSigChanged(self, repo_sig_dict=None, orgs=None):
+    def tagRepoSigChanged(self, repo_sig_dict=None):
         if len(repo_sig_dict) == 0:
             return
         url = "https://gitee.com/"
-        for org in orgs:
-            if org == 'opengauss':
-                url = url + 'opengauss/'
+        if 'opengauss' in self.orgs:
+            url = url + 'opengauss/'
         for key in repo_sig_dict:
             gitee_repo = url + key
             sig_names = repo_sig_dict.get(key)

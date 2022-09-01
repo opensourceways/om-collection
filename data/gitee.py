@@ -153,7 +153,7 @@ class Gitee(object):
                 self.getSartUsersList()
 
             change_repo_sig_dic = self.get_change_repo_sig_dict()
-            self.esClient.tagRepoSigChanged(change_repo_sig_dic, self.orgs)
+            self.esClient.tagRepoSigChanged(change_repo_sig_dic)
             self.esClient.tagUserOrgChanged(self.companyLocationDic)
         endTime = time.time()
         spent_time = time.strftime("%H:%M:%S",
@@ -167,8 +167,11 @@ class Gitee(object):
             repo = str(gitee_repo).replace("https://gitee.com/", "")
 
             sig_names = ['No-SIG']
-            if repo in self.repo_sigs_dict:
-                sig_names = self.repo_sigs_dict.get(repo)
+            if repo.lower() in self.repo_sigs_dict:
+                sig_names = self.repo_sigs_dict.get(repo.lower)
+
+            if 'opengauss' in self.orgs:
+                sig_names = self.get_repo_sig('opengauss', repo)
 
             query = """{
   "script": {
@@ -261,13 +264,7 @@ class Gitee(object):
     def writeContributeForSingleRepo(self, org, repo, from_time=None):
         repo_name = repo['path']
         is_public = repo['public']
-        sig_names = ['No-SIG']
-        if org == 'opengauss':
-            key = repo_name
-        else:
-            key = org + '/' + repo_name
-        if key in self.repo_sigs_dict:
-            sig_names = self.repo_sigs_dict[key]
+        sig_names = self.get_repo_sig(org, repo_name)
 
         print('*****writeContributeForSingleRepo start: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
         print('*****writeContributeForSingleRepo start, there are', threading.activeCount(), 'threads running')
@@ -281,13 +278,7 @@ class Gitee(object):
     def writeForkSingleRepo(self, org, repo, from_time=None):
         repo_name = repo['path']
         is_public = repo['public']
-        sig_names = ['No-SIG']
-        if org == 'opengauss':
-            key = repo_name
-        else:
-            key = org + '/' + repo_name
-        if key in self.repo_sigs_dict:
-            sig_names = self.repo_sigs_dict[key]
+        sig_names = self.get_repo_sig(org, repo_name)
 
         print('*****writeForkSingleRepo start: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
         self.writeForks(org, repo_name, from_time, sig_names)
@@ -296,13 +287,7 @@ class Gitee(object):
     def writeRepoSingleRepo(self, org, repo, from_time=None):
         repo_name = repo['path']
         is_public = repo['public']
-        sig_names = ['No-SIG']
-        if org == 'opengauss':
-            key = repo_name
-        else:
-            key = org + '/' + repo_name
-        if key in self.repo_sigs_dict:
-            sig_names = self.repo_sigs_dict[key]
+        sig_names = self.get_repo_sig(org, repo_name)
 
         print('*****writeRepoData start: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
         self.writeRepoData(org, repo_name, from_time, sig_names)
@@ -311,13 +296,7 @@ class Gitee(object):
     def writePullSingleRepo(self, org, repo, from_time=None):
         repo_name = repo['path']
         is_public = repo['public']
-        sig_names = ['No-SIG']
-        if org == 'opengauss':
-            key = repo_name
-        else:
-            key = org + '/' + repo_name
-        if key in self.repo_sigs_dict:
-            sig_names = self.repo_sigs_dict[key]
+        sig_names = self.get_repo_sig(org, repo_name)
 
         print('*****writePullSingleRepo start: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
         self.writePullData(org, repo_name, is_public, from_time, self.once_update_num_of_pr, sig_names)
@@ -326,13 +305,7 @@ class Gitee(object):
     def writeIssueSingleRepo(self, org, repo, from_time=None):
         repo_name = repo['path']
         is_public = repo['public']
-        sig_names = ['No-SIG']
-        if org == 'opengauss':
-            key = repo_name
-        else:
-            key = org + '/' + repo_name
-        if key in self.repo_sigs_dict:
-            sig_names = self.repo_sigs_dict[key]
+        sig_names = self.get_repo_sig(org, repo_name)
 
         print('*****writeIssueSingleRepo start: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
         print('*****writeIssueSingleRepo start, there are', threading.activeCount(), 'threads running')
@@ -342,9 +315,7 @@ class Gitee(object):
 
     def writeSWForSingleRepo(self, org, repo, from_time=None):
         repo_name = repo['path']
-        sig_names = ['No-SIG']
-        if org + '/' + repo_name in self.repo_sigs_dict:
-            sig_names = self.repo_sigs_dict[org + '/' + repo_name]
+        sig_names = self.get_repo_sig(org, repo_name)
 
         self.writeStars(org, repo_name, sig_names)
         self.writeWatchs(org, repo_name, sig_names)
@@ -1829,3 +1800,13 @@ class Gitee(object):
                         user.update(userExtra)
                         action = common.getSingleAction(self.index_name_all[index], id, user)
                         self.esClient.safe_put_bulk(action)
+
+    def get_repo_sig(self, org, repo_name):
+        sig_names = ['No-SIG']
+        if org == 'opengauss':
+            key = repo_name
+        else:
+            key = org + '/' + repo_name
+        if key.lower() in self.repo_sigs_dict:
+            sig_names = self.repo_sigs_dict[key.lower()]
+        return sig_names
