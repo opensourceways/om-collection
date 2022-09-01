@@ -725,8 +725,7 @@ class Gitee(object):
         if from_date is None:
             from_date = self.esClient.get_from_date(filters)
             if from_date is None:
-                from_date = common.str_to_datetime(self.config.get('f'
-                                                                   'rom_data'))
+                from_date = common.str_to_datetime(self.config.get('from_data'))
         else:
             from_date = common.str_to_datetime(from_date)
         return from_date
