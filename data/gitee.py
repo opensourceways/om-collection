@@ -262,8 +262,12 @@ class Gitee(object):
         repo_name = repo['path']
         is_public = repo['public']
         sig_names = ['No-SIG']
-        if org + '/' + repo_name in self.repo_sigs_dict:
-            sig_names = self.repo_sigs_dict[org + '/' + repo_name]
+        if org == 'opengauss':
+            key = repo_name
+        else:
+            key = org + '/' + repo_name
+        if key in self.repo_sigs_dict:
+            sig_names = self.repo_sigs_dict[key]
 
         print('*****writeContributeForSingleRepo start: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
         print('*****writeContributeForSingleRepo start, there are', threading.activeCount(), 'threads running')
@@ -278,8 +282,12 @@ class Gitee(object):
         repo_name = repo['path']
         is_public = repo['public']
         sig_names = ['No-SIG']
-        if org + '/' + repo_name in self.repo_sigs_dict:
-            sig_names = self.repo_sigs_dict[org + '/' + repo_name]
+        if org == 'opengauss':
+            key = repo_name
+        else:
+            key = org + '/' + repo_name
+        if key in self.repo_sigs_dict:
+            sig_names = self.repo_sigs_dict[key]
 
         print('*****writeForkSingleRepo start: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
         self.writeForks(org, repo_name, from_time, sig_names)
@@ -289,8 +297,12 @@ class Gitee(object):
         repo_name = repo['path']
         is_public = repo['public']
         sig_names = ['No-SIG']
-        if org + '/' + repo_name in self.repo_sigs_dict:
-            sig_names = self.repo_sigs_dict[org + '/' + repo_name]
+        if org == 'opengauss':
+            key = repo_name
+        else:
+            key = org + '/' + repo_name
+        if key in self.repo_sigs_dict:
+            sig_names = self.repo_sigs_dict[key]
 
         print('*****writeRepoData start: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
         self.writeRepoData(org, repo_name, from_time, sig_names)
@@ -300,8 +312,12 @@ class Gitee(object):
         repo_name = repo['path']
         is_public = repo['public']
         sig_names = ['No-SIG']
-        if org + '/' + repo_name in self.repo_sigs_dict:
-            sig_names = self.repo_sigs_dict[org + '/' + repo_name]
+        if org == 'opengauss':
+            key = repo_name
+        else:
+            key = org + '/' + repo_name
+        if key in self.repo_sigs_dict:
+            sig_names = self.repo_sigs_dict[key]
 
         print('*****writePullSingleRepo start: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
         self.writePullData(org, repo_name, is_public, from_time, self.once_update_num_of_pr, sig_names)
@@ -311,8 +327,12 @@ class Gitee(object):
         repo_name = repo['path']
         is_public = repo['public']
         sig_names = ['No-SIG']
-        if org + '/' + repo_name in self.repo_sigs_dict:
-            sig_names = self.repo_sigs_dict[org + '/' + repo_name]
+        if org == 'opengauss':
+            key = repo_name
+        else:
+            key = org + '/' + repo_name
+        if key in self.repo_sigs_dict:
+            sig_names = self.repo_sigs_dict[key]
 
         print('*****writeIssueSingleRepo start: repo_name(%s), org(%s), thread num(%s) *****' % (repo_name, org, threading.currentThread().getName()))
         print('*****writeIssueSingleRepo start, there are', threading.activeCount(), 'threads running')
@@ -810,6 +830,8 @@ class Gitee(object):
             if self.sig_index:
                 eitem['pulls_signames'] = self.esClient.getRepoSigNames(self.sig_index, owner + "/" + repo)
                 eitem['sig_names'] = sig_names
+            if res_comment[2] and res_comment[2] != '':
+                eitem['responsible'] = res_comment[2]
             indexData = {"index": {"_index": self.index_name, "_id": eitem['id']}}
             actions += json.dumps(indexData) + '\n'
             actions += json.dumps(eitem) + '\n'
@@ -876,6 +898,8 @@ class Gitee(object):
                 print(e)
             issue_item['sig_names'] = sig_names
             index_id = 'issue_%s' % issue_item['id']
+            if res_comment[2] and res_comment[2] != '':
+                issue_item['responsible'] = res_comment[2]
             indexData = {"index": {"_index": self.index_name, "_id": index_id}}
             actions += json.dumps(indexData) + '\n'
             actions += json.dumps(issue_item) + '\n'
@@ -895,11 +919,21 @@ class Gitee(object):
         comment_times = []
         creator_comments = []
         commenter_comments = []
+        responsible = []
         last_reply_time = eitem.get('created_at')
         for ec in ecomments:
-            if ec['user_login'] is None or ec['user_login'] in self.skip_user:
+            if ec['user_login'] is None:  # or ec['user_login'] in self.skip_user:
                 continue
-            if ec['user_login'] != eitem.get('user_login') and eitem.get('created_at'):
+            if ec['user_login'] in self.robot_user_logins:
+                content = str(ec['body'])
+                if content.__contains__('please contact the owner in first: @'):
+                    sub_str = content.split('please contact the owner in first: @')[1]
+                    subs = sub_str.split(' ,\nand then any of the maintainers')[0]
+                    responsible = subs.split(' , @')
+
+            if ec['user_login'] != eitem.get('user_login') and eitem.get('created_at') \
+                    and ec['user_login'] not in self.robot_user_logins \
+                    and not ec['body'].startswith('/sig'):
                 comment_times.append(str(ec['created_at']))
 
             if ec['user_login'] == eitem.get('user_login'):
@@ -912,7 +946,7 @@ class Gitee(object):
                 commenter_comments.append(ec)
         actions += self.write_comment_by_role(commenter_comments, sig_names, id_str, role='commenter')
         actions += self.write_comment_by_role(creator_comments, sig_names, id_str, role='creator')
-        return actions, comment_times
+        return actions, comment_times, responsible
 
     def write_comment_by_role(self, comments, sig_names, id_str, role):
         index = 0

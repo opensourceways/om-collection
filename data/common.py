@@ -737,11 +737,15 @@ class ESClient(object):
                 }''' % (company, startTime, endTime, key)
                 self.updateByQuery(query=query.encode('utf-8'))
 
-    def tagRepoSigChanged(self, repo_sig_dict=None):
+    def tagRepoSigChanged(self, repo_sig_dict=None, orgs=None):
         if len(repo_sig_dict) == 0:
             return
+        url = "https://gitee.com/"
+        for org in orgs:
+            if org == 'opengauss':
+                url = url + 'opengauss/'
         for key in repo_sig_dict:
-            gitee_repo = "https://gitee.com/" + key
+            gitee_repo = url + key
             sig_names = repo_sig_dict.get(key)
             query_str = '''
             {{
