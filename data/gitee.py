@@ -833,7 +833,7 @@ class Gitee(object):
                 eitem['pulls_signames'] = self.esClient.getRepoSigNames(self.sig_index, owner + "/" + repo)
                 eitem['sig_names'] = sig_names
             if res_comment[2] and res_comment[2] != '':
-                eitem['responsible'] = res_comment[2]
+                eitem['responsible_user_login'] = res_comment[2]
             indexData = {"index": {"_index": self.index_name, "_id": eitem['id']}}
             actions += json.dumps(indexData) + '\n'
             actions += json.dumps(eitem) + '\n'
@@ -901,7 +901,7 @@ class Gitee(object):
             issue_item['sig_names'] = sig_names
             index_id = 'issue_%s' % issue_item['id']
             if res_comment[2] and res_comment[2] != '':
-                issue_item['responsible'] = res_comment[2]
+                issue_item['responsible_user_login'] = res_comment[2]
             indexData = {"index": {"_index": self.index_name, "_id": index_id}}
             actions += json.dumps(indexData) + '\n'
             actions += json.dumps(issue_item) + '\n'
