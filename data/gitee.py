@@ -153,7 +153,7 @@ class Gitee(object):
                 self.getSartUsersList()
 
             change_repo_sig_dic = self.get_change_repo_sig_dict()
-            self.esClient.tagRepoSigChanged(change_repo_sig_dic)
+            self.esClient.tagRepoSigChanged(change_repo_sig_dic, self.orgs)
             self.esClient.tagUserOrgChanged(self.companyLocationDic)
         endTime = time.time()
         spent_time = time.strftime("%H:%M:%S",
