@@ -107,7 +107,8 @@ class Gitee(object):
 
     def run(self, from_time):
         print("Collect gitee data: staring")
-        self.repo_sigs_dict = self.esClient.getRepoSigs()
+        repo_sigs_dict = self.esClient.getRepoSigs()
+        self.repo_sigs_dict = self.get_dict_key_lower(repo_sigs_dict)
         self.companyLocationDic = self.esClient.getCompanyLocationInfo()
         self.getGiteeId2Company()
 
@@ -1823,3 +1824,9 @@ class Gitee(object):
             if len(s.strip()) != 0:
                 responsible_list.append(s.strip())
         return responsible_list
+
+    def get_dict_key_lower(self, data_dict):
+        res = {}
+        for key in data_dict:
+            res.update({key.lower(): data_dict.get(key)})
+        return res
