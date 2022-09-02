@@ -803,7 +803,7 @@ class Gitee(object):
             if self.sig_index:
                 eitem['pulls_signames'] = self.esClient.getRepoSigNames(self.sig_index, owner + "/" + repo)
                 eitem['sig_names'] = sig_names
-            if res_comment[2] and res_comment[2] != '':
+            if res_comment[2]:
                 eitem['responsible_user_login'] = res_comment[2]
             indexData = {"index": {"_index": self.index_name, "_id": eitem['id']}}
             actions += json.dumps(indexData) + '\n'
@@ -871,7 +871,7 @@ class Gitee(object):
                 print(e)
             issue_item['sig_names'] = sig_names
             index_id = 'issue_%s' % issue_item['id']
-            if res_comment[2] and res_comment[2] != '':
+            if res_comment[2]:
                 issue_item['responsible_user_login'] = res_comment[2]
             indexData = {"index": {"_index": self.index_name, "_id": index_id}}
             actions += json.dumps(indexData) + '\n'
@@ -899,10 +899,7 @@ class Gitee(object):
                 continue
             if ec['user_login'] in self.robot_user_logins:
                 content = str(ec['body'])
-                if content.__contains__('please contact the owner in first: @'):
-                    sub_str = content.split('please contact the owner in first: @')[1]
-                    subs = sub_str.split(' ,\nand then any of the maintainers')[0]
-                    responsible = subs.split(' ,@')
+                responsible = self.get_responsible(content)
 
             if ec['user_login'] != eitem.get('user_login') and eitem.get('created_at') \
                     and ec['user_login'] not in self.robot_user_logins \
@@ -1810,3 +1807,19 @@ class Gitee(object):
         if key.lower() in self.repo_sigs_dict:
             sig_names = self.repo_sigs_dict[key.lower()]
         return sig_names
+
+    def get_responsible(self, content):
+        if not content.__contains__('please contact the owner in first:'):
+            return
+        sub_str = content.split('please contact the owner in first:')[1]
+        subs = sub_str.split('and then any of the maintainers')[0]
+        responsible = subs.split('@')
+        res_list = []
+        for r in responsible:
+            rs = r.split(',')
+            res_list.extend(rs)
+        responsible_list = []
+        for s in res_list:
+            if len(s.strip()) != 0:
+                responsible_list.append(s.strip())
+        return responsible_list
