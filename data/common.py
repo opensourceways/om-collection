@@ -281,7 +281,7 @@ class ESClient(object):
                 repos = source['repos']
                 dt = defaultdict(dict)
                 for repo in repos:
-                    dt.update({repo.lower(): [sig]})
+                    dt.update({repo: [sig]})
                 combined_keys = dict_comb.keys() | dt.keys()
                 dict_comb = {key: dict_comb.get(key, []) + dt.get(key, []) for key in combined_keys}
         return dict_comb
