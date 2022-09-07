@@ -1183,6 +1183,7 @@ class Gitee(object):
         labels = []
         [labels.append(label['name']) for label in pull_request['labels'] if 'labels' in pull_request]
         rich_pr['pull_labels'] = labels
+        rich_pr['tag_sig_names'] = self.get_tag_sig(labels)
 
         rich_pr['item_type'] = PULL_TYPE
 
@@ -1335,6 +1336,7 @@ class Gitee(object):
         labels = []
         [labels.append(label['name']) for label in issue['labels'] if 'labels' in issue]
         rich_issue['issue_labels'] = labels
+        rich_issue['tag_sig_names'] = self.get_tag_sig(labels)
 
         rich_issue['item_type'] = ISSUE_TYPE
         rich_issue['issue_pull_request'] = True
@@ -1830,3 +1832,10 @@ class Gitee(object):
         for key in data_dict:
             res.update({key.lower(): data_dict.get(key)})
         return res
+
+    def get_tag_sig(self, labels):
+        for label in labels:
+            if label.startswith('sig/'):
+                sig = label.split('/')[1]
+                return sig
+        return
