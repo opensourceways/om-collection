@@ -281,15 +281,13 @@ class GiteeScore(object):
 
     def get_score_from_comment_content(self, comment_content):
         comment_line = comment_content.split('\n')[0].split('\r')[0]
-        score = None
         # split by either Chinese or English colon.
         try:
             score_str = re.split('\uff1a|:', comment_line)[1].strip()
+            score = float(score_str)
         except Exception as exp:
             print(f'Cannot parse comment_content: {comment_content}')
-            return score
-
-        score = float(score_str)
+            return
         return score
 
     def is_docDebug_issue(self, title, issue_type):
