@@ -304,6 +304,16 @@ class GithubClient(object):
         self.get_data(url=url, params=params, current_page=1, datas=datas)
         return datas
 
+    def git_search_repo(self, repo):
+        url = self.urijoin(BASE_URL, 'search', 'repositories')
+        params = {
+            'q': repo,
+            'per_page': MAX_CATEGORY_ITEMS_PER_PAGE,
+        }
+        datas = []
+        self.get_data(url=url, params=params, current_page=1, datas=datas)
+        return datas
+
     def get_pr_review(self, owner, repo, pr_num):
         url = self.urijoin(BASE_URL, 'repos', owner, repo, 'pulls', pr_num, 'reviews')
         params = {
