@@ -641,3 +641,12 @@ class GiteeClient():
     def gitee_user(self, user):
         url = self.urijoin(self.base_url, 'users', user)
         return self.fetch(url)
+
+    def gitee_search_repo(self, repo):
+        url = self.urijoin('search', 'repositories')
+        payload = {
+            'q': repo,
+            'per_page': PER_PAGE,
+            'access_token': self.access_token
+        }
+        return self.fetch_items(url, payload)
