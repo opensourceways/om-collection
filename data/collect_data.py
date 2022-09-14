@@ -901,6 +901,8 @@ class CollectData(object):
 
         for info in infos:
             reponame = info['path']
+            if info['public'] is not True:
+                continue
             url = info['html_url']
             gitpath = self.sigs_dir + reponame
             if not os.path.exists(gitpath):
@@ -924,9 +926,9 @@ class CollectData(object):
                 rs2.append('\n'.join(ownerslist[n2:]))
 
                 onwer_file = gitpath + '/' + 'OWNERS'
-                onwers = yaml.load_all(open(onwer_file)).__next__()
-            except:
-                print(traceback.format_exc())
+                onwers = yaml.load_all(open(onwer_file), Loader=yaml.Loader).__next__()
+            except FileNotFoundError:
+                print('OWNER file of %s is not exist' % reponame)
                 continue
 
             datas = ''
@@ -951,8 +953,7 @@ class CollectData(object):
             times_onwer = None
             for r in rs2:
                 if re.search(r'\+\s*-\s*%s' % onwer, r):
-                    a = r.split("Date:   ")[1]
-                    date = re.split(r" [+|-]\d{4}", a)[0]
+                    date = re.search(r'Date:\s*(.*)\n', r).group(1)
                     time_struct = time.strptime(date, '%a %b %d %H:%M:%S %Y')
                     times_onwer = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
 
