@@ -1888,6 +1888,7 @@ class ESClient(object):
         if response.status_code != 200:
             return None
 
+    @globalExceptionHandler
     def getLocationByIP(self, ip):
         # initLocationGeoIPIndex()
         payload = "{\n\t\"ip\": \"%s\"\n}" % ip
@@ -2115,7 +2116,7 @@ class ESClient(object):
                         {
                             "range": {
                                 "update_time": {
-                                    "lte": "%s"
+                                    "gte": "%s"
                                 }
                             }
                         },
@@ -2146,7 +2147,7 @@ class ESClient(object):
                 }
             }
 
-        }''' % (fromTime.strftime("%Y-%m-%dT23:59:59+08:00"), query, count_key)
+        }''' % (fromTime.strftime("%Y-%m-%dT00:00:00+08:00"), query, count_key)
 
             res = self.request_get(self.getSearchUrl(index_name=query_index_name), data=data_json,
                                    headers=self.default_headers)

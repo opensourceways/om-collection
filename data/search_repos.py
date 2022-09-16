@@ -5,6 +5,7 @@
 #  Proin dapibus sapien vel ante. Aliquam erat volutpat. Pellentesque sagittis ligula eget metus.
 #  Vestibulum commodo. Ut rhoncus gravida arcu.
 import json
+import datetime
 
 from collect.gitee import GiteeClient
 from collect.github import GithubClient
@@ -43,11 +44,13 @@ class SearchRepos(object):
         datas = []
         client = GithubClient(org=None, repository=None, token=self.github_token)
         repos = client.git_search_repo(name)
+        total_count = 0
         for repo in repos:
+            total_count = repo.get('total_count')
             datas.extend(repo.get('items'))
-        self.write_repos(name, datas, 'github', self.index_name_github)
+        self.write_repos(name, datas, 'github', self.index_name_github, total_count)
 
-    def write_repos(self, search, datas, platform, index_name):
+    def write_repos(self, search, datas, platform, index_name, total_count=None):
         actions = ''
         for data in datas:
             repo_detail = {
@@ -68,4 +71,20 @@ class SearchRepos(object):
             index_data = {"index": {"_index": index_name, "_id": index_id}}
             actions += json.dumps(index_data) + '\n'
             actions += json.dumps(repo_detail) + '\n'
+        if platform == 'gitee':
+            total_count = len(datas)
+
+        now_date = datetime.date.today()
+        created_at = now_date.strftime("%Y-%m-%dT08:00:00+08:00")
+        index_id = platform + '_' + search + '_total' + now_date.strftime("%Y%m%d")
+        action = {
+            "total_count": total_count,
+            "search": search,
+            "is_total_count": 1,
+            "is_{}_repo".format(platform): 1,
+            "created_at": created_at
+        }
+        index_data = {"index": {"_index": index_name, "_id": index_id}}
+        actions += json.dumps(index_data) + '\n'
+        actions += json.dumps(action) + '\n'
         self.esClient.safe_put_bulk(actions)
