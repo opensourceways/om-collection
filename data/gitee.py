@@ -1018,7 +1018,8 @@ class Gitee(object):
             # ecomment.update(self.get_grimoire_fields(comment['updated_at'], REVIEW_COMMENT_TYPE))
             # due to backtrack compatibility, `is_gitee2_*` is replaced with `is_gitee_*`
 
-            if ecomment['body'].strip() in self.command:
+            # if ecomment['body'].strip() in self.command:
+            if self.is_invalid_comment(ecomment['body'].strip()):
                 ecomment['is_invalid_comment'] = 1
 
             ecomment['is_gitee_{}'.format(REVIEW_COMMENT_TYPE)] = 1
@@ -1415,7 +1416,8 @@ class Gitee(object):
             ecomment['is_gitee_{}'.format(ISSUE_COMMENT_TYPE)] = 1
             ecomment['is_gitee_comment'] = 1
 
-            if ecomment['body'].strip() in self.command:
+            # if ecomment['body'].strip() in self.command:
+            if self.is_invalid_comment(ecomment['body'].strip()):
                 ecomment['is_invalid_comment'] = 1
 
             if 'project' in eitem:
@@ -1839,3 +1841,14 @@ class Gitee(object):
                 sig = label.split('/')[1]
                 return sig
         return
+
+    def is_invalid_comment(self, body):
+        if not body.startswith('/'):
+            return
+        strs = body[1:].split('/')
+        for s in strs:
+            s = s.replace('\n', '')
+            if s.strip() not in self.command:
+                return
+        return True
+
