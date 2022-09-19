@@ -153,7 +153,7 @@ class CodeStatistics(object):
             try:
                 print('*** branch : %s' % branch)
                 # 清理未追踪文件
-                cmd_clean = 'cd %s;git clean -f -d -x' % repo_path
+                cmd_clean = 'cd %s;git clean -f -df -x' % repo_path
                 os.system(cmd_clean)
                 print('*** git clean success ***')
 
@@ -181,7 +181,7 @@ class CodeStatistics(object):
                 action['obs_version'] = branch
 
                 # 删除解压文件
-                cmd_clean = 'cd %s;git clean -f -d -x' % repo_path
+                cmd_clean = 'cd %s;git clean -f -df -x' % repo_path
                 os.system(cmd_clean)
                 print('*** git clean decompress file success ***')
 
@@ -203,7 +203,7 @@ class CodeStatistics(object):
             except Exception:
                 traceback.print_exc()
                 # 删除解压文件
-                cmd_clean = 'cd %s;git clean -f -d -x' % repo_path
+                cmd_clean = 'cd %s;git clean -f -df -x' % repo_path
                 os.system(cmd_clean)
                 print('*** git clean when statistics fail ***')
                 print('*** statistics_code_of_version fail : %s/%s' % (owner, repo))
@@ -228,7 +228,7 @@ class CodeStatistics(object):
             git_repo.git.checkout(default_branch)
 
             # 清理未追踪文件
-            cmd_clean = 'cd %s;git clean -f -d -x' % repo_path
+            cmd_clean = 'cd %s;git clean -f -df -x' % repo_path
             os.system(cmd_clean)
             print('*** git clean success ***')
 
@@ -263,7 +263,7 @@ class CodeStatistics(object):
         except Exception:
             traceback.print_exc()
             # 清理未追踪文件
-            cmd_clean = 'cd %s;git clean -f -d -x' % repo_path
+            cmd_clean = 'cd %s;git clean -f -df -x' % repo_path
             os.system(cmd_clean)
             print('*** git clean when statistics fail ***')
             print('**** statistics_code_of_repo fail : %s/%s' % (owner, repo))
@@ -397,6 +397,10 @@ class CodeStatistics(object):
     def decompress(self, path):
         root, dirs, files = os.walk(path).__next__()
 
+        temp_path = '%s/decompress_temp' % path
+        cmd_tar = 'cd %s;mkdir decompress_temp' % path
+        os.system(cmd_tar)
+
         def check_tar_file(s):
             return s.endswith(".tar.gz") or s.endswith(".tar.xz") or s.endswith(".tar.bz2") \
                    or s.endswith(".tar_2.gz") or s.endswith(".tgz") or s.endswith(".tar.z") \
@@ -410,21 +414,27 @@ class CodeStatistics(object):
 
         tar_files = list(filter(check_tar_file, files))
         for file in tar_files:
-            cmd_tar = 'cd %s;tar -xvf %s' % (path, file)
+            cmd_cp = 'cp %s/%s %s' % (path, file, temp_path)
+            os.system(cmd_cp)
+            cmd_tar = 'cd %s;tar -xf %s' % (temp_path, file)
             os.system(cmd_tar)
-            print('*** decompress tar file : %s/%s' % (path, file))
+            print('*** decompress tar file : %s/%s' % (temp_path, file))
 
         zip_files = list(filter(check_zip_file, files))
         for file in zip_files:
-            cmd_tar = 'cd %s;unzip -o %s' % (path, file)
+            cmd_cp = 'cp %s/%s %s' % (path, file, temp_path)
+            os.system(cmd_cp)
+            cmd_tar = 'cd %s;unzip -o %s' % (temp_path, file)
             os.system(cmd_tar)
-            print('*** decompress zip file : %s/%s' % (path, file))
+            print('*** decompress zip file : %s/%s' % (temp_path, file))
 
         gz_files = list(filter(check_gz_file, files))
         for file in gz_files:
-            cmd_tar = 'cd %s;gzip -d %s' % (path, file)
+            cmd_cp = 'cp %s/%s %s' % (path, file, temp_path)
+            os.system(cmd_cp)
+            cmd_tar = 'cd %s;gzip -d %s' % (temp_path, file)
             os.system(cmd_tar)
-            print('*** decompress gz file : %s/%s' % (path, file))
+            print('*** decompress gz file : %s/%s' % (temp_path, file))
 
     # 标记数据是否是最近更新
     def tagLastUpdateAt(self, index, query_str):

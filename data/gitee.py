@@ -1019,7 +1019,8 @@ class Gitee(object):
             # due to backtrack compatibility, `is_gitee2_*` is replaced with `is_gitee_*`
 
             # if ecomment['body'].strip() in self.command:
-            if ecomment['body'] and self.is_invalid_comment(ecomment['body'].strip()):
+            if self.is_invalid_comment(ecomment['body'].strip()):
+            if self.command is not None and ecomment['body'].strip() in self.command:
                 ecomment['is_invalid_comment'] = 1
 
             ecomment['is_gitee_{}'.format(REVIEW_COMMENT_TYPE)] = 1
@@ -1416,8 +1417,7 @@ class Gitee(object):
             ecomment['is_gitee_{}'.format(ISSUE_COMMENT_TYPE)] = 1
             ecomment['is_gitee_comment'] = 1
 
-            # if ecomment['body'].strip() in self.command:
-            if ecomment['body'] and self.is_invalid_comment(ecomment['body'].strip()):
+            if self.command is not None and ecomment['body'].strip() in self.command:
                 ecomment['is_invalid_comment'] = 1
 
             if 'project' in eitem:

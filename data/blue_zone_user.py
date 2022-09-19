@@ -54,6 +54,8 @@ class BlueZoneUser(object):
         for user in self.users:
             print('******* %s *******' % user['name'])
             self.user = user
+            emails = ';'.join(user['emails'])
+            user['emails'] = emails
             self.user.__delitem__('created_at')
             if user['gitee_id'] is not None and user['gitee_id'] != '':
                 self.get_pr_gitee()
@@ -331,49 +333,55 @@ class BlueZoneUser(object):
 
     def get_commit(self, indexs_str):
         indexs = str(indexs_str).split(";")
-        search = '''{
-                      "size": 200,
-                      "_source": {
-                        "includes": [
-                          "created_at",
-                          "add",
-                          "remove",
-                          "repo",
-                          "commit_id"
-                        ]
-                      },
-                      "query": {
-                        "bool": {
-                          "must": [
-                            {
-                              "match": {
-                                "email.keyword": "%s"
-                              }
-                            },
-                            {
-                              "term": {
-                                "is_merge": 0
-                              }
-                            },
-                            {
-                              "range": {
-                                "created_at": {
-                                  "gte": "%s",
-                                  "lte": "%s"
+        emails_str = self.user['emails']
+        emails = emails_str.split(";")
+        for email in emails:
+            search = '''{
+                          "size": 200,
+                          "_source": {
+                            "includes": [
+                              "created_at",
+                              "add",
+                              "remove",
+                              "repo",
+                              "commit_id",
+                              "email"
+                            ]
+                          },
+                          "query": {
+                            "bool": {
+                              "must": [
+                                {
+                                  "match": {
+                                    "email.keyword": "%s"
+                                  }
+                                },
+                                {
+                                  "term": {
+                                    "is_merge": 0
+                                  }
+                                },
+                                {
+                                  "range": {
+                                    "created_at": {
+                                      "gte": "%s",
+                                      "lte": "%s"
+                                    }
+                                  }
                                 }
-                              }
+                              ]
                             }
-                          ]
-                        }
-                      }
-                    }''' % (self.user['emails'].strip(), self.startTime, self.endTime)
-        for index in indexs:
-            self.esClient.scrollSearch(index_name=index, search=search, func=self.commit_func)
+                          }
+                        }''' % (email.strip(), self.startTime, self.endTime)
+            for index in indexs:
+                self.esClient.scrollSearch(index_name=index, search=search, func=self.commit_func)
+        self.user['emails'] = emails_str
 
     def commit_func(self, hits):
         actions = ''
         for hit in hits:
             source = hit['_source']
+            self.user['emails'] = source['email']
             repo_data = {
                 'created_at': source['created_at'],
                 'commit_id': source['commit_id'],
