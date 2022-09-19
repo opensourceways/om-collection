@@ -78,9 +78,18 @@ class GitHubPrIssue(object):
         print('****** Start collection repos of org ******')
         client = GithubClient(org=self.org, repository=None, token=self.github_token)
         repos = client.get_repos(org=self.org)
+        original_data_ids = self.updateRemovedData(repos, 'repo', [
+            {
+                "name": "is_github_repo",
+                "value": 1
+            }], 
+            matchs_not=[{"name": "is_removed", "value": "1"}]
+        )
         actions = ''
         for repo in repos:
             self.repos_name.append(repo['name'])
+            if len(original_data_ids) != 0 and repo['id'] in original_data_ids:
+                continue
             repo_data = {
                 'repo_id': repo['id'],
                 'name': repo['name'],
@@ -511,6 +520,44 @@ class GitHubPrIssue(object):
             actions += json.dumps(fork_data) + '\n'
         self.esClient.safe_put_bulk(actions)
         print('****** Finish collection forks of repo, repo=%s, pr_count=%i ******' % (repo, len(forks)))
+
+    def updateRemovedData(self, newdata, type, matches, matchs_not=None):
+        original_ids = []
+        if newdata is None or not isinstance(newdata, list):
+            return original_ids
+        data = self.esClient.getItemsByMatchs(matches, size=10000, matchs_not=matchs_not)
+        newdataids = []
+        if not data:
+            return original_ids
+        data_num = data['hits']['total']['value']
+        original_datas = data['hits']['hits']
+        if type == 'fork':
+            print("%s original %s num is (%d), The current %s num is (%d)" % (
+                type, type, data_num, type, len(data)))
+            newdataids = newdata
+        else:
+            for d in newdata:
+                newdataids.append(d['id'])
+        if data_num == len(newdata):
+            return original_ids
+
+        for ordata in original_datas:
+            if type != "pr":
+                db_id_key = type + "_id"
+            else:
+                db_id_key = "pull_id"
+
+            if type in ['star', 'watch']:
+                db_id = int(ordata['_source'][db_id_key].split(type)[1])
+            else:
+                db_id = ordata['_source'][db_id_key]
+
+            original_ids.append(db_id)
+            if db_id not in newdataids:
+                print("[update] set {}({}) is_removed to 1".format(type, db_id))
+                self.esClient.updateToRemoved(ordata['_id'])
+
+        return original_ids
 
     @staticmethod
     def format_time_z(time_str):
