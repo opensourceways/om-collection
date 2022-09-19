@@ -19,24 +19,32 @@ class XiheDown(object):
         self.config = config
         self.index_name = config.get('index_name')
         self.token = config.get('token')
+        self.count_type = config.get('count_type')
 
         self.esClient = ESClient(config)
         self.session = requests.Session()
         self.headers = {'Content-Type': 'application/json'}
 
     def run(self, start=None):
-        self.get_download()
+        if self.count_type:
+            # types = self.count_type.split(',')
+            for count_type in self.count_type.split(','):
+                self.get_download(count_type)
 
-    def get_download(self):
+    def get_download(self, count_type):
         pw = base64.b64decode(self.token).decode('utf-8')
-        payload = {"password": pw}
+        payload = {
+            "password": pw,
+            "request_type": count_type
+        }
         actions = ''
         response = requests.post(API_URL, data=json.dumps(payload), headers=self.headers, verify=False)
         if response.status_code == 200:
             data = response.json().get('data')
             update_time = response.json().get('data').get('update_time')
 
-            index_data = {"index": {"_index": self.index_name, "_id": update_time}}
+            index_data = {"index": {"_index": self.index_name, "_id": count_type + update_time}}
             actions += json.dumps(index_data) + '\n'
             actions += json.dumps(data) + '\n'
+            print(actions)
             self.esClient.safe_put_bulk(actions)
