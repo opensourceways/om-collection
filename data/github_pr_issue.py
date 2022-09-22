@@ -40,6 +40,7 @@ class GitHubPrIssue(object):
         self.is_write_page = config.get('is_write_page')
         self.from_page = config.get('from_page')
         self.end_page = config.get('end_page')
+        self.label_removed_swf = config.get('label_removed_swf', 'false')
 
     def run(self, from_date):
         print('Start collection github pr/issue/swf')
@@ -65,6 +66,8 @@ class GitHubPrIssue(object):
                     self.write_issue_pre(client=client, repo=repo)
                 else:
                     self.write_issue(client=client, repo=repo)
+            if self.label_removed_swf == 'true':
+                self.tag_removed_swf(client)
             if self.is_set_star == 'true':
                 self.write_star(client=client, repo=repo)
             if self.is_set_watch == 'true':
@@ -78,18 +81,9 @@ class GitHubPrIssue(object):
         print('****** Start collection repos of org ******')
         client = GithubClient(org=self.org, repository=None, token=self.github_token)
         repos = client.get_repos(org=self.org)
-        original_data_ids = self.updateRemovedData(repos, 'repo', [
-            {
-                "name": "is_github_repo",
-                "value": 1
-            }], 
-            matchs_not=[{"name": "is_removed", "value": "1"}]
-        )
         actions = ''
         for repo in repos:
             self.repos_name.append(repo['name'])
-            if len(original_data_ids) != 0 and repo['id'] in original_data_ids:
-                continue
             repo_data = {
                 'repo_id': repo['id'],
                 'name': repo['name'],
@@ -375,7 +369,7 @@ class GitHubPrIssue(object):
                 comments_data = {
                     'issue_id': issue['id'],
                     'issue_number': issue_num,
-                    'id': comment['id'],
+                    'comment_id': comment['id'],
                     'user_id': comment_user_id,
                     'user_login': comment_user_login,
                     'html_url': comment['html_url'],
@@ -483,12 +477,13 @@ class GitHubPrIssue(object):
                 # 'node_id': user['node_id'],
                 # 'html_url': user['html_url'],
                 # 'site_admin': user['site_admin'],
-                # 'github_repo': self.org + '/' + repo,
-                'is_github_star': 1,
+                'github_repo': self.org + '/' + repo,
+                'user_id': watch['id'],
+                'is_github_watch': 1,
                 'is_github_account': 1,
                 'is_project_internal_user': 0,
             }
-            index_id = 'watch_' + repo + '_' + str("user['id']")
+            index_id = 'watch_' + repo + '_' + str(watch['id'])
             index_data = {"index": {"_index": self.index_name, "_id": index_id}}
             actions += json.dumps(index_data) + '\n'
             actions += json.dumps(watch_data) + '\n'
@@ -507,6 +502,7 @@ class GitHubPrIssue(object):
                 'html_url': fork['html_url'],
                 'user_login': user['login'],
                 'user_id': user['id'],
+                'fork_id': fork['id'],
                 'node_id': user['node_id'],
                 'site_admin': user['site_admin'],
                 'github_repo': self.org + '/' + repo,
@@ -521,7 +517,7 @@ class GitHubPrIssue(object):
         self.esClient.safe_put_bulk(actions)
         print('****** Finish collection forks of repo, repo=%s, pr_count=%i ******' % (repo, len(forks)))
 
-    def updateRemovedData(self, newdata, type, matches, matchs_not=None):
+    def updateRemovedData(self, newdata, type, matches, matchs_not=None, repo=None):
         original_ids = []
         if newdata is None or not isinstance(newdata, list):
             return original_ids
@@ -531,33 +527,108 @@ class GitHubPrIssue(object):
             return original_ids
         data_num = data['hits']['total']['value']
         original_datas = data['hits']['hits']
-        if type == 'fork':
-            print("%s original %s num is (%d), The current %s num is (%d)" % (
-                type, type, data_num, type, len(data)))
-            newdataids = newdata
-        else:
-            for d in newdata:
+        for d in newdata:
+            if type == 'star':  # star watch数据都只有用户id，只能使用type_仓库_用户id来进行区分
+                user_id = d['user']['id']
+                newdataids.append('_'.join([type, repo, str(user_id)]))
+            elif type == 'watch':
+                newdataids.append('_'.join([type, repo, str(d['id'])]))
+            else:
                 newdataids.append(d['id'])
-        if data_num == len(newdata):
+        if data_num == len(newdata): # 旧数据条数等于新数据条数时认为没有变化
             return original_ids
 
         for ordata in original_datas:
-            if type != "pr":
+            if type == "pr":
+                db_id = ordata['_source']["pull_id"]
+            elif type == 'star' or type == 'watch':
+                db_id = ordata['_id']
+            else:
                 db_id_key = type + "_id"
-            else:
-                db_id_key = "pull_id"
-
-            if type in ['star', 'watch']:
-                db_id = int(ordata['_source'][db_id_key].split(type)[1])
-            else:
                 db_id = ordata['_source'][db_id_key]
 
             original_ids.append(db_id)
             if db_id not in newdataids:
                 print("[update] set {}({}) is_removed to 1".format(type, db_id))
+                if type == 'issue': # 标记issue comment
+                    issue_id = ordata['_source']['issue_id']
+                    query = '''{
+                          "script": {
+                            "source": "ctx._source['is_removed']=1"
+                          },
+                          "query": {
+                            "term": {
+                              "issue_id": %d
+                            }
+                          }
+                        }''' % issue_id
+                    self.esClient.updateByQuery(query=query)
+                    print('*** tag removed issue: %s' % ordata['_id'])
+                elif type == 'repo': # 标记仓库所有贡献
+                    repo = ordata['_source']['github_repo']
+                    query = '''{
+                          "script": {
+                            "source": "ctx._source['is_removed']=1"
+                          },
+                          "query": {
+                            "term": {
+                              "github_repo.keyword": "%s"
+                            }
+                          }
+                        }''' % repo
+                    self.esClient.updateByQuery(query=query)
+                    print('*** tag removed repo: %s' % repo)
                 self.esClient.updateToRemoved(ordata['_id'])
 
         return original_ids
+
+    def tag_removed_swf(self, client):
+        repo_data = client.repo()
+        watch_num = repo_data['subscribers_count']
+        fork_num = repo_data['forks_count']
+        star_num = repo_data['stargazers_count']
+
+        # label forks
+        forks = client.get_swf(owner=self.org, repo=client.repository, item='forks')
+        self.updateRemovedData(forks, 'fork', [
+            {
+                "name": "is_github_fork",
+                "value": 1
+            },
+            {
+                "name": "github_repo.keyword",
+                "value": self.org + "/" + client.repository
+            }], 
+            matchs_not=[{"name": "is_removed", "value": 1}]
+        )
+
+        # label stars
+        stars = client.get_swf(owner=self.org, repo=client.repository, item='stargazers')
+        self.updateRemovedData(stars, 'star', [
+            {
+                "name": "is_github_star",
+                "value": 1
+            },
+            {
+                "name": "github_repo.keyword",
+                "value": self.org + "/" + client.repository
+            }], 
+            matchs_not=[{"name": "is_removed", "value": 1}], repo=client.repository
+        )
+
+        # label watches
+        watches = client.get_swf(owner=self.org, repo=client.repository, item='subscribers')
+        self.updateRemovedData(watches, 'watch', [
+            {
+                "name": "is_github_watch",
+                "value": 1
+            },
+            {
+                "name": "github_repo.keyword",
+                "value": self.org + "/" + client.repository
+            }], 
+            matchs_not=[{"name": "is_removed", "value": 1}], repo=client.repository
+        )
 
     @staticmethod
     def format_time_z(time_str):
