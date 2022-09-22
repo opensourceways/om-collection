@@ -2107,6 +2107,7 @@ class ESClient(object):
         query = '*' if query is None else query
         time_count_dict = {}
         while fromTime.strftime("%Y%m%d") <= to:
+            stepTime = fromTime + relativedelta(days=1)
             id_key = time.mktime(fromTime.timetuple()) * 1000
             data_json = '''{
             "size": 0,
@@ -2116,7 +2117,8 @@ class ESClient(object):
                         {
                             "range": {
                                 "update_time": {
-                                    "gte": "%s"
+                                    "gte": "%s",
+                                    "lte": "%s"
                                 }
                             }
                         },
@@ -2147,7 +2149,9 @@ class ESClient(object):
                 }
             }
 
-        }''' % (fromTime.strftime("%Y-%m-%dT00:00:00+08:00"), query, count_key)
+        }''' % (fromTime.strftime("%Y-%m-%dT00:00:00+08:00"),
+                stepTime.strftime("%Y-%m-%dT00:00:00+08:00"),
+                query, count_key)
 
             res = self.request_get(self.getSearchUrl(index_name=query_index_name), data=data_json,
                                    headers=self.default_headers)
