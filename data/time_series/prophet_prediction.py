@@ -106,6 +106,8 @@ class ProphetPrediction(object):
                     'predict_label': 0
                 }
                 user_time_series.append(user_action)
+            if len(user_time_series) == 0:
+                continue
 
             # 用户时间序列活跃度数据 -> DataFrame
             user_df = pd.DataFrame(user_time_series).groupby(['actor_login', 'ds']).sum('popularity').sort_values(
