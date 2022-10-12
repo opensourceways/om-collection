@@ -1841,7 +1841,7 @@ class Gitee(object):
         return
 
     def is_invalid_comment(self, body):
-        if not body.strip().startswith('/') or not body.strip().startswith('／'):
+        if not body.strip().startswith('/') and not body.strip().startswith('／'):
             return
         res = []
         strs = body.strip().split(' ')
@@ -1850,5 +1850,11 @@ class Gitee(object):
                 continue
             on = s.split('\n')
             res.extend(on)
-        if len(strs) < 3:
+
+        words = []
+        for r in res:
+            if r == '':
+                continue
+            words .append(r)
+        if len(words) < 3:
             return True
