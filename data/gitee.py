@@ -1843,6 +1843,9 @@ class Gitee(object):
     def is_invalid_comment(self, body):
         if not body.strip().startswith('/') and not body.strip().startswith('／'):
             return
+        for _char in body:
+            if '\u4e00' <= _char <= '\u9fff':
+                return
         res = []
         strs = body.strip().split(' ')
         for s in strs:
