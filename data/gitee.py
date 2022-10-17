@@ -773,7 +773,11 @@ class Gitee(object):
             merged_item = None
             if x['state'] == "closed":
                 if isinstance(pull_action_logs, list):
-                    merged_item = pull_action_logs[0]
+                    try:
+                        merged_item = pull_action_logs[0]
+                    except IndexError as e:
+                        print("pull number(%s) action log get failed in repo(%s)" % (x['number'], repo))
+                        merged_item = None
                 else:
                     merged_item = pull_action_logs
             x['codediffadd'] = codediffadd
