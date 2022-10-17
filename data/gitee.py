@@ -228,9 +228,6 @@ class Gitee(object):
             reposName = []
             for r in repos:
                 reposName.append(r['full_name'])
-                # print(r['path'])
-                # if r['path'] != 'infrastructure':
-                #     continue
                 func(org, r, from_time)
                 # with self.thread_max_num:
                 #     t = threading.Thread(
