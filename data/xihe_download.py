@@ -40,11 +40,15 @@ class XiheDown(object):
         actions = ''
         response = requests.post(API_URL, data=json.dumps(payload), headers=self.headers, verify=False)
         if response.status_code == 200:
-            data = response.json().get('data')
+            data = response.json().get('data').get(count_type)
             update_time = response.json().get('data').get('update_time')
+            action = {
+                count_type: data,
+                'update_time': update_time
+            }
 
             index_data = {"index": {"_index": self.index_name, "_id": count_type + update_time}}
             actions += json.dumps(index_data) + '\n'
-            actions += json.dumps(data) + '\n'
+            actions += json.dumps(action) + '\n'
             print(actions)
             self.esClient.safe_put_bulk(actions)
