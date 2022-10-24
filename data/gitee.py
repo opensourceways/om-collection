@@ -747,7 +747,7 @@ class Gitee(object):
         # collect pull request
         pull_data = self.getGenerator(
             client.pulls(state='all', once_update_num_of_pr=once_update_num_of_pr, direction='desc',
-                         sort='updated'))
+                         sort='updated', since=self.config.get('from_data')))
         print(('collection %d pulls' % (len(pull_data))))
         for x in pull_data:
             actions = ""

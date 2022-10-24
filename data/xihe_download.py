@@ -52,3 +52,16 @@ class XiheDown(object):
             actions += json.dumps(action) + '\n'
             print(actions)
             self.esClient.safe_put_bulk(actions)
+
+    def write_download(self, count_type):
+        actions = ''
+        update_time = "2022-10-17T09:00:00+08:00"
+        action = {
+            count_type: 536664,
+            'update_time': update_time
+        }
+        index_data = {"index": {"_index": self.index_name, "_id": count_type + update_time}}
+        actions += json.dumps(index_data) + '\n'
+        actions += json.dumps(action) + '\n'
+        print(actions)
+        self.esClient.safe_put_bulk(actions)
