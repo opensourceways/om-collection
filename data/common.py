@@ -940,7 +940,7 @@ class ESClient(object):
             except Exception as otherError:
                 print('Fail to store data to ES!!! Error info:')
                 print(otherError.__repr__(), '\n')
-                raise otherError
+                # raise otherError
 
     def searchEsList(self, index_name, search=None):
         url = self.url + '/' + index_name + '/search'
@@ -2703,6 +2703,22 @@ def get_time_diff_days(start, end):
     diff_days = float('%.2f' % diff_days)
 
     return diff_days
+
+
+def get_time_diff_seconds(start, end):
+    ''' Number of days between two dates in UTC format  '''
+
+    if start is None or end is None:
+        return None
+
+    if type(start) is not datetime:
+        start = dateutil.parser.parse(start).replace(tzinfo=None)
+    if type(end) is not datetime:
+        end = dateutil.parser.parse(end).replace(tzinfo=None)
+
+    diff_second = (end - start).total_seconds()
+
+    return diff_second
 
 
 def datetime_utcnow():

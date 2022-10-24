@@ -177,13 +177,15 @@ class GiteeClient():
 
     '''sort:created updated popularity long-runing'''
 
-    def pulls(self, state='all', once_update_num_of_pr=200, direction='asc', sort='created'):
+    def pulls(self, state='all', once_update_num_of_pr=200, direction='asc', sort='created', since=None):
         payload = {
             'state': state,
             'per_page': self.max_items,
             'direction': direction,
             'sort': sort
         }
+        if since:
+            payload.update({'since': since})
 
         path = self.urijoin("pulls")
         return self.fetch_items_for_pulls(path, payload, once_update_num_of_pr)
