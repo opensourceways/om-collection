@@ -1104,6 +1104,8 @@ class Gitee(object):
 
         rich_pr['time_to_close_days'] = \
             common.get_time_diff_days(pull_request['created_at'], pull_request['closed_at'])
+        rich_pr['time_to_close_seconds'] = \
+            common.get_time_diff_seconds(pull_request['created_at'], pull_request['closed_at'])
 
         if pull_request['state'] != 'closed' or pull_request['state'] != 'merged':
             rich_pr['time_open_days'] = \
@@ -1238,6 +1240,8 @@ class Gitee(object):
 
         rich_issue['time_to_close_days'] = \
             common.get_time_diff_days(issue['created_at'], issue['finished_at'])
+        rich_issue['time_to_close_seconds'] = \
+            common.get_time_diff_seconds(issue['created_at'], issue['finished_at'])
 
         if issue['state'] != 'closed':
             rich_issue['time_open_days'] = \
