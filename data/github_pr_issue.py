@@ -280,6 +280,10 @@ class GitHubPrIssue(object):
                 'is_github_pr': 1,
                 'is_github_account': 1,
                 'is_project_internal_user': 0,
+                'head_label': pr['head']['label'],
+                'head_label_ref': pr['head']['ref'],
+                'base_label': pr['base']['label'],
+                'base_label_ref': pr['base']['ref'],
             }
             pr_first_reply_times = []
             if reviews and len(reviews) != 0:
