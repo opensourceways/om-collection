@@ -126,6 +126,10 @@ class BlueZoneUser(object):
                       "_source": {
                         "includes": [
                           "created_at",
+                          "updated_at",
+                          "base_label_ref",
+                          "head_label_ref",
+                          "body",
                           "issue_title",
                           "pull_state",
                           "gitee_repo",
@@ -168,12 +172,15 @@ class BlueZoneUser(object):
             source = hit['_source']
             repo_data = {
                 'created_at': source['created_at'],
+                'updated_at': source['updated_at'],
+                'target_branch': '' if source.get('base_label_ref') is None else source['base_label_ref'],
+                'source_branch': '' if source.get('head_label_ref') is None else source['head_label_ref'],
                 'pr_title': source['issue_title'],
                 'pr_state': source['pull_state'],
                 'repo': source['gitee_repo'],
                 'is_pr': source['is_gitee_pull_request'],
                 'pull_id': source['pull_id'],
-                'pr_body': '',
+                'pr_body': '' if source.get('body') is None else source['body'],
                 'url': source['url'],
             }
             repo_data.update(self.user)
@@ -191,6 +198,9 @@ class BlueZoneUser(object):
                       "_source": {
                         "includes": [
                           "created_at",
+                          "updated_at",
+                          "closed_at",
+                          "priority",
                           "issue_title",
                           "body",
                           "issue_state",
@@ -235,6 +245,9 @@ class BlueZoneUser(object):
             body = source['body'] if 'body' in source else ''
             repo_data = {
                 'created_at': source['created_at'],
+                'updated_at': source['updated_at'],
+                'closed_at': source['closed_at'],
+                'priority': 0 if source.get('priority') is None else source['priority'],
                 'issue_title': source['issue_title'],
                 'issue_state': source['issue_state'],
                 'repo': source['gitee_repo'],
@@ -258,8 +271,11 @@ class BlueZoneUser(object):
                       "_source": {
                         "includes": [
                           "created_at",
+                          "updated_at",
                           "issue_id",
                           "pull_id",
+                          "issue_id_in_repo",
+                          "pull_id_in_repo",
                           "id",
                           "gitee_repo",
                           "url",
@@ -310,17 +326,22 @@ class BlueZoneUser(object):
             else:
                 url = source['url']
             parent = ''
+            parent_id = ''
             if 'issue_id' in source:
                 parent = 'issue_comment'
+                parent_id = source['issue_id_in_repo']
             if 'pull_id' in source:
                 parent = 'pr_comment'
+                parent_id = source['pull_id_in_repo']
             body = source['body'] if 'body' in source else ''
             repo_data = {
                 'created_at': source['created_at'],
+                'updated_at': source['updated_at'],
                 'id': source['id'],
                 'repo': source['gitee_repo'],
                 'is_comment': source['is_gitee_comment'],
                 'comment_body': body,
+                'parent_id': parent_id,
                 'url': url,
             }
             repo_data.update(self.user)
@@ -343,6 +364,7 @@ class BlueZoneUser(object):
                               "created_at",
                               "add",
                               "remove",
+                              "file_changed",
                               "repo",
                               "commit_id",
                               "email"
@@ -388,6 +410,7 @@ class BlueZoneUser(object):
                 'repo': source['repo'],
                 'line_add': source['add'],
                 'line_remove': source['remove'],
+                'file_changed': source['file_changed'],
                 'is_commit': 1,
             }
             repo_data.update(self.user)
@@ -405,6 +428,10 @@ class BlueZoneUser(object):
                       "_source": {
                         "includes": [
                           "created_at",
+                          "updated_at",
+                          "base_label_ref",
+                          "head_label_ref",
+                          "pr_body",
                           "pr_title",
                           "pr_state",
                           "github_repo",
@@ -447,12 +474,15 @@ class BlueZoneUser(object):
             source = hit['_source']
             repo_data = {
                 'created_at': source['created_at'],
+                'updated_at': source['updated_at'],
+                'target_branch': '' if source.get('base_label_ref') is None else source['base_label_ref'],
+                'source_branch': '' if source.get('head_label_ref') is None else source['head_label_ref'],
                 'pr_title': source['pr_title'],
                 'pr_state': source['pr_state'],
                 'repo': 'https://github.com/' + source['github_repo'],
                 'is_pr': source['is_github_pr'],
                 'pull_id': source['pr_id'],
-                'pr_body': '',
+                'pr_body': source['pr_body'],
                 'url': source['html_url'],
             }
             repo_data.update(self.user)
@@ -470,6 +500,8 @@ class BlueZoneUser(object):
                       "_source": {
                         "includes": [
                           "created_at",
+                          "updated_at",
+                          "closed_at",
                           "issue_title",
                           "issue_state",
                           "issue_body",
@@ -513,6 +545,9 @@ class BlueZoneUser(object):
             source = hit['_source']
             repo_data = {
                 'created_at': source['created_at'],
+                'updated_at': source['updated_at'],
+                'closed_at': source['closed_at'],
+                'priority': 0,
                 'issue_title': source['issue_title'],
                 'issue_state': source['issue_state'],
                 'repo': 'https://github.com/' + source['github_repo'],
@@ -536,8 +571,11 @@ class BlueZoneUser(object):
                       "_source": {
                         "includes": [
                           "created_at",
+                          "updated_at",
                           "issue_id",
                           "pr_id",
+                          "issue_number",
+                          "pr_number",
                           "id",
                           "github_repo",
                           "html_url",
@@ -578,19 +616,25 @@ class BlueZoneUser(object):
         actions = ''
         for hit in hits:
             source = hit['_source']
-            parent = body = ''
+            parent = ''
+            body = ''
+            parent_id = ''
             if 'issue_id' in source:
                 parent = 'issue_comment'
                 body = source['issue_comment_body']
-            if 'pr_id' in source:
+                parent_id = source['issue_number']
+            if 'pr_id' in source and 'pr_comment_body' in source:
                 parent = 'pr_comment'
                 body = source['pr_comment_body']
+                parent_id = source['pr_number']
             repo_data = {
                 'created_at': source['created_at'],
+                'updated_at': source['updated_at'],
                 'id': source['id'],
                 'repo': 'https://github.com/' + source['github_repo'],
                 'is_comment': source['is_github_comment'],
                 'comment_body': body,
+                'parent_id': parent_id,
                 'url': source['html_url'],
             }
             repo_data.update(self.user)
