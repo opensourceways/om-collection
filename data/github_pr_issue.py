@@ -374,7 +374,7 @@ class GitHubPrIssue(object):
                 comments_data = {
                     'issue_id': issue['id'],
                     'issue_number': issue_num,
-                    'comment_id': comment['id'],
+                    'id': comment['id'],
                     'user_id': comment_user_id,
                     'user_login': comment_user_login,
                     'html_url': comment['html_url'],
