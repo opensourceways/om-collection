@@ -51,6 +51,7 @@ class EcosystemRepo(object):
             name = r.get('name')
             html_url = r.get('links')
             introduction = r.get('introduction')
+            date = r.get('date')
             owner = html_url.split('/')[3]
             repo = html_url.split('/')[4]
             star = self.get_star_count(owner, repo)
@@ -59,7 +60,8 @@ class EcosystemRepo(object):
                 'repo': name,
                 'html_url': html_url,
                 'introduction': introduction,
-                'star': star
+                'star': star,
+                'date': date
             }
             id = repo_type + '_' + owner + '_' + repo
             indexData = {"index": {"_index": self.index_name, "_id": id}}
