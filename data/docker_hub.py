@@ -31,7 +31,7 @@ class DockerHub(object):
 
     def write_pull_count(self, repo):
         actions = ''
-        created_at = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S+08:00")
+        created_at = datetime.datetime.now().strftime("%Y-%m-%dT08:00:00+08:00")
         url = self.urijoin(BASE_URL, 'repositories', self.owner, repo)
         res = self.esClient.request_get(url)
         data = res.json()
