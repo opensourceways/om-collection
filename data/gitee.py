@@ -104,6 +104,7 @@ class Gitee(object):
         self.command = None
         if config.get('command_list'):
             self.command = config.get('command_list').split(',')
+        self.is_collect_all = config.get('is_collect_all')
 
     def run(self, from_time):
         print("Collect gitee data: staring")
@@ -723,12 +724,12 @@ class Gitee(object):
         return result
 
     def getFromDate(self, from_date, filters):
-        if from_date is None:
+        if self.is_collect_all == 'true':
+            from_date = common.str_to_datetime(from_date)
+        else:
             from_date = self.esClient.get_from_date(filters)
             if from_date is None:
                 from_date = common.str_to_datetime(self.config.get('from_data'))
-        else:
-            from_date = common.str_to_datetime(from_date)
         return from_date
 
     def writePullData(self, owner, repo, public, from_date=None, once_update_num_of_pr=200, sig_names=None):
@@ -747,7 +748,7 @@ class Gitee(object):
         # collect pull request
         pull_data = self.getGenerator(
             client.pulls(state='all', once_update_num_of_pr=once_update_num_of_pr, direction='desc',
-                         sort='updated', since=self.config.get('from_data')))
+                         sort='updated', since=from_date))
         print(('collection %d pulls' % (len(pull_data))))
         for x in pull_data:
             actions = ""
@@ -833,13 +834,9 @@ class Gitee(object):
     def writeIssueData(self, owner, repo, public, from_date=None, sig_names=None):
         startTime = datetime.datetime.now()
         client = GiteeClient(owner, repo, self.gitee_token)
-        if from_date is None:
-            from_date = self.esClient.get_from_date(
-                [{"name": "is_gitee_issue", "value": 1},
-                 {"name": "gitee_repo.keyword",
-                  "value": "https://gitee.com/" + owner + "/" + repo}])
-        else:
-            from_date = common.str_to_datetime(from_date)
+        from_date = self.getFromDate(from_date, [
+            {"name": "is_gitee_issue", "value": 1},
+            {"name": "gitee_repo.keyword", "value": "https://gitee.com/" + owner + "/" + repo}])
         print("Start collect repo(%s/%s) issue data from %s" % (
             owner, repo, from_date))
 
