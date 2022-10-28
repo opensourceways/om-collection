@@ -78,7 +78,9 @@ BACKEND_MAPPING = {
     'rpm_repo_download': 'data.combine.rpm_repo_download.RpmRepoDownload',
     'xihe_downoload': 'data.xihe_download.XiheDown',
     'download_count': 'data.combine.download.DownloadCount',
-    'search_repos': 'data.search_repos.SearchRepos'
+    'search_repos': 'data.search_repos.SearchRepos',
+    'ecosystem_repo': 'data.mindspore_repo_info.EcosystemRepo',
+    'docker_hub': 'data.docker_hub.DockerHub'
 }
 
 
