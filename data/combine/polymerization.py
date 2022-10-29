@@ -145,16 +145,12 @@ class Polymerization(object):
         polymerization_from_time = self.from_d
         data_dict = {}
         for coll in j['collections']:
-            query, key_prefix, count_key, query_es, es_authorization = None, None, None, None, None
+            query, key_prefix, count_key = None, None, None
             oversea, origin = None, None
             if 'query' in coll:
                 query = coll['query']
             if 'count_key' in coll:
                 count_key = coll['count_key']
-            if 'query_es' in coll:
-                query_es = coll['query_es']
-            if 'es_authorization' in coll:
-                es_authorization = coll['es_authorization']
             if 'oversea' in coll:
                 oversea = coll['oversea']
             if 'origin' in coll:
@@ -165,12 +161,10 @@ class Polymerization(object):
             self.esClient.query_index_name = query_index_name
             if query is not None:
                 query = str(query).replace('"', '\\"')
-            if origin == 'dockerhub' and query_es is not None and es_authorization is not None:
+            if origin == 'dockerhub':
                 time_count_dict = self.esClient.splitMixDockerHub(from_date=polymerization_from_time,
                                                                   count_key=count_key, query=query,
-                                                                  query_index_url=query_es,
-                                                                  query_index_name=query_index_name,
-                                                                  es_authorization=es_authorization)
+                                                                  query_index_name=query_index_name)
             elif origin == 'xihe':
                 time_count_dict = self.esClient.getTotalXiheDown(from_date=polymerization_from_time,
                                                                  count_key=count_key, query=query,
