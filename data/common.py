@@ -2047,7 +2047,7 @@ class ESClient(object):
             "aggs": {
                 "3": {
                     "terms": {
-                        "field": "origin",
+                        "field": "id.keyword",
                         "size": 10,
                         "order": {
                             "_key": "desc"
