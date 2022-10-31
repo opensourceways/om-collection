@@ -4,7 +4,7 @@
 #  Etiam sed turpis ac ipsum condimentum fringilla. Maecenas magna.
 #  Proin dapibus sapien vel ante. Aliquam erat volutpat. Pellentesque sagittis ligula eget metus.
 #  Vestibulum commodo. Ut rhoncus gravida arcu.
-
+import datetime
 import json
 import yaml
 from data.common import ESClient
@@ -51,7 +51,7 @@ class EcosystemRepo(object):
             name = r.get('name')
             html_url = r.get('links')
             introduction = r.get('introduction')
-            date = r.get('date')
+            date = r.get('date').strftime("%Y-%m-%dT08:00:00+08:00")
             owner = html_url.split('/')[3]
             repo = html_url.split('/')[4]
             star = self.get_star_count(owner, repo)
