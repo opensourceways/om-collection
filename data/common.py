@@ -2549,38 +2549,6 @@ class ESClient(object):
             func(data)
         print('scroll over')
 
-    def scrollSearchGiteeScore(self, index_name, es_url, es_authorization, search=None, scroll_duration='1m'):
-        url = es_url + '/' + index_name + '/_search?scroll=' + scroll_duration
-        headers = self.default_headers
-        headers['Authorization'] = es_authorization
-        res = self.request_get(url=url, headers=headers, verify=False, data=search.encode('utf-8'), timeout=60)
-        if res.status_code != 200:
-            print('requests error')
-            return
-        res_data = res.json()
-        whole_data = []
-        data = res_data['hits']['hits']
-        print('scroll data count: %s' % len(data))
-        whole_data.extend(data)
-
-        scroll_id = res_data['_scroll_id']
-        while scroll_id is not None and len(data) != 0:
-            url = es_url + '/_search/scroll'
-            search = '''{"scroll": "%s", "scroll_id": "%s" }''' % (scroll_duration, scroll_id)
-            res = self.request_get(url=url, headers=headers, verify=False, data=search.encode('utf-8'), timeout=60)
-            if res.status_code != 200:
-                print(
-                    'Failed fetch whole data cause of some error occurs in continuous scrolling page except the first page')
-                return
-            res_data = res.json()
-            scroll_id = res_data['_scroll_id']
-            data = res_data['hits']['hits']
-            print('scroll data count: %s' % len(data))
-            whole_data.extend(data)
-        print('scroll over')
-
-        return whole_data
-
     def esSearch(self, index_name, search=None, method='_search'):
         if search is None:
             return None
