@@ -40,12 +40,10 @@ class GiteeScore(object):
 
         self.bug_store_index_name = config.get('bug_store_index_name')
         self.bug_query_sentence = config.get('bug_query_sentence')
-        self.bug_fragemnt_es_url = config.get('bug_fragemnt_es_url')
-        self.bug_fragemnt_authorization = config.get('bug_fragemnt_authorization')
 
         self.failed_parse_issue_body = []
         self.score_admins = self.get_score_admins()
-        self.bugFragment_email_map = None
+        self.bugFragment_email_map = {}
         self.robot_user_list = [robot_user.strip() for robot_user in self.robot_user_login.split(',')]
         self.repository_list = [repo for repo in self.repository.split(',')]
         self.giteeClient = None
@@ -62,11 +60,9 @@ class GiteeScore(object):
         # </editor-fold>
 
         self.failed_parse_issue_body = list(set(self.failed_parse_issue_body))
-        bug_questionnaire_list = self.esClient.scrollSearchGiteeScore(index_name=self.bug_store_index_name,
-                                                                      search=self.bug_query_sentence,
-                                                                      es_url=self.bug_fragemnt_es_url,
-                                                                      es_authorization=self.bug_fragemnt_authorization)
-        self.bugFragment_email_map = self.assemble_email_map(bug_questionnaire_list)
+        self.esClient.scrollSearch(index_name=self.bug_store_index_name,
+                                   search=self.bug_query_sentence, func=self.assemble_email_map)
+        print('bugFragment_email_map size: ', len(self.bugFragment_email_map))
         for repo in self.repository_list:
             print("Process repo: ", repo)
             self.giteeClient = GiteeClient(owner=self.owner, repository=repo, token=self.access_token)
@@ -319,9 +315,8 @@ class GiteeScore(object):
         return version_num, folder_name, bug_fragment
 
     def assemble_email_map(self, bug_questionnaire_list):
-        bugFragment_email_map = {}
         for bug_questionnaire in bug_questionnaire_list:
             email = bug_questionnaire.get('_source').get('email')
             bugDocFragment = bug_questionnaire.get('_source').get('bugDocFragment')
-            bugFragment_email_map[bugDocFragment] = email
-        return bugFragment_email_map
+            self.bugFragment_email_map.update({bugDocFragment: email})
+        return self.bugFragment_email_map
