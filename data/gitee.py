@@ -105,6 +105,7 @@ class Gitee(object):
         if config.get('command_list'):
             self.command = config.get('command_list').split(',')
         self.is_collect_all = config.get('is_collect_all')
+        self.multi_threading = config.get('multi_threading')
 
     def run(self, from_time):
         print("Collect gitee data: staring")
@@ -223,32 +224,40 @@ class Gitee(object):
         self.esClient.giteeid_company_change_dict = dic[1]
 
     def writeData(self, func, from_time):
-        # threads = []
-        for org in self.orgs:
-            repos = self.get_repos(org)
-            reposName = []
-            for r in repos:
-                reposName.append(r['full_name'])
-                func(org, r, from_time)
-                # with self.thread_max_num:
-                #     t = threading.Thread(
-                #         target=func,
-                #         args=(org, r, from_time))
-                # threads.append(t)
-                # t.start()
+        if self.multi_threading != 'true':
+            for org in self.orgs:
+                repos = self.get_repos(org)
+                reposName = []
+                for r in repos:
+                    reposName.append(r['full_name'])
+                    func(org, r, from_time)
+        else:
+            threads = []
+            for org in self.orgs:
+                repos = self.get_repos(org)
+                reposName = []
+                for r in repos:
+                    reposName.append(r['full_name'])
+                    # func(org, r, from_time)
+                    with self.thread_max_num:
+                        t = threading.Thread(
+                            target=func,
+                            args=(org, r, from_time))
+                    threads.append(t)
+                    t.start()
 
-                # if len(threads) % self.thread_pool_num == 0:
-                #     for t in threads:
-                #         t.join()
-                #     threads = []
-            # if reposName is not None and len(reposName) > 0:
-            #     self.updateRemovedData(reposName, 'repo', [{
-            #         "name": "is_gitee_repo",
-            #         "value": 1,
-            #     }])
-            # for t in threads:
-            #     t.join()
-            # threads = []
+                    if len(threads) % self.thread_pool_num == 0:
+                        for t in threads:
+                            t.join()
+                        threads = []
+                if reposName is not None and len(reposName) > 0:
+                    self.updateRemovedData(reposName, 'repo', [{
+                        "name": "is_gitee_repo",
+                        "value": 1,
+                    }])
+                for t in threads:
+                    t.join()
+                threads = []
 
     def externalUpdateRepo(self):
         if self.is_update_repo_author == 'true':
@@ -724,7 +733,7 @@ class Gitee(object):
         return result
 
     def getFromDate(self, from_date, filters):
-        if self.is_collect_all == 'true':
+        if self.is_collect_all == 'true' and from_date:
             from_date = common.str_to_datetime(from_date)
         else:
             from_date = self.esClient.get_from_date(filters)

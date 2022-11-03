@@ -154,6 +154,7 @@ class ESClient(object):
             self.default_headers['Authorization'] = self.authorization
         self.company_loc_url = config.get('company_loc_url')
         self.item = config.get("item")
+        self.orgs = self.getOrgs(config.get('orgs'))
 
     def getObsAllPackageName(self):
         search_json = '''{
