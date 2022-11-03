@@ -45,7 +45,7 @@ class CompanyLocation(object):
 
     def update_loc_info(self, company, index, query_es, es_authorization):
         time.sleep(1)
-        loc = self.esClient.getCompanyLocationInfo(company, self.company_location_index)
+        loc = self.esClient.getCompanyLocationInfo(company, self.company_location_index).get('location')
         if loc is None:
             return
         update_json = '''
