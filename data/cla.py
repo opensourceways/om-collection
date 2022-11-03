@@ -35,10 +35,9 @@ class Cla(object):
         self.index_name_corporation = config.get('index_name_corporation')
         self.claIds = self.esClient.getEsIds(self.index_name)
         self.corporationIds = self.esClient.getEsIds(self.index_name_corporation)
-        self.companyLocationDic = {}
+        self.company_location_index = config.get('company_location_index')
 
     def run(self, from_time):
-        self.companyLocationDic = self.esClient.getCompanyLocationInfo()
         print("Collect CLA data: start")
         self.getClaIndiviualsSigning()
         self.getClaCorporationsSigning()
@@ -143,8 +142,8 @@ class Cla(object):
 
             if employee['email'] in self.claIds:
                 self.claIds.remove(employee['email'])
-            if self.companyLocationDic.get(corporation):
-                addr = self.companyLocationDic.get(corporation)
+            if self.company_location_index:
+                addr = self.esClient.getCompanyLocationInfo(corporation, self.company_location_index)
                 if addr:
                     action.update(addr)
             index_data = {"index": {"_index": self.index_name, "_id": employee['email']}}

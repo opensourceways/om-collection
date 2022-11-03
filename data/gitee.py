@@ -100,18 +100,17 @@ class Gitee(object):
         self.repo_sigs_dict = {}
         self.last_repo_sig = {}
         self.invalid_pr_title = config.get('invalid_pr_title')
-        self.companyLocationDic = {}
         self.command = None
         if config.get('command_list'):
             self.command = config.get('command_list').split(',')
         self.is_collect_all = config.get('is_collect_all')
         self.multi_threading = config.get('multi_threading')
+        self.company_location_index = config.get('company_location_index')
 
     def run(self, from_time):
         print("Collect gitee data: staring")
         repo_sigs_dict = self.esClient.getRepoSigs()
         self.repo_sigs_dict = self.get_dict_key_lower(repo_sigs_dict)
-        self.companyLocationDic = self.esClient.getCompanyLocationInfo()
         self.getGiteeId2Company()
 
         self.getEnterpriseUser()
@@ -157,7 +156,7 @@ class Gitee(object):
 
             change_repo_sig_dic = self.get_change_repo_sig_dict()
             self.esClient.tagRepoSigChanged(change_repo_sig_dic)
-            self.esClient.tagUserOrgChanged(self.companyLocationDic)
+            self.esClient.tagUserOrgChanged()
         endTime = time.time()
         spent_time = time.strftime("%H:%M:%S",
                                    time.gmtime(endTime - startTime))
@@ -473,7 +472,7 @@ class Gitee(object):
                 "fork_gitee_repo": re.sub('.git$', '', fork['html_url']),
                 "is_gitee_fork": 1,
             }
-            userExtra = self.esClient.getUserInfo(action['user_login'], fork["created_at"], self.companyLocationDic)
+            userExtra = self.esClient.getUserInfo(action['user_login'], fork["created_at"])
             action.update(userExtra)
 
             indexData = {
@@ -533,7 +532,7 @@ class Gitee(object):
                 "user_created_at": user_details["created_at"] if user_details else None,
                 "from_registerd_to_star": from_registerd_to_star
             }
-            userExtra = self.esClient.getUserInfo(action['user_login'], star["star_at"], self.companyLocationDic)
+            userExtra = self.esClient.getUserInfo(action['user_login'], star["star_at"])
             action.update(userExtra)
             indexData = {
                 "index": {"_index": self.index_name, "_id": star_id}}
@@ -570,7 +569,7 @@ class Gitee(object):
                 "org_name": owner,
                 "is_gitee_watch": 1,
             }
-            userExtra = self.esClient.getUserInfo(action['user_login'], watch["watch_at"], self.companyLocationDic)
+            userExtra = self.esClient.getUserInfo(action['user_login'], watch["watch_at"])
             action.update(userExtra)
 
             indexData = {
@@ -606,8 +605,7 @@ class Gitee(object):
             "gitee_repo": re.sub('.git$', '', repo_data['html_url']),
             "is_gitee_repo": 1,
         }
-        userExtra = self.esClient.getUserInfo(repo_data['owner']['login'], repo_data["created_at"],
-                                              self.companyLocationDic)
+        userExtra = self.esClient.getUserInfo(repo_data['owner']['login'], repo_data["created_at"])
         repo_detail.update(userExtra)
 
         maintainerdata = self.esClient.getRepoMaintainer(self.sig_index, repo_data["full_name"])
@@ -1034,8 +1032,7 @@ class Gitee(object):
             ecomment['is_gitee_{}'.format(REVIEW_COMMENT_TYPE)] = 1
             ecomment['is_gitee_comment'] = 1
 
-            userExtra = self.esClient.getUserInfo(ecomment['user_login'], comment['created_at'],
-                                                  self.companyLocationDic)
+            userExtra = self.esClient.getUserInfo(ecomment['user_login'], comment['created_at'])
             ecomment.update(userExtra)
             ecomments.append(ecomment)
 
@@ -1096,7 +1093,7 @@ class Gitee(object):
             ecommit['is_gitee_{}'.format(COMMIT_TYPE)] = 1
             ecommit['is_gitee_commit'] = 1
 
-            userExtra = self.esClient.getUserInfo(ecommit['user_login'], ecommit['created_at'], self.companyLocationDic)
+            userExtra = self.esClient.getUserInfo(ecommit['user_login'], ecommit['created_at'])
             ecommit.update(userExtra)
             ecommits.append(ecommit)
 
@@ -1221,8 +1218,7 @@ class Gitee(object):
 
         # if self.prjs_map:
         #    rich_pr.update(self.get_item_project(rich_pr))
-        userExtra = self.esClient.getUserInfo(rich_pr['user_login'], pull_request['created_at'],
-                                              self.companyLocationDic)
+        userExtra = self.esClient.getUserInfo(rich_pr['user_login'], pull_request['created_at'])
         rich_pr.update(userExtra)
         rich_pr['addcodenum'] = pull_request['codediffadd']
         rich_pr['deletecodenum'] = pull_request['codediffdelete']
@@ -1373,7 +1369,7 @@ class Gitee(object):
 
         rich_issue['is_gitee_{}'.format(ISSUE_TYPE)] = 1
 
-        userExtra = self.esClient.getUserInfo(rich_issue['user_login'], issue['created_at'], self.companyLocationDic)
+        userExtra = self.esClient.getUserInfo(rich_issue['user_login'], issue['created_at'])
         rich_issue.update(userExtra)
         return rich_issue
 
@@ -1434,8 +1430,7 @@ class Gitee(object):
 
             if 'project' in eitem:
                 ecomment['project'] = eitem['project']
-            userExtra = self.esClient.getUserInfo(ecomment['user_login'], comment['created_at'],
-                                                  self.companyLocationDic)
+            userExtra = self.esClient.getUserInfo(ecomment['user_login'], comment['created_at'])
             ecomment.update(userExtra)
             # self.add_repository_labels(ecomment)
             # self.add_metadata_filter_raw(ecomment)
@@ -1809,8 +1804,7 @@ class Gitee(object):
                         user['author_name'] = user['name']
                         user['org_name'] = self.orgs[index]
                         user['gitee_repo'] = 'default'
-                        userExtra = self.esClient.getUserInfo(user['login'], user['created_at'],
-                                                              self.companyLocationDic)
+                        userExtra = self.esClient.getUserInfo(user['login'], user['created_at'])
                         user.update(userExtra)
                         action = common.getSingleAction(self.index_name_all[index], id, user)
                         self.esClient.safe_put_bulk(action)

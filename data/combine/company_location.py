@@ -19,15 +19,16 @@ class CompanyLocation(object):
         self.authorization = config.get('authorization')
         self.esClient = ESClient(config)
         self.collections = config.get('collections')
-        self.companyLocationDic = {}
+        self.company_location_index = config.get('company_location_index')
 
     def run(self, from_time):
-        self.companyLocationDic = self.esClient.getCompanyLocationInfo()
         self.getReindexMix()
 
     def update_city_info(self, company, index, query_es, es_authorization):
         time.sleep(1)
-        loc = self.companyLocationDic.get(company)
+        loc = self.esClient.getCompanyLocationInfo(company, self.company_location_index)
+        if loc is None:
+            return
         update_json = '''
         {
             "script": {
@@ -44,7 +45,7 @@ class CompanyLocation(object):
 
     def update_loc_info(self, company, index, query_es, es_authorization):
         time.sleep(1)
-        loc = self.companyLocationDic.get(company).get('location')
+        loc = self.esClient.getCompanyLocationInfo(company, self.company_location_index)
         if loc is None:
             return
         update_json = '''
@@ -85,8 +86,6 @@ class CompanyLocation(object):
             if data_num == 0:
                 continue
             print('reindex: %s -> %d over' % (company, data_num))
-            if company not in self.companyLocationDic.keys():
-                continue
             self.update_city_info(company, index_name, query_es, es_authorization)
             self.update_loc_info(company, index_name, query_es, es_authorization)
 

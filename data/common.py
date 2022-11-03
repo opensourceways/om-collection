@@ -152,9 +152,9 @@ class ESClient(object):
         self.giteeid_company_change_dict = defaultdict(dict)
         if self.authorization:
             self.default_headers['Authorization'] = self.authorization
-        self.company_loc_url = config.get('company_loc_url')
         self.item = config.get("item")
         self.orgs = self.getOrgs(config.get('orgs'))
+        self.company_location_index = config.get('company_location_index')
 
     def getObsAllPackageName(self):
         search_json = '''{
@@ -605,7 +605,7 @@ class ESClient(object):
             giteeid_company_dict_copy.update({k1: self.giteeid_company_dict.get(k)})
         return giteeid_company_dict_copy
 
-    def getUserInfo(self, login, created_at=None, company_info_dic=None):
+    def getUserInfo(self, login, created_at=None):
         if isinstance(login, str) is True:
             login = login.lower()
         internalUsers_copy = self.users_lower()
@@ -661,35 +661,45 @@ class ESClient(object):
                 else:
                     continue
 
-        if company_info_dic and company_info_dic.get(userExtra['tag_user_company']):
-            addr = company_info_dic.get(userExtra['tag_user_company'])
+        if self.company_location_index:
+            addr = self.getCompanyLocationInfo(userExtra['tag_user_company'], self.company_location_index)
             if addr:
                 userExtra.update(addr)
         return userExtra
 
-    def getCompanyLocationInfo(self):
-        dic = {}
-        if self.company_loc_url is None:
-            return None
-        data = self.request_get(self.company_loc_url)
-        reader = data.text.split('\n')
-        for item in reader:
-            company_info = item.strip().split(';')
-            company = company_info[0]
-            if company == '':
-                continue
-            try:
-                location = company_info[1]
-                center = company_info[2]
-                dic.update({company: {'company_location': location, 'innovation_center': center}})
-                loc = self.getLocationbyCity(location)
-                if loc:
-                    dic.get(company).update(loc)
-            except IndexError:
-                continue
-        return dic
+    def getCompanyLocationInfo(self, company, index):
+        query = '''
+        {
+            "query": {
+                "bool": {
+                    "must": [
+                        {
+                            "match": {
+                                "company.keyword": "%s"
+                            }
+                        }
+                    ]
+                }
+            },
+            "size": 10,
+            "aggs": {}
+        }''' % company
+        res = self.request_get(self.getSearchUrl(index_name=index),
+                               data=query.encode('utf-8'), headers=self.default_headers)
+        if res.status_code != 200:
+            print("The index not exist")
+            return {}
+        data = res.json()
+        for hits in data['hits']['hits']:
+            source_data = hits['_source']
+            loc = {
+                    'location': source_data.get('location'),
+                    'company_location': source_data.get('company_location'),
+                    'innovation_center': source_data.get('innovation_center')
+            }
+            return loc
 
-    def tagUserOrgChanged(self, company_location_dic=None):
+    def tagUserOrgChanged(self):
         if len(self.giteeid_company_change_dict) == 0:
             return
         for key, vMap in self.giteeid_company_change_dict.items():
@@ -709,8 +719,8 @@ class ESClient(object):
                 # if company == self.internal_company_name:
                 #     is_project_internal_user = 1
 
-                if self.company_loc_url:
-                    query = self.get_update_loc_info_query(company, startTime, endTime, key, company_location_dic)
+                if self.company_location_index:
+                    query = self.get_update_loc_info_query(company, startTime, endTime, key)
                 else:
                     query = '''{
                     "script": {
@@ -770,8 +780,8 @@ class ESClient(object):
             query = query_str.format(sig_names=sig_names, gitee_repo=gitee_repo).replace("'", "\"")
             self.updateByQuery(query=query.encode('utf-8'))
 
-    def get_update_loc_info_query(self, company, startTime, endTime, user, company_location_dic):
-        company_info = company_location_dic.get(company)
+    def get_update_loc_info_query(self, company, startTime, endTime, user):
+        company_info = self.getCompanyLocationInfo(company, self.company_location_index)
         company_location = company_info.get('company_location') if company_info else ''
         innovation_center = company_info.get('innovation_center') if company_info else ''
         loc = company_info.get('location') if company_info else None
