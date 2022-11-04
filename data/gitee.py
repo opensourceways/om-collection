@@ -249,11 +249,11 @@ class Gitee(object):
                         for t in threads:
                             t.join()
                         threads = []
-                if reposName is not None and len(reposName) > 0:
-                    self.updateRemovedData(reposName, 'repo', [{
-                        "name": "is_gitee_repo",
-                        "value": 1,
-                    }])
+                # if reposName is not None and len(reposName) > 0:
+                #     self.updateRemovedData(reposName, 'repo', [{
+                #         "name": "is_gitee_repo",
+                #         "value": 1,
+                #     }])
                 for t in threads:
                     t.join()
                 threads = []
