@@ -903,12 +903,10 @@ class Gitee(object):
         commenter_comments = []
         responsible = []
         last_reply_time = eitem.get('created_at')
+        responsible = self.get_responsible(ecomments)
         for ec in ecomments:
             if ec['user_login'] is None:  # or ec['user_login'] in self.skip_user:
                 continue
-            if ec['user_login'] in self.robot_user_logins:
-                content = str(ec['body'])
-                responsible = self.get_responsible(content)
 
             if ec['user_login'] != eitem.get('user_login') and eitem.get('created_at') \
                     and ec['user_login'] not in self.robot_user_logins \
@@ -1819,21 +1817,26 @@ class Gitee(object):
             sig_names = self.repo_sigs_dict[key.lower()]
         return sig_names
 
-    def get_responsible(self, content):
-        if not content.__contains__('please contact the owner in first:'):
-            return
-        sub_str = content.split('please contact the owner in first:')[1]
-        subs = sub_str.split('and then any of the maintainers')[0]
-        responsible = subs.split('@')
+    def get_responsible(self, content_list):
         res_list = []
-        for r in responsible:
-            rs = r.split(',')
-            res_list.extend(rs)
-        responsible_list = []
-        for s in res_list:
-            if len(s.strip()) != 0:
-                responsible_list.append(s.strip())
-        return responsible_list
+        for content in content_list:
+            if content['user_login'] in self.robot_user_logins:
+                content = str(content['body'])
+                if not content.__contains__('please contact the owner in first:'):
+                    continue
+                sub_str = content.split('please contact the owner in first:')[1]
+                subs = sub_str.split('and then any of the maintainers')[0]
+                responsible = subs.split('@')
+                res_list = []
+                for r in responsible:
+                    rs = r.split(',')
+                    res_list.extend(rs)
+                responsible_list = []
+                for s in res_list:
+                    if len(s.strip()) != 0:
+                        responsible_list.append(s.strip())
+                res_list = responsible_list
+        return res_list
 
     def get_dict_key_lower(self, data_dict):
         res = {}
