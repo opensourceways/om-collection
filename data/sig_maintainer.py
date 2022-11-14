@@ -447,7 +447,7 @@ class SigMaintainer(object):
                 sig_repos_dict.update({dir: sig_repo_list})
         if self.org == 'opengauss':
             sig_repos_dict = self.get_sig_repos_opengauss()
-            self. sig_label_dict = self.get_gauss_sig_label()
+            self.sig_label_dict = self.get_gauss_sig_label()
 
         actions = ''
         dict_comb = defaultdict(dict)
