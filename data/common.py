@@ -2243,9 +2243,13 @@ class ESClient(object):
             if oversea and oversea == 'true':
                 user.update(({"is_oversea": 1}))
                 id = id + '_oversea'
+                if origin == 'huawei_cloud':
+                    user.update(({item: value * 0.1}))
             else:
                 user.update(({"is_oversea": 0}))
                 id = id + '_not_oversea'
+                if origin == 'huawei_cloud':
+                    user.update(({item: value * 0.9}))
             action = getSingleAction(self.index_name, id, user)
             actions += action
         self.safe_put_bulk(actions)
