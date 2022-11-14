@@ -52,6 +52,8 @@ class SigMaintainer(object):
         self.sig_mark = config.get("sig_mark")
         self.exists_ids = []
         # self.index_name_maintainer_info = config.get('index_name_maintainer_info')
+        self.sig_label_dict = None
+        self.sig_label_path = config.get('sig_label_path')
 
     def run(self, from_time):
         if self.index_name_sigs and self.sig_mark:
@@ -445,6 +447,7 @@ class SigMaintainer(object):
                 sig_repos_dict.update({dir: sig_repo_list})
         if self.org == 'opengauss':
             sig_repos_dict = self.get_sig_repos_opengauss()
+            self. sig_label_dict = self.get_gauss_sig_label()
 
         actions = ''
         dict_comb = defaultdict(dict)
@@ -462,6 +465,8 @@ class SigMaintainer(object):
                 "is_sig_original": 1,
                 "created_at": times
             }
+            if self.org == 'opengauss':
+                action.update({"tag_sig_name": self.sig_label_dict.get(dir)})
             maintainers = []
             try:
                 # get maintainers
@@ -534,3 +539,14 @@ class SigMaintainer(object):
             user_dict.update({'avatar_url': avatar_url})
             user_list.append(user_dict)
         return user_list
+
+    def get_gauss_sig_label(self):
+        if self.sig_label_path is None:
+            return {}
+        data = yaml.load_all(open(self.sig_label_path), Loader=yaml.Loader).__next__().get('sigs')
+        sig_label_dict = {}
+        for d in data:
+            name = d.get('name')
+            label = d.get('sig_label')
+            sig_label_dict.update({name: label})
+        return sig_label_dict
