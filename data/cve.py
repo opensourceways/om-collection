@@ -304,7 +304,11 @@ class CVE(object):
             rec_time = cve['CVE_vtopic_rec_time']
             pub_time = res['CVE_public_time']
             if pub_time is not None and pub_time != '':
-                fm = '%Y-%m-%d' if len(pub_time) == 10 else '%Y-%m-%d %H:%M'
+                fm = '%Y-%m-%d'
+                if len(pub_time) == 16:
+                    fm = '%Y-%m-%d %H:%M'
+                elif len(pub_time) == 19:
+                    fm = '%Y-%m-%d %H:%M:%S'
                 res['cve_rec_duration'] = self.getDuration(res['created_at'], '%Y-%m-%dT%H:%M:%S+08:00',
                                                            pub_time, fm)
             elif rec_time is not None and rec_time != '':
