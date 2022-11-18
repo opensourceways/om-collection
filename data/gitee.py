@@ -903,6 +903,7 @@ class Gitee(object):
         commenter_comments = []
         responsible = []
         last_reply_time = eitem.get('created_at')
+        tag_sig_names = eitem.get('tag_sig_names')
         responsible = self.get_responsible(ecomments)
         for ec in ecomments:
             if ec['user_login'] is None:  # or ec['user_login'] in self.skip_user:
@@ -921,11 +922,11 @@ class Gitee(object):
                         last_reply_time, '%Y-%m-%dT%H:%M:%S+08:00')).total_seconds()
                 last_reply_time = ec['created_at']
                 commenter_comments.append(ec)
-        actions += self.write_comment_by_role(commenter_comments, sig_names, id_str, role='commenter')
-        actions += self.write_comment_by_role(creator_comments, sig_names, id_str, role='creator')
+        actions += self.write_comment_by_role(commenter_comments, sig_names, tag_sig_names, id_str, role='commenter')
+        actions += self.write_comment_by_role(creator_comments, sig_names, tag_sig_names, id_str, role='creator')
         return actions, comment_times, responsible
 
-    def write_comment_by_role(self, comments, sig_names, id_str, role):
+    def write_comment_by_role(self, comments, sig_names, tag_sig_names, id_str, role):
         index = 0
         actions = ''
         for ec in comments:
@@ -934,6 +935,7 @@ class Gitee(object):
                 ec['is_first_reply'] = 1
             ec['role_type_of_comment_user'] = role
             ec['sig_names'] = sig_names
+            ec['tag_sig_names'] = tag_sig_names
             indexData = {
                 "index": {"_index": self.index_name, "_id": ec[id_str]}}
             actions += json.dumps(indexData) + '\n'
@@ -1845,11 +1847,12 @@ class Gitee(object):
         return res
 
     def get_tag_sig(self, labels):
+        sig = 'No-Sig'
         for label in labels:
             if label.startswith('sig/'):
                 sig = label.split('/')[1]
                 return sig
-        return
+        return sig
 
     def is_invalid_comment(self, body):
         if not body.strip().startswith('/') and not body.strip().startswith('／'):
