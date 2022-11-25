@@ -25,6 +25,8 @@ from collect.gitee import GiteeClient
 from data.common import ESClient
 from data.gitee import Gitee
 
+SIG_API = 'https://www.openeuler.org/api-sig/sigs/'
+
 
 class SigMaintainer(object):
 
@@ -54,8 +56,10 @@ class SigMaintainer(object):
         # self.index_name_maintainer_info = config.get('index_name_maintainer_info')
         self.sig_label_dict = None
         self.sig_label_path = config.get('sig_label_path')
+        self.sig_mail_dict = {}
 
     def run(self, from_time):
+        self.get_sig_mail()
         if self.index_name_sigs and self.sig_mark:
             self.get_all_id()
             self.download_sigs()
@@ -472,9 +476,10 @@ class SigMaintainer(object):
                 # get maintainers
                 owner_file = self.sigs_dirs_path + '/' + dir + '/' + 'OWNERS'
                 owners = yaml.load_all(open(owner_file), Loader=yaml.Loader).__next__()
+                mailing_list = self.sig_mail_dict.get(dir)
+                action.update({'mailing_list': mailing_list})
                 maintainers = owners['maintainers']
                 action.update({'maintainers': maintainers})
-                action.update({'mailing_list': 'dev@openeuler.org'})
                 action.update({'maintainer_info': self.attach_user_info(maintainers)})
                 try:
                     committers = owners['committers']
@@ -484,13 +489,15 @@ class SigMaintainer(object):
             except FileNotFoundError:
                 print('owner file of %s is not exist. using sig-info.yaml.' % dir)
                 sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
+                mailing_list = self.sig_mail_dict.get(dir)
+                action.update({'mailing_list': mailing_list})
                 info = yaml.load_all(open(sig_info), Loader=yaml.Loader).__next__()
                 if 'description' in info and info['description'] is not None:
                     action.update({'description': info['description']})
                 if 'mentors' in info and info['mentors'] is not None:
                     action.update({'mentors': info['mentors']})
-                if 'mailing_list' in info and info['mailing_list'] is not None:
-                    action.update({'mailing_list': info['mailing_list']})
+                # if 'mailing_list' in info and info['mailing_list'] is not None:
+                #     action.update({'mailing_list': info['mailing_list']})
                 if 'maintainers' in info and info['maintainers'] is not None:
                     maintainer_list = info['maintainers']
                     action.update({'maintainer_info': self.attach_user_info(maintainer_list)})
@@ -550,3 +557,13 @@ class SigMaintainer(object):
             label = d.get('sig_label')
             sig_label_dict.update({name: label})
         return sig_label_dict
+
+    def get_sig_mail(self):
+        res = self.esClient.request_get(SIG_API)
+        if res.status_code != 200:
+            return
+        res = res.json()
+        for r in res:
+            sig = r.get('group_name')
+            mail = r.get('maillist')
+            self.sig_mail_dict.update({sig: mail})
