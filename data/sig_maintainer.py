@@ -57,6 +57,7 @@ class SigMaintainer(object):
         self.sig_label_dict = None
         self.sig_label_path = config.get('sig_label_path')
         self.sig_mail_dict = {}
+        self.maillist_path = config.get('maillist_path')
 
     def run(self, from_time):
         self.get_sig_mail()
@@ -559,11 +560,17 @@ class SigMaintainer(object):
         return sig_label_dict
 
     def get_sig_mail(self):
-        res = self.esClient.request_get(SIG_API)
-        if res.status_code != 200:
-            return
-        res = res.json()
-        for r in res:
-            sig = r.get('group_name')
-            mail = r.get('maillist')
-            self.sig_mail_dict.update({sig: mail})
+        if self.org == 'openeuler':
+            res = self.esClient.request_get(SIG_API)
+            if res.status_code != 200:
+                return
+            res = res.json()
+            for r in res:
+                sig = r.get('group_name')
+                mail = r.get('maillist')
+                self.sig_mail_dict.update({sig: mail})
+        if self.org == 'opengauss':
+            res = yaml.load_all(open(self.maillist_path), Loader=yaml.Loader).__next__()
+            for key, val in res.items():
+                self.sig_mail_dict.update({key: val})
+
