@@ -570,7 +570,10 @@ class SigMaintainer(object):
                 mail = r.get('maillist')
                 self.sig_mail_dict.update({sig: mail})
         if self.org == 'opengauss':
-            res = yaml.load_all(open(self.maillist_path), Loader=yaml.Loader).__next__()
-            for key, val in res.items():
-                self.sig_mail_dict.update({key: val})
+            try:
+                res = yaml.load_all(open(self.maillist_path), Loader=yaml.Loader).__next__()
+                for key, val in res.items():
+                    self.sig_mail_dict.update({key: val})
+            except FileNotFoundError:
+                print('maillist_path missing.')
 
