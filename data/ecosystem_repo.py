@@ -72,16 +72,17 @@ class EcosystemRepo(object):
             repo_path = html_url.split('/')[4]
             star = self.get_star_count(owner, repo_path)
             action = {
+                'name': name,
                 'type': repo_type,
                 'description': description,
-                'repo': name,
+                'repo': repo,
                 'html_url': html_url,
                 'introduction': introduction,
                 'star': star,
                 'date': date,
                 'lang': lang
             }
-            id = repo_type + '_' + owner + '_' + repo + '_111' + lang
+            id = repo_type + '_' + owner + '_' + repo + '_' + lang
             indexData = {"index": {"_index": self.index_name, "_id": id}}
             actions += json.dumps(indexData) + '\n'
             actions += json.dumps(action) + '\n'

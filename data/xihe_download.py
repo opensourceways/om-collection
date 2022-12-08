@@ -26,6 +26,8 @@ class XiheDown(object):
         self.headers = {'Content-Type': 'application/json'}
 
     def run(self, start=None):
+        self.write_data()
+        return
         if self.count_type:
             # types = self.count_type.split(',')
             for count_type in self.count_type.split(','):
@@ -52,3 +54,20 @@ class XiheDown(object):
             actions += json.dumps(action) + '\n'
             print(actions)
             self.esClient.safe_put_bulk(actions)
+
+    def write_data(self):
+        actions = ''
+        count_type = 'download'
+        data = 536758
+        update_time = "2022-11-21T00:00:00+08:00"
+        action = {
+            count_type: data,
+            'update_time': update_time
+        }
+
+        index_data = {"index": {"_index": self.index_name, "_id": count_type + update_time}}
+        actions += json.dumps(index_data) + '\n'
+        actions += json.dumps(action) + '\n'
+        print(actions)
+        self.esClient.safe_put_bulk(actions)
+
