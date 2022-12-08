@@ -52,4 +52,3 @@ class XiheDown(object):
             actions += json.dumps(action) + '\n'
             print(actions)
             self.esClient.safe_put_bulk(actions)
-
