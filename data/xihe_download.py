@@ -26,8 +26,6 @@ class XiheDown(object):
         self.headers = {'Content-Type': 'application/json'}
 
     def run(self, start=None):
-        self.write_data()
-        return
         if self.count_type:
             # types = self.count_type.split(',')
             for count_type in self.count_type.split(','):
