@@ -12,7 +12,9 @@
 # See the Mulan PSL v2 for more details.
 # Create: 2022-03
 #
+import datetime
 import json
+import time
 
 from data.common import ESClient
 from collect.gitee import GiteeClient
@@ -32,9 +34,15 @@ class GiteeDeveloper(object):
         self.flag = 0
 
     def run(self, from_time):
-        print("Collect gitee committers data: start")
+        if self.config.get('since') is None:
+            self.since = str(datetime.date.today() - datetime.timedelta(days=1))
+        print("Collect gitee committers data start from %s" % self.since)
+        startTime = time.time()
         self.collect_developer_details()
-        print("Collect gitee committers data: finished")
+        endTime = time.time()
+        spent_time = time.strftime("%H:%M:%S",
+                                   time.gmtime(endTime - startTime))
+        print("Collect gitee committers data finished after %s" % spent_time)
 
     def get_repo_branches(self, owner, repo_path):
         gitee = GiteeClient(owner, repo_path, self.access_token, self.base_url)
@@ -86,16 +94,20 @@ class GiteeDeveloper(object):
         for owner in owners:
             print("...start owner: %s..." % owner)
             gitee_api = GiteeClient(owner, self.repository, self.access_token, self.base_url)
-            repo_page = 0
+            repo_page = 1
             while True:
-                repo_page += 1
                 response = gitee_api.get_repos(cur_page=repo_page)
+                if response.status_code == 429:
+                    print('Too Many Requests, sleep 10 seconds')
+                    time.sleep(10)
+                    continue
                 if response.status_code != 200:
                     print('HTTP get repos error!')
-                    continue
+                    break
                 repos = response.json()
                 if len(repos) == 0:
                     break
+                repo_page += 1
                 print("repo_page: %i" % repo_page)
                 for repo in repos:
                     actions = ""
@@ -107,7 +119,7 @@ class GiteeDeveloper(object):
                     for branch in branches_name:
                         print("start branch: %s" % branch)
                         page = 0
-                        self.flag = 1
+                        self.flag = 0
                         while True:
                             page += 1
                             action = self.get_developer_info(owner, page, repo_path, branch)
