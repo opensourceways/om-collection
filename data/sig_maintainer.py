@@ -25,7 +25,6 @@ from collect.gitee import GiteeClient
 from data.common import ESClient
 from data.gitee import Gitee
 
-SIG_API = 'https://www.openeuler.org/api-sig/sigs/'
 
 
 class SigMaintainer(object):
@@ -33,6 +32,7 @@ class SigMaintainer(object):
     def __init__(self, config=None):
         self.config = config
         self.index_name = config.get('index_name')
+        self.SIG_API = config.get('sig_api')
 
         self.url = config.get('es_url')
         self.authorization = config.get('authorization')
@@ -53,7 +53,6 @@ class SigMaintainer(object):
         self.get_repo_name_without_sig = config.get("get_repo_name_without_sig")
         self.sig_mark = config.get("sig_mark")
         self.exists_ids = []
-        # self.index_name_maintainer_info = config.get('index_name_maintainer_info')
         self.sig_label_dict = None
         self.sig_label_path = config.get('sig_label_path')
         self.sig_mail_dict = {}
@@ -415,30 +414,33 @@ class SigMaintainer(object):
                 print("this sig done: %s" % dir)
             except FileNotFoundError:
                 print('OWNER of %s is not exist. Using sig-info.yaml!' % dir)
-                repo_committer_dic = {}
-                sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
-                info = yaml.load_all(open(sig_info), Loader=yaml.Loader).__next__()
-                if self.get_repo_from_yaml(info, repo_committer_dic):
-                    repos, committers, repo_committer_dic = self.get_repo_from_yaml(info, repo_committer_dic)
-                else:
-                    repos = []
-                    committers = info['committers'] if 'committers' in info and info['committers'] is not None else None
-                datas = ''
-                if 'maintainers' in info and info['maintainers'] is not None:
-                    users_info = info['maintainers']
-                    users = [user['gitee_id'] for user in users_info]
-                    users_dict = {}
-                    for user in users_info:
-                        if 'organization' in user:
-                            users_dict[user['gitee_id']] = user['organization']
-                    datas = self.get_sig_info('maintainers', repos, users, dir, users_dict)
+                try:
+                    repo_committer_dic = {}
+                    sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
+                    info = yaml.load_all(open(sig_info), Loader=yaml.Loader).__next__()
+                    if self.get_repo_from_yaml(info, repo_committer_dic):
+                        repos, committers, repo_committer_dic = self.get_repo_from_yaml(info, repo_committer_dic)
+                    else:
+                        repos = []
+                        committers = info['committers'] if 'committers' in info and info['committers'] is not None else None
+                    datas = ''
+                    if 'maintainers' in info and info['maintainers'] is not None:
+                        users_info = info['maintainers']
+                        users = [user['gitee_id'] for user in users_info]
+                        users_dict = {}
+                        for user in users_info:
+                            if 'organization' in user:
+                                users_dict[user['gitee_id']] = user['organization']
+                        datas = self.get_sig_info('maintainers', repos, users, dir, users_dict)
 
-                if committers and len(committers) != 0:
-                    c_users = [user['gitee_id'] for user in committers]
-                    datas += self.get_sig_info('committers', repos, c_users, dir,
-                                               users_dict=None, repo_committer_dic=repo_committer_dic)
-                self.esClient.safe_put_bulk(datas)
-                print("this sig done: %s" % dir)
+                    if committers and len(committers) != 0:
+                        c_users = [user['gitee_id'] for user in committers]
+                        datas += self.get_sig_info('committers', repos, c_users, dir,
+                                                   users_dict=None, repo_committer_dic=repo_committer_dic)
+                    self.esClient.safe_put_bulk(datas)
+                    print("this sig done: %s" % dir)
+                except FileNotFoundError:
+                    print('sig-info.yaml of %s is not exist. ' % dir)
 
         self.mark_removed_sigs(dirs=dirs, index=self.index_name_sigs)
         self.mark_removed_ids()
@@ -479,36 +481,39 @@ class SigMaintainer(object):
                 owners = yaml.load_all(open(owner_file), Loader=yaml.Loader).__next__()
                 mailing_list = self.sig_mail_dict.get(dir)
                 action.update({'mailing_list': mailing_list})
-                maintainers = owners['maintainers']
-                action.update({'maintainers': maintainers})
-                action.update({'maintainer_info': self.attach_user_info(maintainers)})
                 try:
+                    maintainers = owners['maintainers']
+                    action.update({'maintainers': maintainers})
+                    action.update({'maintainer_info': self.attach_user_info(maintainers)})
                     committers = owners['committers']
                     action.update({'committer_info': self.attach_user_info(committers)})
                 except KeyError:
                     print('committers of %s is null.' % dir)
             except FileNotFoundError:
                 print('owner file of %s is not exist. using sig-info.yaml.' % dir)
-                sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
-                mailing_list = self.sig_mail_dict.get(dir)
-                action.update({'mailing_list': mailing_list})
-                info = yaml.load_all(open(sig_info), Loader=yaml.Loader).__next__()
-                if 'description' in info and info['description'] is not None:
-                    action.update({'description': info['description']})
-                if 'mentors' in info and info['mentors'] is not None:
-                    action.update({'mentors': info['mentors']})
-                # if 'mailing_list' in info and info['mailing_list'] is not None:
-                #     action.update({'mailing_list': info['mailing_list']})
-                if 'maintainers' in info and info['maintainers'] is not None:
-                    maintainer_list = info['maintainers']
-                    action.update({'maintainer_info': self.attach_user_info(maintainer_list)})
-                    maintainers = [user['gitee_id'] for user in info['maintainers']]
-                    action.update({'maintainers': maintainers})
-                if self.get_repo_from_yaml(info, {}):
-                    committers_info = self.get_repo_from_yaml(info, {})[1]
-                    action.update({'committer_info': self.attach_user_info(committers_info)})
-                    committers = [user['gitee_id'] for user in committers_info]
-                    action.update({'committers': committers})
+                try:
+                    sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
+                    mailing_list = self.sig_mail_dict.get(dir)
+                    action.update({'mailing_list': mailing_list})
+                    info = yaml.load_all(open(sig_info), Loader=yaml.Loader).__next__()
+                    if 'description' in info and info['description'] is not None:
+                        action.update({'description': info['description']})
+                    if 'mentors' in info and info['mentors'] is not None:
+                        action.update({'mentors': info['mentors']})
+                    # if 'mailing_list' in info and info['mailing_list'] is not None:
+                    #     action.update({'mailing_list': info['mailing_list']})
+                    if 'maintainers' in info and info['maintainers'] is not None:
+                        maintainer_list = info['maintainers']
+                        action.update({'maintainer_info': self.attach_user_info(maintainer_list)})
+                        maintainers = [user['gitee_id'] for user in info['maintainers']]
+                        action.update({'maintainers': maintainers})
+                    if self.get_repo_from_yaml(info, {}):
+                        committers_info = self.get_repo_from_yaml(info, {})[1]
+                        action.update({'committer_info': self.attach_user_info(committers_info)})
+                        committers = [user['gitee_id'] for user in committers_info]
+                        action.update({'committers': committers})
+                except FileNotFoundError:
+                    print('sig-info.yaml %s is not exist.' % dir)
 
             # get maintainer sigs dict
             dt = defaultdict(dict)
@@ -561,7 +566,7 @@ class SigMaintainer(object):
 
     def get_sig_mail(self):
         if self.org == 'openeuler':
-            res = self.esClient.request_get(SIG_API)
+            res = self.esClient.request_get(self.SIG_API)
             if res.status_code != 200:
                 return
             res = res.json()
@@ -576,4 +581,5 @@ class SigMaintainer(object):
                     self.sig_mail_dict.update({key: val})
             except FileNotFoundError:
                 print('maillist_path missing.')
+        print(self.sig_mail_dict)
 
