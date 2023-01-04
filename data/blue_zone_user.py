@@ -54,6 +54,7 @@ class BlueZoneUser(object):
         for user in self.users:
             print('******* %s *******' % user['name'])
             self.user = user
+            user.pop('product_line_code')
             emails = ';'.join(user['emails'])
             user['emails'] = emails
             self.user.__delitem__('created_at')
