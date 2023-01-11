@@ -4,14 +4,12 @@
 #  Etiam sed turpis ac ipsum condimentum fringilla. Maecenas magna.
 #  Proin dapibus sapien vel ante. Aliquam erat volutpat. Pellentesque sagittis ligula eget metus.
 #  Vestibulum commodo. Ut rhoncus gravida arcu.
-import base64
 import json
-
 import requests
-
 from data.common import ESClient
 
-API_URL = "https://xihebackend.mindspore.cn/api/base/statistics/"
+API_URL = "https://xihe-statistics.test.osinfra.cn/api/v1/"
+retry_times = 3
 
 
 class XiheDown(object):
@@ -20,35 +18,56 @@ class XiheDown(object):
         self.index_name = config.get('index_name')
         self.token = config.get('token')
         self.count_type = config.get('count_type')
+        self.type = config.get('type')
+        self.model_name = config.get('model_name')
 
         self.esClient = ESClient(config)
         self.session = requests.Session()
         self.headers = {'Content-Type': 'application/json'}
 
     def run(self, start=None):
-        if self.count_type:
-            # types = self.count_type.split(',')
-            for count_type in self.count_type.split(','):
-                self.get_download(count_type)
-
-    def get_download(self, count_type):
-        pw = base64.b64decode(self.token).decode('utf-8')
-        payload = {
-            "password": pw,
-            "request_type": count_type
-        }
         actions = ''
-        response = requests.post(API_URL, data=json.dumps(payload), headers=self.headers, verify=False)
+        if self.count_type:
+            for count_type in self.count_type.split(','):
+                actions += self.get_download(API_URL, count_type)
+        if self.type:
+            for t in self.type.split(','):
+                base_url = API_URL + 'd1/'
+                actions += self.get_download(base_url, t)
+        if self.model_name:
+            for name in self.model_name.split(','):
+                base_url = API_URL + 'd1/bigmodel/'
+                actions += self.get_download(base_url, name)
+        self.esClient.safe_put_bulk(actions)
+
+    def get_download(self, base_url, count_type):
+        url = base_url + count_type
+        actions = ''
+        # response = requests.get(url=url, headers=self.headers, verify=False)
+        response = self.get_api(url)
         if response.status_code == 200:
-            data = response.json().get('data').get(count_type)
-            update_time = response.json().get('data').get('update_time')
+            res = response.json().get('data')
+            update_time = res.get('update_at')
             action = {
-                count_type: data,
-                'update_time': update_time
+                'update_time': update_time,
+                count_type: res.get('counts')
             }
+            if count_type in self.model_name:
+                action.update({'model': count_type})
+                action.update({'counts': res.get('counts')})
 
             index_data = {"index": {"_index": self.index_name, "_id": count_type + update_time}}
             actions += json.dumps(index_data) + '\n'
             actions += json.dumps(action) + '\n'
-            print(actions)
-            self.esClient.safe_put_bulk(actions)
+        return actions
+
+    def get_api(self, url):
+        cnt = 0
+        while cnt < retry_times:
+            response = requests.get(url=url, headers=self.headers, verify=False)
+            if response.status_code != 200:
+                cnt += 1
+                print('Retry ' + str(cnt) + ' times: ' + url)
+                continue
+            return response
+        return requests.get(url=url, headers=self.headers, verify=False)
