@@ -85,4 +85,63 @@ class XiheDown(object):
             self.retry_cnt = 0
             return response
 
+    def write_data(self):
+        actions = ''
+        update_time = "2023-01-10T00:00:00+08:00"
+        count_type = "d0"
+        action = {
+            'update_time': update_time,
+            count_type: 14992
+        }
+        index_data = {"index": {"_index": self.index_name, "_id": count_type + update_time}}
+        actions += json.dumps(index_data) + '\n'
+        actions += json.dumps(action) + '\n'
+
+        count_type = "d1"
+        action = {
+            'update_time': update_time,
+            count_type: 696
+        }
+        index_data = {"index": {"_index": self.index_name, "_id": count_type + update_time}}
+        actions += json.dumps(index_data) + '\n'
+        actions += json.dumps(action) + '\n'
+
+        count_type = "d2"
+        action = {
+            'update_time': update_time,
+            count_type: 549
+        }
+        index_data = {"index": {"_index": self.index_name, "_id": count_type + update_time}}
+        actions += json.dumps(index_data) + '\n'
+        actions += json.dumps(action) + '\n'
+
+        count_type = "download"
+        action = {
+            'update_time': update_time,
+            count_type: 536590
+        }
+        index_data = {"index": {"_index": self.index_name, "_id": count_type + update_time}}
+        actions += json.dumps(index_data) + '\n'
+        actions += json.dumps(action) + '\n'
+
+        count_type = "repo"
+        action = {
+            'update_time': update_time,
+            count_type: 696
+        }
+        index_data = {"index": {"_index": self.index_name, "_id": count_type + update_time}}
+        actions += json.dumps(index_data) + '\n'
+        actions += json.dumps(action) + '\n'
+
+        count_type = "bigmodel"
+        action = {
+            'update_time': update_time,
+            count_type: 10
+        }
+        index_data = {"index": {"_index": self.index_name, "_id": count_type + update_time}}
+        actions += json.dumps(index_data) + '\n'
+        actions += json.dumps(action) + '\n'
+
+        print(actions)
+        self.esClient.safe_put_bulk(actions)
 
