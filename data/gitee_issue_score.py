@@ -194,6 +194,7 @@ class GiteeScore(object):
         pull_generator = self.giteeClient.pulls(state='all', once_update_num_of_pr=0)
         whole_pull_list = self.esClient.getGenerator(pull_generator)
 
+        not_score_prs = 0
         total_pull_bodies = []
         for single_pull_body in whole_pull_list:
             # Only process the issue which issue title contains "文档捉虫"
@@ -210,11 +211,13 @@ class GiteeScore(object):
             score_admin, pull_score = self.parse_pull_comments(comments_generator)
 
             if not pull_score:
+                not_score_prs += 1
                 continue
 
             total_pull_bodies.append((pull_number, user_login, created_at, pull_score, score_admin, state))
 
         print(f'Succeed to collect pull numbers: {len(total_pull_bodies)}')
+        print(f'Not score pull numbers: {not_score_prs}')
         return total_pull_bodies
 
     def parse_pull_comments(self, comments_generator):
@@ -239,10 +242,8 @@ class GiteeScore(object):
             try:   # split by either Chinese or English colon.
                 score_str = re.split('\uff1a|:', score_str)[1].strip()
                 pull_score = int(score_str)
-                return score_admin, pull_score
             except Exception as exp:
                 print(f'Cannot parse comment_content: {score_str}')
-                return score_admin, pull_score
         return score_admin, pull_score
 
     def get_comments_by_issue_number(self, issue_number):
