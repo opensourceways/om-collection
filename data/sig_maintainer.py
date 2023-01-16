@@ -26,13 +26,13 @@ from data.common import ESClient
 from data.gitee import Gitee
 
 
-
 class SigMaintainer(object):
 
     def __init__(self, config=None):
         self.config = config
         self.index_name = config.get('index_name')
-        self.SIG_API = config.get('sig_api')
+        self.sig_mail_api = config.get('sig_mail_api')
+        self.sig_mail_auth = config.get('sig_mail_auth')
 
         self.url = config.get('es_url')
         self.authorization = config.get('authorization')
@@ -475,11 +475,14 @@ class SigMaintainer(object):
             if self.org == 'opengauss':
                 action.update({"tag_sig_name": self.sig_label_dict.get(dir)})
             maintainers = []
+            sig_str = dir.lower()
+            if not sig_str.startswith('sig-'):
+                sig_str = 'sig-' + sig_str
             try:
                 # get maintainers
                 owner_file = self.sigs_dirs_path + '/' + dir + '/' + 'OWNERS'
                 owners = yaml.load_all(open(owner_file), Loader=yaml.Loader).__next__()
-                mailing_list = self.sig_mail_dict.get(dir)
+                mailing_list = self.sig_mail_dict.get(sig_str)
                 action.update({'mailing_list': mailing_list})
                 try:
                     maintainers = owners['maintainers']
@@ -493,7 +496,7 @@ class SigMaintainer(object):
                 print('owner file of %s is not exist. using sig-info.yaml.' % dir)
                 try:
                     sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
-                    mailing_list = self.sig_mail_dict.get(dir)
+                    mailing_list = self.sig_mail_dict.get(sig_str)
                     action.update({'mailing_list': mailing_list})
                     info = yaml.load_all(open(sig_info), Loader=yaml.Loader).__next__()
                     if 'description' in info and info['description'] is not None:
@@ -566,14 +569,23 @@ class SigMaintainer(object):
 
     def get_sig_mail(self):
         if self.org == 'openeuler':
-            res = self.esClient.request_get(self.SIG_API)
-            if res.status_code != 200:
+            _headers = {
+                'Content-Type': 'application/json',
+                'Authorization': self.sig_mail_auth
+            }
+            try:
+                res = self.esClient.request_get(url=self.sig_mail_api, headers=_headers, timeout=60)
+                if res.status_code != 200:
+                    return
+                res = res.json().get('entries')
+                for r in res:
+                    sig = r.get('display_name').lower()
+                    if not sig.startswith('sig-'):
+                        sig = 'sig-' + sig
+                    mail = r.get('fqdn_listname')
+                    self.sig_mail_dict.update({sig: mail})
+            except:
                 return
-            res = res.json()
-            for r in res:
-                sig = r.get('group_name')
-                mail = r.get('maillist')
-                self.sig_mail_dict.update({sig: mail})
         if self.org == 'opengauss':
             try:
                 res = yaml.load_all(open(self.maillist_path), Loader=yaml.Loader).__next__()
