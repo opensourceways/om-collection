@@ -60,7 +60,7 @@ class SigMaintainer(object):
 
     def run(self, from_time):
         self.download_sigs()
-        self.get_sig_mail()
+        # self.get_sig_mail()
         if self.index_name_sigs and self.sig_mark:
             self.get_all_id()
             maintainer_sigs_dict = self.get_sigs_original()
@@ -475,36 +475,30 @@ class SigMaintainer(object):
             if self.org == 'opengauss':
                 action.update({"tag_sig_name": self.sig_label_dict.get(dir)})
             maintainers = []
-            sig_str = dir.lower()
-            if not sig_str.startswith('sig-'):
-                sig_str = 'sig-' + sig_str
             try:
                 # get maintainers
                 owner_file = self.sigs_dirs_path + '/' + dir + '/' + 'OWNERS'
                 owners = yaml.load_all(open(owner_file), Loader=yaml.Loader).__next__()
-                mailing_list = self.sig_mail_dict.get(sig_str)
-                action.update({'mailing_list': mailing_list})
                 try:
-                    maintainers = owners['maintainers']
+                    maintainers = owners.get('maintainers')
                     action.update({'maintainers': maintainers})
                     action.update({'maintainer_info': self.attach_user_info(maintainers)})
-                    committers = owners['committers']
+                    committers = owners.get('committers')
+                    action.update({'committers': committers})
                     action.update({'committer_info': self.attach_user_info(committers)})
-                except KeyError:
-                    print('committers of %s is null.' % dir)
+                except KeyError as e:
+                    print('KeyError of %s is null.' % dir)
             except FileNotFoundError:
                 print('owner file of %s is not exist. using sig-info.yaml.' % dir)
                 try:
                     sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
-                    mailing_list = self.sig_mail_dict.get(sig_str)
-                    action.update({'mailing_list': mailing_list})
                     info = yaml.load_all(open(sig_info), Loader=yaml.Loader).__next__()
                     if 'description' in info and info['description'] is not None:
                         action.update({'description': info['description']})
                     if 'mentors' in info and info['mentors'] is not None:
                         action.update({'mentors': info['mentors']})
-                    # if 'mailing_list' in info and info['mailing_list'] is not None:
-                    #     action.update({'mailing_list': info['mailing_list']})
+                    if 'mailing_list' in info and info['mailing_list'] is not None:
+                        action.update({'mailing_list': info['mailing_list']})
                     if 'maintainers' in info and info['maintainers'] is not None:
                         maintainer_list = info['maintainers']
                         action.update({'maintainer_info': self.attach_user_info(maintainer_list)})
