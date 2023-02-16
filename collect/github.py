@@ -247,7 +247,7 @@ class GithubClient(object):
     def get_repo(self, org, repo):
         url = self.urijoin(BASE_URL, 'repos', org, repo)
         datas = []
-        self.get_data(url=url, params=None, current_page=1, datas=datas)
+        self.get_data(url=url, params={}, current_page=1, datas=datas)
         return datas
 
     def get_swf(self, owner, repo, item):
