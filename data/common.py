@@ -155,6 +155,7 @@ class ESClient(object):
         self.item = config.get("item")
         self.orgs = self.getOrgs(config.get('orgs'))
         self.company_location_index = config.get('company_location_index')
+        self.email_gitee_authorization = config.get('email_gitee_authorization')
 
     def getObsAllPackageName(self):
         search_json = '''{
@@ -1216,6 +1217,12 @@ class ESClient(object):
         return starTime
 
     def searchEmailGitee(self, url, headers, index_name, search=None):
+        if headers is None:
+            headers = {
+                'Content-Type': 'application/json',
+                'Authorization': self.email_gitee_authorization
+            }
+
         url = url + '/' + index_name + '/_search'
         data = '''{"size":10000,"query": {"bool": {%s}}}''' % search
         try:

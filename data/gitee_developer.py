@@ -67,24 +67,32 @@ class GiteeDeveloper(object):
             return actions
         for commit in commits_legacy:
             if commit['author'] is not None and 'id' in commit['author']:
+                email = commit['commit']['author']['email']
+                gitee_id = commit['author']['login']
+                id = commit['author']['id']
                 action = {
-                    'email': commit['commit']['author']['email'],
-                    'gitee_id': commit['author']['login'],
-                    'id': commit['author']['id'],
+                    'email': email,
+                    'gitee_id': gitee_id,
+                    'id': id,
                     'created_at': commit['commit']['author']['date']
                 }
-                index_data_survey = {"index": {"_index": self.index_name_committer, "_id": action['email']}}
+                es_id = str(id) + '_' + email + '_' + gitee_id
+                index_data_survey = {"index": {"_index": self.index_name_committer, "_id": es_id}}
                 actions += json.dumps(index_data_survey) + '\n'
                 actions += json.dumps(action) + '\n'
 
             if commit['committer'] is not None and 'id' in commit['committer']:
+                email = commit['commit']['committer']['email']
+                gitee_id = commit['committer']['login']
+                id = commit['committer']['id']
                 action = {
                     'email': commit['commit']['committer']['email'],
                     'gitee_id': commit['committer']['login'],
                     'id': commit['committer']['id'],
                     'created_at': commit['commit']['committer']['date']
                 }
-                index_data_survey = {"index": {"_index": self.index_name_committer, "_id": action['email']}}
+                es_id = str(id) + '_' + email + '_' + gitee_id
+                index_data_survey = {"index": {"_index": self.index_name_committer, "_id": es_id}}
                 actions += json.dumps(index_data_survey) + '\n'
                 actions += json.dumps(action) + '\n'
         return actions
