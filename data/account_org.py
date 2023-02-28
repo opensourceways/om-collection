@@ -81,9 +81,11 @@ class AccountOrg(object):
                 if email in self.csv_data.keys():
                     gitee_ids = self.csv_data[email]
                     for gitee_id in gitee_ids:
-                        actions = self.getActions(email, source_data['corporation'], gitee_id, domain, source_data['created_at'], actions)
+                        actions = self.getActions(email, source_data['corporation'], gitee_id, domain,
+                                                  source_data['created_at'], actions)
                 else:
-                    actions = self.getActions(email, source_data['corporation'], None, domain, source_data['created_at'], actions)
+                    actions = self.getActions(email, source_data['corporation'], None, domain,
+                                              source_data['created_at'], actions)
 
             self.esClient.safe_put_bulk(actions)
 
@@ -96,7 +98,10 @@ class AccountOrg(object):
             "created_at": created_at,
             "is_cla": 1
         }
-        id = email + '_' + gitee_id
+        if gitee_id:
+            id = email + '_' + gitee_id
+        else:
+            id = email
         index_data = {"index": {"_index": self.index_name, "_id": id}}
         actions += json.dumps(index_data) + '\n'
         actions += json.dumps(action) + '\n'
@@ -104,26 +109,23 @@ class AccountOrg(object):
 
     def getEmailGiteeDict(self):
         search = '"must": [{"match_all": {}}]'
-        header = {
-            'Content-Type': 'application/json',
-            'Authorization': self.email_gitee_authorization
-        }
-        hits = self.esClient.searchEmailGitee(url=self.email_gitee_es, headers=header,
+        hits = self.esClient.searchEmailGitee(url=self.email_gitee_es, headers=None,
                                               index_name=self.email_gitee_index, search=search)
         data = {}
         if hits is not None and len(hits) > 0:
             for hit in hits:
-                ids = []
                 source = hit['_source']
                 email = source['email']
                 gitee_id = source['gitee_id']
-                ids.append(gitee_id)
+                new_ids = []
                 if email in data:
-                    ids = data.get(email)
-                    ids.append(gitee_id)
-                    ids = list(set(ids))
+                    old_ids = data.get(email)
+                    old_ids.append(gitee_id)
+                    new_ids = list(set(old_ids))
+                else:
+                    new_ids.append(gitee_id)
 
-                data.update({email: ids})
+                data.update({email: new_ids})
         return data
 
     def getDataFromYaml(self):
@@ -150,7 +152,7 @@ class AccountOrg(object):
                     email = emails[0]
                     id = email + '_' + gitee_id
                 else:
-                    id = '_' + gitee_id
+                    id = gitee_id
                     email = gitee_id
 
                 action = {
@@ -179,7 +181,7 @@ class AccountOrg(object):
                 continue
             email = item[1]
             if email == '':
-                id = '_' + item[0]
+                id = item[0]
             else:
                 id = email + '_' + item[0]
             action = {
