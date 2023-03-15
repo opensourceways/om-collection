@@ -438,7 +438,7 @@ class GitCommitLog(object):
                     user_company = aliases_company_dict[user_company]
                 for email in user['emails']:
                     email_org_dict.update({email: user_company})
-                    email_user_dict.update({email: user['user_name']})
+                    email_user_dict.update({email: user.get('user_name')})
 
             return email_org_dict, domain_org_dict, email_user_dict
         except Exception:
