@@ -61,6 +61,8 @@ class GitCommitLog(object):
         self.all_repo_default_branch = config.get('all_repo_default_branch', 'false')
         self.is_gitee_enterprise = config.get('is_gitee_enterprise')
 
+        self.email_user_dict = {}
+
     def run(self, from_time):
         print("Git commit log collect: start")
         # 邮箱 -> 企业
@@ -78,7 +80,8 @@ class GitCommitLog(object):
             self.getCommitWhiteBox(default_branch_repos, 'default')  # 只是获取默认分支commit
             self.getCommitWhiteBox(all_branch_repos)  # 获取全部分支commit
         elif self.upstream_yaml:  # upstream 指定仓库
-            self.email_orgs_dict, self.domain_orgs_dict = self.getUpstreamCompany(user_yaml=self.user_yaml, company_yaml=self.company_yaml)
+            self.email_orgs_dict, self.domain_orgs_dict, self.email_user_dict = self.getUpstreamCompany(
+                user_yaml=self.user_yaml, company_yaml=self.company_yaml)
             all_branch_repos, default_branch_repos = self.getReposFromYaml(yaml_file=self.upstream_yaml)
             self.getCommitWhiteBox(default_branch_repos, 'default')  # 只是获取默认分支commit
             self.getCommitWhiteBox(all_branch_repos)  # 获取全部分支commit
@@ -210,6 +213,10 @@ class GitCommitLog(object):
             elif self.domain_orgs_dict and email_domain in self.domain_orgs_dict:
                 company = self.domain_orgs_dict[email_domain]
 
+            unified_user = commit.author.name
+            if self.email_user_dict and email in self.email_user_dict:
+                unified_user = self.email_user_dict[email]
+
             sigs = ['No-SIG']
             owner_repo = '%s/%s' % (owner, repo_name)
             if self.repo_sigs_dict and owner_repo in self.repo_sigs_dict:
@@ -238,6 +245,7 @@ class GitCommitLog(object):
                 'platform': platform,
                 'commit_url': repo_url + '/commit/' + commit.hexsha,
                 'is_merge': is_merge,
+                'unified_user': unified_user
             }
 
             # 协作者
@@ -400,6 +408,7 @@ class GitCommitLog(object):
     def getUpstreamCompany(self, user_yaml, company_yaml):
         email_org_dict = {}
         domain_org_dict = {}
+        email_user_dict = {}
         try:
             cmd = 'wget -N -P %s %s' % (self.code_base_path, user_yaml)
             os.system(cmd)
@@ -429,7 +438,8 @@ class GitCommitLog(object):
                     user_company = aliases_company_dict[user_company]
                 for email in user['emails']:
                     email_org_dict.update({email: user_company})
+                    email_user_dict.update({email: user.get('user_name')})
 
-            return email_org_dict, domain_org_dict
+            return email_org_dict, domain_org_dict, email_user_dict
         except Exception:
-            return email_org_dict, domain_org_dict
+            return email_org_dict, domain_org_dict, email_user_dict
