@@ -335,7 +335,7 @@ class CodeStatistics(object):
         # 本地仓库已存在执行git pull；否则执行git clone
         self.removeGitLockFile(code_path)
         if os.path.exists(code_path):
-            cmd_pull = 'cd %s;git checkout .;git pull' % code_path
+            cmd_pull = 'cd %s;git checkout .;git pull --rebase' % code_path
             os.system(cmd_pull)
         else:
             if clone_url is None:
