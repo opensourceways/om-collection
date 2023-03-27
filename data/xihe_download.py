@@ -51,7 +51,8 @@ class XiheDown(object):
                 update_time = res.get('update_at')
                 action = {
                     'update_time': update_time,
-                    count_type: res.get('counts')
+                    count_type: res.get('counts'),
+                    'is_project_internal_user': 0
                 }
                 if count_type in self.model_name:
                     action.update({'model': count_type})
