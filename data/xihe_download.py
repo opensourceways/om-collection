@@ -38,7 +38,6 @@ class XiheDown(object):
             for name in self.model_name.split(','):
                 base_url = self.api_url + 'd1/bigmodel/'
                 actions += self.get_download(base_url, name)
-        print(actions)
         self.esClient.safe_put_bulk(actions)
 
     def get_download(self, base_url, count_type):
