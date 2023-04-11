@@ -81,7 +81,8 @@ BACKEND_MAPPING = {
     'search_repos': 'data.search_repos.SearchRepos',
     'ecosystem_repo': 'data.ecosystem_repo.EcosystemRepo',
     'docker_hub': 'data.docker_hub.DockerHub',
-    'city_location': 'data.city_location.CityLocation'
+    'city_location': 'data.city_location.CityLocation',
+    'gitee_pr_version': 'data.gitee_pr_version.GiteePrVersion',
 }
 
 
