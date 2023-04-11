@@ -82,6 +82,8 @@ BACKEND_MAPPING = {
     'ecosystem_repo': 'data.ecosystem_repo.EcosystemRepo',
     'docker_hub': 'data.docker_hub.DockerHub',
     'city_location': 'data.city_location.CityLocation',
+    'ip_location': 'data.ip_data.ip_location.IPLocation',
+    'user_active': 'user_active.UserActive',
     'gitee_pr_version': 'data.gitee_pr_version.GiteePrVersion',
 }
 
@@ -113,6 +115,23 @@ class George:
                 print("[common] Start to run from itself time")
             else:
                 print("[common] Start to run from ", starTime)
+            #
+            # try:
+            #     f = open('es_secret', 'r', encoding="utf-8")
+            #     secrets = []
+            #     for line in f.readlines():
+            #         if line != "\n":
+            #             secrets.append(line.split('\n')[0])
+            #     self.config.set('general', 'es_url', secrets[0])
+            #     self.config.set('general', 'authorization', secrets[1])
+            # except:
+            #     print('es_secret file open failed!')
+            #
+            # drivers = []
+            # for backend in self.sections:
+            #     if backend in BACKEND_MAPPING:
+            #         driver = import_object(BACKEND_MAPPING[backend], self.getBackendConfig(backend))
+            #         drivers.append(driver)
             for driver in drivers:
                 driver.run(starTime)
 
@@ -130,4 +149,5 @@ class George:
 
         for key, value in self.config.items(backend_name):
             backend_conf[key] = value
+        print(backend_conf)
         return backend_conf

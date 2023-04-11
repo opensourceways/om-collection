@@ -35,57 +35,66 @@ class GiteePrVersion(object):
 
     def run(self, from_time):
         repo_versions = self.get_obs_meta()
-        print(repo_versions)
-        self.reindex_pr(repo_versions)
-        self.refresh_robot_pr(repo_versions)
+        for org in self.orgs.split(','):
+            print('start org: ', org)
+            self.reindex_pr(org, repo_versions)
+            self.refresh_robot_pr(org, repo_versions)
 
-    def reindex_pr(self, repo_versions):
-        for version in repo_versions:
-            reindex_json = '''{
-                "source": {
-                    "index": "%s",
+    def reindex_pr(self, org, repo_versions):
+        for repo, versions in repo_versions.items():
+            if org == 'openeuler' and repo != 'kernel':
+                continue
+            gitee_repo = 'https://gitee.com/%s/%s' % (org, repo)
+            for version in versions:
+                reindex_json = '''{
+                    "source": {
+                        "index": "%s",
+                        "query": {
+                            "bool": {
+                                "filter": [
+                                    {
+                                        "query_string": {
+                                            "analyze_wildcard": true,
+                                            "query": "is_gitee_pull_request:1 AND org_name.keyword:%s AND gitee_repo.keyword:\\"%s\\" AND base_label.keyword:%s AND !tag_user_company.keyword:robot"
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "dest": {
+                        "index": "%s"
+                    }
+                }''' % (self.index_name_gitee, org, gitee_repo, version, self.index_name)
+                data_num = self.esClient.reindex(reindex_json.encode('utf-8'))
+                if data_num == 0:
+                    continue
+                print('reindex: %s(%s) -> %d over' % (repo, version, data_num))
+
+    def refresh_robot_pr(self, org, repo_versions):
+        for repo, versions in repo_versions.items():
+            if org == 'openeuler' and repo != 'kernel':
+                continue
+            print('start repo: ', repo)
+            gitee_repo = 'https://gitee.com/%s/%s' % (org, repo)
+            for version in versions:
+                query = '''{
+                    "size": 5000,
                     "query": {
                         "bool": {
                             "filter": [
                                 {
                                     "query_string": {
                                         "analyze_wildcard": true,
-                                        "query": "is_gitee_pull_request:1 AND base_label.keyword:%s AND !tag_user_company.keyword:robot"
+                                        "query": "is_gitee_pull_request:1 AND org_name.keyword:%s AND gitee_repo.keyword:\\"%s\\" AND base_label.keyword:%s AND tag_user_company.keyword:robot"
                                     }
                                 }
                             ]
                         }
-                    }
-                },
-                "dest": {
-                    "index": "%s"
-                }
-            }''' % (self.index_name_gitee, version, self.index_name)
-            data_num = self.esClient.reindex(reindex_json.encode('utf-8'))
-            if data_num == 0:
-                continue
-            print('reindex: %s -> %d over' % (version, data_num))
-
-    def refresh_robot_pr(self, repo_versions):
-        for version in repo_versions:
-            print('start version: ', version)
-            query = '''{
-                "size": 5000,
-                "query": {
-                    "bool": {
-                        "filter": [
-                            {
-                                "query_string": {
-                                    "analyze_wildcard": true,
-                                    "query": "is_gitee_pull_request:1 AND base_label.keyword:%s AND tag_user_company.keyword:robot"
-                                }
-                            }
-                        ]
-                    }
-                },
-                "aggs": {}
-            }''' % version
-            self.esClient.scrollSearch(self.index_name_gitee, search=query, func=self.get_pr_func)
+                    },
+                    "aggs": {}
+                }''' % (org, gitee_repo, version)
+                self.esClient.scrollSearch(self.index_name_gitee, search=query, func=self.get_pr_func)
 
     def get_pr_func(self, hits):
         actions = ''
@@ -153,7 +162,29 @@ class GiteePrVersion(object):
                 return s.startswith("openEuler-")
 
             inter_versions = list(filter(check_version, dirs))
-        return inter_versions
+        repo_versions = {}
+        for version in inter_versions:
+            package_dirs = []
+            package_epol_dir = []
+            try:
+                # 注意，windows下不支持目录中包含”:“等符号
+                package_path = os.path.join(root, version, version.replace('-', ':'))
+                package_epol_path = os.path.join(root, version, ('%s:Epol' % version.replace('-', ':')))
+                if os.path.exists(package_path):
+                    _, package_dirs, _ = os.walk(package_path).__next__()
+                if os.path.exists(package_epol_path):
+                    _, package_epol_dir, _ = os.walk(package_epol_path).__next__()
+            except:
+                continue
+            package_union_dirs = list(set(package_dirs).union(set(package_epol_dir)))
+            for dir in package_union_dirs:
+                versions = repo_versions.get(dir)
+                if versions is not None:
+                    versions.append(version)
+                    repo_versions.update({dir: versions})
+                else:
+                    repo_versions.update({dir: [version]})
+        return repo_versions
 
     def git_clone_or_pull_repo(self, owner, repo_name):
         # 本地仓库目录
