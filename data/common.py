@@ -1216,23 +1216,44 @@ class ESClient(object):
         starTime = f.strftime("%Y%m%d")
         return starTime
 
-    def searchEmailGitee(self, url, headers, index_name, search=None):
+    def searchEmailGitee(self, url, headers, index_name, search=None, scroll_duration='1m'):
+        email_data = []
         if headers is None:
             headers = {
                 'Content-Type': 'application/json',
                 'Authorization': self.email_gitee_authorization
             }
-
-        url = url + '/' + index_name + '/_search'
-        data = '''{"size":10000,"query": {"bool": {%s}}}''' % search
-        try:
-            res = json.loads(
-                self.request_get(url=url, headers=headers,
-                                 data=data.encode('utf-8')).content)
-            return res['hits']['hits']
-        except:
-            print(traceback.format_exc())
+        es_url = url + '/' + index_name + '/_search?scroll=' + scroll_duration
+        search = '''{"size":10000,"query": {"bool": {%s}}}''' % search
+        res = self.request_get(url=es_url, headers=headers,
+                               data=search.encode('utf-8'))
+        if res.status_code != 200:
+            print('requests error')
             return None
+        res_data = res.json()
+        data = res_data['hits']['hits']
+        print('scroll data count: %s' % len(data))
+        email_data.extend(data)
+
+        scroll_id = res_data['_scroll_id']
+        while scroll_id is not None and len(data) != 0:
+            es_url = url + '/_search/scroll'
+            search = '''{
+                          "scroll": "%s",
+                          "scroll_id": "%s"
+                        }''' % (scroll_duration, scroll_id)
+            res = self.request_get(url=es_url, headers=headers,
+                                   data=search.encode('utf-8'))
+            if res.status_code != 200:
+                print('requests error')
+                return None
+            res_data = res.json()
+            scroll_id = res_data['_scroll_id']
+            data = res_data['hits']['hits']
+            print('scroll data count: %s' % len(data))
+            email_data.extend(data)
+        print('scroll over')
+        return email_data
 
     def searchEsList(self, index_name, search=None):
         url = self.url + '/' + index_name + '/_search'
