@@ -52,6 +52,7 @@ DEFAULT_SLEEP_TIME = 1
 MAX_RETRIES = 5
 globa_threadinfo = threading.local()
 config = ConfigParser()
+IP_API_URL = 'https://dsapi.osinfra.cn/query/ip/location'
 
 try:
     config.read('config.ini', encoding='UTF-8')
@@ -1960,6 +1961,34 @@ class ESClient(object):
         j = res.json()
         data = j['_source'].get('geoip')
 
+        if data is None:
+            return {}
+        return data
+
+    @globalExceptionHandler
+    def get_ip_location(self, ip):
+        data_json = '''{"query":{"bool":{"must":[{"match":{"ip.keyword":"%s"}}]}},"aggs":{}}''' % ip
+        res = self.request_get(self.getSearchUrl(index_name='ip.location'), data=data_json,
+                               headers=self.default_headers)
+        if res.status_code != 200:
+            print("Get result error:", res.status_code)
+            return {}
+        try:
+            j = res.json().get('hits').get('hits')[0]
+            data = j['_source'].get('geoip')
+            if data is None:
+                return {}
+            return data
+        except:
+            return {}
+
+    @globalExceptionHandler
+    def get_ds_ip_location(self, ip):
+        params = {'ip': ip}
+        res = self.request_get(url=IP_API_URL, params=params, timeout=60)
+        if res.status_code != 200:
+            return {}
+        data = res.json().get('geoip')
         if data is None:
             return {}
         return data

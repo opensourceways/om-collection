@@ -40,6 +40,7 @@ class OBS(object):
         self.bucket_name = config.get('bucket_name')
         self.object_prefix = config.get('object_prefix')
         self.esClient.initLocationGeoIPIndex()
+        self.ips = config.get('ips')
 
 
     def getObjectFiles(self, prefix):
@@ -146,9 +147,10 @@ class OBS(object):
             return None, None
 
         package_version = self.downloadPackageVersion(path)
-
-        location = self.esClient.getLocationByIP(ip)
-        print(".......location=", location)
+        location = self.esClient.get_ip_location(ip)
+        if self.ips and ip in self.ips:
+            location = self.esClient.get_ds_ip_location(ip)
+        print(".......location =", location)
 
         created_at = self.changeToDate(created_date)
         single_data = {
