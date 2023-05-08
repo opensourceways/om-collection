@@ -25,7 +25,7 @@ class ForumPost(object):
 
     def get_topics(self):
         url = FORUMDOMAIM + '/latest.json'
-        page = 10
+        page = 0
         while True:
             page += 1
             print('start page: ', page)
@@ -35,7 +35,8 @@ class ForumPost(object):
             }
             res = self.esClient.request_get(url=url, params=params)
             if res.status_code != 200:
-                return
+                print('get page failed...')
+                continue
             page_topics = res.json().get('topic_list').get('topics')
             if len(page_topics) <= 0:
                 break
