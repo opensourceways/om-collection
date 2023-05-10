@@ -40,31 +40,41 @@ class ForumPost(object):
             page_topics = res.json().get('topic_list').get('topics')
             if len(page_topics) <= 0:
                 break
-            actions = self.get_comment(page_topics)
+            actions = self.get_post(page_topics)
             self.esClient.safe_put_bulk(actions)
 
-    def get_comment(self, topics):
+    def get_post(self, topics):
         actions = ''
         for topic in topics:
             print('start collecting topic: ', topic.get('title'))
             url = FORUMDOMAIM + '/t/%s/%s.json'
             url = url % (topic.get('slug'), str(topic.get('id')))
-            params = {
-                'track_visit': 'true',
-                'forceLoad': 'true'
-            }
-            res = self.esClient.request_get(url=url, params=params)
-            if res.status_code != 200:
-                print(topic.get('slug'), topic.get('id'), 'failed')
-                continue
-            time.sleep(3)
-            posts = res.json().get('post_stream').get('posts')
-            title = res.json().get('title')
-            for post in posts:
-                post.update({'title': title})
-                id_str = str(post.get('id')) + '_' + str(topic.get('id'))
-                indexData = {"index": {"_index": self.index_name, "_id": id_str}}
-                actions += json.dumps(indexData) + '\n'
-                actions += json.dumps(post) + '\n'
+            page = 0
+            while True:
+                page += 1
+                params = {
+                    'track_visit': 'true',
+                    'forceLoad': 'true',
+                    'page': page
+                }
+                res = self.esClient.request_get(url=url, params=params)
+                time.sleep(3)
+                if res.status_code == 404:
+                    print('collect topic over..')
+                    break
+                if res.status_code != 200:
+                    print(topic.get('slug'), topic.get('id'), 'failed')
+                    continue
+                posts = res.json().get('post_stream').get('posts')
+                if len(posts) <= 0:
+                    print('collect topic over..')
+                    break
+                title = res.json().get('title')
+                for post in posts:
+                    post.update({'title': title})
+                    id_str = str(post.get('id')) + '_' + str(topic.get('id'))
+                    indexData = {"index": {"_index": self.index_name, "_id": id_str}}
+                    actions += json.dumps(indexData) + '\n'
+                    actions += json.dumps(post) + '\n'
         return actions
 
