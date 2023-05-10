@@ -83,6 +83,7 @@ BACKEND_MAPPING = {
     'docker_hub': 'data.docker_hub.DockerHub',
     'city_location': 'data.city_location.CityLocation',
     'gitee_pr_version': 'data.gitee_pr_version.GiteePrVersion',
+    'eur_openeuler': 'data.eur_openeuler.EurOpenEuler',
     'forum_post': 'data.forum_post.ForumPost'
 }
 
