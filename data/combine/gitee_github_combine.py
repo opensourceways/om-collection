@@ -82,7 +82,11 @@ class GiteeGithubCombine(object):
         actions = ''
         for repo in repos:
             try:
-                commits_count = self.repo_commit_count(org, repo['name'], platform)
+                pulls_count = self.repo_commit_count(org, repo, platform, 'pulls')
+                issues_count = self.repo_commit_count(org, repo, platform, 'issues')
+                commits_count = self.repo_commit_count(org, repo, platform, 'commits')
+                if platform == GITHUB:
+                    issues_count = issues_count - pulls_count
                 full_name = repo['full_name']
                 repo_data = {
                     'org': org,
@@ -93,6 +97,8 @@ class GiteeGithubCombine(object):
                     'stargazers_count': repo['stargazers_count'],
                     'forks_count': repo['forks_count'],
                     'watchers_count': repo['watchers_count'],
+                    'pulls_count': pulls_count,
+                    'issues_count': issues_count,
                     'commits_count': commits_count,
                     'platform': platform,
                 }
@@ -104,13 +110,13 @@ class GiteeGithubCombine(object):
 
         self.esClient.safe_put_bulk(actions)
 
-    def repo_commit_count(self, org, repo, platform):
+    def repo_commit_count(self, org, repo, platform, item):
         if platform == GITHUB:
-            client = GithubClient(org=org, repository=repo, token=self.github_token)
-            total_count = client.get_commit_count(org, repo)
+            client = GithubClient(org=org, repository=repo['name'], token=self.github_token)
+            total_count = client.get_contribute_count(org, repo['name'], item)
         else:
-            client = GiteeClient(org, repo, self.gitee_token)
-            total_count = client.get_commit_count(org, repo)
+            client = GiteeClient(org, repo['path'], self.gitee_token)
+            total_count = client.get_contribute_count(org, repo['path'], item)
         return total_count
 
     def get_generator(self, response):
