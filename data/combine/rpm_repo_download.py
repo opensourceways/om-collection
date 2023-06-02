@@ -16,7 +16,7 @@ class RpmRepoDownload(object):
         self.start_date = config.get('start_date')
         self.index_name = config.get('index_name')
         self.repo_index = config.get('repo_index')
-        self.download_index_pre = config.get('download_index_pre')
+        self.query_index = config.get('query_index')
         self.primary_xml_base = config.get('primary_xml_base')
         self.rsync = config.get('rsync')
         self.rsync_local_path = config.get('rsync_local_path')
@@ -33,11 +33,8 @@ class RpmRepoDownload(object):
         # 二进制包对应的仓库
         self.getAllPrimaryXml()
 
-        # 按月分割下载数据后的index
-        download_indexes = self.getDownloadIndexes()
-
         # 按月统计每个仓库的下载量
-        self.repoDownloadStatics(indexes=download_indexes)
+        self.getrepoDownloadStatics()
 
         # 全量获取所有PrimaryXml（第一次执行），后续仅需要获取更新过的PrimaryXml
         self.is_sync_update = 'true'
@@ -72,54 +69,85 @@ class RpmRepoDownload(object):
                     actions += json.dumps(action) + '\n'
                 self.esClient.safe_put_bulk(actions)
 
-    def statics(self, index, rpm, counter):
+    def statics(self, index, rpm, counter, start=None, end=None):
         search = '''{
-                  "size":0,
-                  "query": {
-                    "bool": {
-                      "must": [
+            "size": 0,
+            "query": {
+                "bool": {
+                    "filter": [
                         {
-                          "term": {
-                            "is_rpm_download": "1"
-                          }
+                            "range": {
+                                "created_at": {
+                                    "gte": "%s",
+                                    "lt": "%s"
+                                }
+                            }
+                        }
+                    ],
+                    "must": [
+                        {
+                            "term": {
+                                "is_rpm_download": "1"
+                            }
                         },
                         {
-                          "match_phrase": {
-                            "path": "%s"
-                          }
+                            "match_phrase": {
+                                "path": "%s"
+                            }
                         }
-                      ]
-                    }
-                  },
-                  "aggs": {
-                    "versions": {
-                      "terms": {
+                    ]
+                }
+            },
+            "aggs": {
+                "versions": {
+                    "terms": {
                         "field": "package_version.keyword",
                         "size": 10000,
+                        "order": {
+                            "_key": "desc"
+                        },
                         "min_doc_count": 1
-                      }
-                    }
-                  }
-                }''' % rpm
+                    },
+                    "aggs": {}
+                }
+            }
+        }''' % (start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"), rpm)
         data = self.esClient.esSearch(index_name=index, search=search)
         for bucket in data['aggregations']['versions']['buckets']:
             counter = counter + Counter({bucket['key']: bucket['doc_count']})
         return counter
 
-    def getDownloadIndexes(self):
-        yesterday = datetime.date.today() + datetime.timedelta(days=-1)
-        end = datetime.date(yesterday.year, yesterday.month, 1)
-        download_indexes = []
-        if self.start_date:
-            sd_sp = self.start_date.split('-')
-            begin = datetime.date(int(sd_sp[0]), int(sd_sp[1]), 1)
-            while begin <= end:
-                sp = begin.strftime("%Y%m")
-                download_indexes.append(self.download_index_pre + '_' + sp)
-                begin = begin + relativedelta.relativedelta(months=1)
-        else:
-            download_indexes.append(self.download_index_pre + '_' + end.strftime("%Y%m"))
-        return download_indexes
+    def getrepoDownloadStatics(self):
+        repo_rpm = {}
+        for i, v in self.source_repo.items():
+            repo_rpm[v] = [i] if v not in repo_rpm.keys() else repo_rpm[v] + [i]
+
+        fromTime = datetime.datetime.strptime(self.start_date, "%Y%m%d")
+        to = datetime.datetime.today().strftime("%Y%m%d")
+        while fromTime.strftime("%Y%m%d") <= to:
+            stepTime = fromTime + relativedelta.relativedelta(months=1)
+            actions = ''
+            for repo, rpms in repo_rpm.items():
+                print('*** statics repo: %s, date: %s ***' % (repo, fromTime))
+                counter = Counter({})
+                for rpm in rpms:
+                    counter = self.statics(index=self.query_index, rpm=rpm, counter=counter, start=fromTime, end=stepTime)
+
+                created_at = str(fromTime).split(' ')[0]
+                for key, value in counter.items():
+                    action = {
+                        'repo': repo,
+                        'package_version': key.lower(),
+                        'download_count': value,
+                        'created_at': created_at
+                    }
+                    id = repo + key + created_at
+                    index_id = hashlib.md5(id.encode('utf-8')).hexdigest()
+                    indexData = {"index": {"_index": self.index_name, "_id": index_id}}
+                    actions += json.dumps(indexData) + '\n'
+                    actions += json.dumps(action) + '\n'
+            self.esClient.safe_put_bulk(actions)
+            fromTime = stepTime
 
     def getAllPrimaryXml(self):
         cmd_rsync = 'rsync -a -v -r --include=*primary.xml.gz --include=*/ --exclude=* --partial --progress --delete %s %s' % (
