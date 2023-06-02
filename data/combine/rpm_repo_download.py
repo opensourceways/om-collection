@@ -41,34 +41,6 @@ class RpmRepoDownload(object):
 
         print("*** rpm repo download finish ***")
 
-    def repoDownloadStatics(self, indexes):
-        repo_rpm = {}
-        for i, v in self.source_repo.items():
-            repo_rpm[v] = [i] if v not in repo_rpm.keys() else repo_rpm[v] + [i]
-
-        for index in indexes:
-            date_index = index.split('_')[-1]
-            date_str = str(date_index[0:4]) + '-' + str(date_index[4:]) + '-' + '01'
-            for repo, rpms in repo_rpm.items():
-                print('*** statics repo: %s, date: %s ***' % (repo, date_str))
-                counter = Counter({})
-                for rpm in rpms:
-                    counter = self.statics(index=index, rpm=rpm, counter=counter)
-                actions = ''
-                for key, value in counter.items():
-                    action = {
-                        'repo': repo,
-                        'package_version': key.lower(),
-                        'download_count': value,
-                        'created_at': date_str
-                    }
-                    id = repo + key + date_str
-                    index_id = hashlib.md5(id.encode('utf-8')).hexdigest()
-                    indexData = {"index": {"_index": self.index_name, "_id": index_id}}
-                    actions += json.dumps(indexData) + '\n'
-                    actions += json.dumps(action) + '\n'
-                self.esClient.safe_put_bulk(actions)
-
     def statics(self, index, rpm, counter, start=None, end=None):
         search = '''{
             "size": 0,
