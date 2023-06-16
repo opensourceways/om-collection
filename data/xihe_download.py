@@ -27,6 +27,8 @@ class XiheDown(object):
         self.type = config.get('type')
         self.model_name = config.get('model_name')
         self.api_url = config.get('api_url')
+        self.is_collect_big_model = config.get('is_collect_big_model')
+        self.is_collect_register_count = config.get('is_collect_register_count')
 
         self.esClient = ESClient(config)
         self.session = requests.Session()
@@ -34,6 +36,12 @@ class XiheDown(object):
         self.retry_cnt = 0
 
     def run(self, start=None):
+        if self.is_collect_big_model == 'true':
+            self.get_big_model()
+        if self.is_collect_register_count == 'true':
+            self.get_register_count()
+
+    def get_big_model(self):
         actions = ''
         if self.count_type:
             for count_type in self.count_type.split(','):
@@ -70,7 +78,7 @@ class XiheDown(object):
                 actions += json.dumps(index_data) + '\n'
                 actions += json.dumps(action) + '\n'
         except AttributeError as e:
-            print('Get api: ' + url + 'error')
+            print('Get api: ' + url + ' error')
         return actions
 
     def get_api(self, url):
@@ -94,4 +102,26 @@ class XiheDown(object):
             self.retry_cnt = 0
             return response
 
-
+    def get_register_count(self):
+        actions = ''
+        response = self.get_api(self.api_url)
+        try:
+            if response.status_code != 200:
+                return
+            res = response.json().get('data')
+            update_time = res.get('update_at')
+            total = res.get('total')
+            data = res.get('data')
+            for item in data:
+                action = item
+                action.update({
+                    'total': total,
+                    'update_time': update_time
+                })
+                doc_id = item.get('name') + update_time.split('T')[0]
+                index_data = {"index": {"_index": self.index_name, "_id": doc_id}}
+                actions += json.dumps(index_data) + '\n'
+                actions += json.dumps(action) + '\n'
+        except AttributeError as e:
+            print('Get api: ' + self.api_url + ' error')
+        self.esClient.safe_put_bulk(actions)
