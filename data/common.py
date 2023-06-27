@@ -2192,7 +2192,7 @@ class ESClient(object):
                 }
             },
             "aggs": {
-                "3": {
+                "repo": {
                     "terms": {
                         "field": "repository_name.keyword",
                         "size": 10000,
@@ -2202,7 +2202,7 @@ class ESClient(object):
                         "min_doc_count": 1
                     },
                     "aggs": {
-                        "2": {
+                        "sum": {
                             "date_histogram": {
                                 "field": "created_at",
                                 "format": "epoch_millis",
@@ -2226,13 +2226,13 @@ class ESClient(object):
             if res.status_code != 200:
                 return {}
             data = res.json()
-            buckets_data = data['aggregations']['3']['buckets']
+            buckets_data = data['aggregations']['repo']['buckets']
             fromTime += relativedelta(days=1)
             if len(buckets_data) == 0:
                 time_count_dict.update({id_key: 0})
                 continue
             for bucket_data in buckets_data:
-                buckets = bucket_data['2']['buckets']
+                buckets = bucket_data['sum']['buckets']
                 for bucket in buckets:
                     max_count = bucket['maxCount']['value']
                     if max_count is None:

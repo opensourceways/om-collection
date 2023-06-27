@@ -16,8 +16,6 @@ import datetime
 import json
 from data.common import ESClient
 
-BASE_URL = "https://hub.oepkgs.net/api/v2.0/search?"
-
 
 class HubOepkgs(object):
     def __init__(self, config=None):
@@ -27,17 +25,17 @@ class HubOepkgs(object):
         self.url = config.get('es_url')
         self.authorization = config.get('authorization')
         self.esClient = ESClient(config)
+        self.api_url = config.get('api_url')
         self.owner = config.get('owner')
 
     def run(self, start):
         actions = self.write_pull_count(self.owner)
-        print(actions)
         self.esClient.safe_put_bulk(actions)
 
     def write_pull_count(self, repo):
         actions = ''
         created_at = datetime.datetime.now().strftime("%Y-%m-%dT08:00:00+08:00")
-        url = BASE_URL + 'q=' + self.owner
+        url = self.api_url % self.owner
         res = self.esClient.request_get(url)
         repos = res.json().get('repository')
         for repo in repos:
