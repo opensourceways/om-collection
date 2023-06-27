@@ -80,27 +80,23 @@ class Polymerization(object):
         j = json.loads(self.collections)
         counter = Counter({})
         for coll in j['collections']:
-            query, key_prefix, count_key, query_es, es_authorization = None, None, None, None, None
+            query, key_prefix, count_key, origin = None, None, None, None
             if 'query' in coll:
                 query = coll['query']
             if 'count_key' in coll:
                 count_key = coll['count_key']
-            if 'query_es' in coll:
-                query_es = coll['query_es']
-            if 'es_authorization' in coll:
-                es_authorization = coll['es_authorization']
+            if 'origin' in coll:
+                origin = coll['origin']
 
             query_index_name = coll['query_index_name']
             self.esClient.query_index_name = query_index_name
             polymerization_from_time = coll['polymerization_from_time']
             if query is not None:
                 query = str(query).replace('"', '\\"')
-            if query_es is not None and es_authorization is not None:
+            if origin == 'dockerhub':
                 time_count_dict = self.esClient.splitMixDockerHub(from_date=polymerization_from_time,
                                                                   count_key=count_key, query=query,
-                                                                  query_index_url=query_es,
-                                                                  query_index_name=query_index_name,
-                                                                  es_authorization=es_authorization)
+                                                                  query_index_name=query_index_name)
                 self.esClient.writeMixDownload(time_count_dict, "day_download")
             else:
                 time_count_dict = self.esClient.getTotalCountMix(polymerization_from_time, query=query,
@@ -168,7 +164,11 @@ class Polymerization(object):
             elif origin == 'xihe':
                 time_count_dict = self.esClient.getTotalXiheDown(from_date=polymerization_from_time,
                                                                  count_key=count_key, query=query,
-                                                                 query_index_name=query_index_name, )
+                                                                 query_index_name=query_index_name)
+            elif origin == 'oepkgs':
+                time_count_dict = self.esClient.getTotalOepkgsDown(from_date=polymerization_from_time,
+                                                                   count_key=count_key, query=query,
+                                                                   query_index_name=query_index_name)
             else:
                 time_count_dict = self.esClient.getTotalCountMix(polymerization_from_time, query=query,
                                                                  count_key=count_key, origin=origin)
