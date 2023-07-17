@@ -85,6 +85,7 @@ BACKEND_MAPPING = {
     'gitee_pr_version': 'data.gitee_pr_version.GiteePrVersion',
     'eur_openeuler': 'data.eur_openeuler.EurOpenEuler',
     'eur_openeuler_download': 'data.eur_openeuler_download.EurOpenEulerDownload',
+    'big_model_research': 'data.big_model_research.BigModelResearch',
     'forum_post': 'data.forum_post.ForumPost',
     'hub_oepkgs': 'data.hub_oepkgs.HubOepkgs'
 }
