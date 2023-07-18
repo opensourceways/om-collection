@@ -259,6 +259,15 @@ class GithubClient(object):
         self.get_data(url=url, params=params, current_page=1, datas=datas)
         return datas
 
+    def get_repo_info(self, owner, repo):
+        url = self.urijoin(BASE_URL, 'repos', owner, repo)
+        params = {
+            'per_page': MAX_CATEGORY_ITEMS_PER_PAGE
+        }
+        datas = []
+        self.get_data(url=url, params=params, current_page=1, datas=datas)
+        return datas
+
     def get_pr_pre(self, owner, repo, func):
         url = self.urijoin(BASE_URL, 'repos', owner, repo, 'pulls')
         params = {
