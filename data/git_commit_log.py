@@ -58,6 +58,7 @@ class GitCommitLog(object):
         self.upstream_yaml = config.get('upstream_yaml')
         self.user_yaml = config.get('user_yaml')
         self.company_yaml = config.get('company_yaml')
+        self.model_repo_yaml = config.get('model_repo_yaml')
         self.all_repo_default_branch = config.get('all_repo_default_branch', 'false')
         self.is_gitee_enterprise = config.get('is_gitee_enterprise')
 
@@ -85,6 +86,11 @@ class GitCommitLog(object):
             all_branch_repos, default_branch_repos = self.getReposFromYaml(yaml_file=self.upstream_yaml)
             self.getCommitWhiteBox(default_branch_repos, 'default')  # 只是获取默认分支commit
             self.getCommitWhiteBox(all_branch_repos)  # 获取全部分支commit
+        elif self.model_repo_yaml:  # 大模型指定仓库
+            self.domain_orgs_dict, aliases_company_dict = self.get_domain_org(company_yaml=self.company_yaml)
+            all_branch_repos, default_branch_repos = self.getReposFromYaml(yaml_file=self.model_repo_yaml)
+            self.getCommitWhiteBox(default_branch_repos, 'default')
+            self.getCommitWhiteBox(all_branch_repos)
         else:
             # 全部commits
             self.getCommit()
@@ -415,20 +421,7 @@ class GitCommitLog(object):
             user_file_name = str(user_yaml).split('/')[-1]
             user_file = self.code_base_path + user_file_name
 
-            cmd = 'wget -N -P %s %s' % (self.code_base_path, company_yaml)
-            os.system(cmd)
-            company_file_name = str(company_yaml).split('/')[-1]
-            company_file = self.code_base_path + company_file_name
-
-            # 企业别名和企业名称
-            company_datas = yaml.safe_load_all(open(company_file, encoding='UTF-8')).__next__()
-            aliases_company_dict = {}
-            for company in company_datas['companies']:
-                company_name = company['company_name']
-                for alias in company['aliases']:
-                    aliases_company_dict.update({alias: company_name})
-                for domain in company['domains']:
-                    domain_org_dict.update({domain: company_name})
+            domain_org_dict, aliases_company_dict = self.get_domain_org(company_yaml)
 
             # 用户邮箱和组织
             user_datas = yaml.safe_load_all(open(user_file, encoding='UTF-8')).__next__()
@@ -443,3 +436,24 @@ class GitCommitLog(object):
             return email_org_dict, domain_org_dict, email_user_dict
         except Exception:
             return email_org_dict, domain_org_dict, email_user_dict
+
+    def get_domain_org(self, company_yaml):
+        domain_org_dict = {}
+        aliases_company_dict = {}
+        try:
+            cmd = 'wget -N -P %s %s' % (self.code_base_path, company_yaml)
+            os.system(cmd)
+            company_file_name = str(company_yaml).split('/')[-1]
+            company_file = self.code_base_path + company_file_name
+
+            # 企业别名和企业名称
+            company_datas = yaml.safe_load_all(open(company_file, encoding='UTF-8')).__next__()
+            for company in company_datas['companies']:
+                company_name = company['company_name']
+                for alias in company['aliases']:
+                    aliases_company_dict.update({alias: company_name})
+                for domain in company['domains']:
+                    domain_org_dict.update({domain: company_name})
+            return domain_org_dict, aliases_company_dict
+        except Exception:
+            return domain_org_dict, aliases_company_dict
