@@ -2164,6 +2164,72 @@ class ESClient(object):
         res_dict = self.get_day_download(time_count_dict, to)
         return res_dict
 
+    def splitSwr(self, from_date, count_key, query=None, query_index_name=None):
+        fromTime = datetime.strptime(from_date, "%Y%m%d")
+        to = datetime.today().strftime("%Y%m%d")
+        time_count_dict = {}
+        while fromTime.strftime("%Y%m%d") <= to:
+            id_key = time.mktime(fromTime.timetuple()) * 1000
+            data_json = '''{
+            "size": 0,
+            "query": {
+                "bool": {
+                    "filter": [
+                        {
+                            "range": {
+                                "created_at": {
+                                    "lte": "%s"
+                                }
+                            }
+                        },
+                        {
+                            "query_string": {
+                                "analyze_wildcard": true,
+                                "query": "%s"
+                            }
+                        }
+                    ]
+                }
+            },
+            "aggs": {             
+                "2": {
+                    "date_histogram": {
+                        "field": "created_at",
+                        "format": "epoch_millis",
+                        "interval": "10000d"
+                    },
+                    "aggs": {
+                        "maxCount": {
+                            "max": {
+                                "field": "%s"
+                            }
+                        }
+                    }
+                }
+            }
+        }''' % (fromTime.strftime("%Y-%m-%dT23:59:59+08:00"), query, count_key)
+
+            res = self.request_get(self.getSearchUrl(index_name=query_index_name), data=data_json,
+                                   headers=self.default_headers)
+            if res.status_code != 200:
+                return {}
+            data = res.json()
+            buckets_data = data['aggregations']['2']['buckets']
+            fromTime += relativedelta(days=1)
+            if len(buckets_data) == 0:
+                time_count_dict.update({id_key: 0})
+                continue
+            for bucket in buckets_data:
+                max_count = bucket['maxCount']['value']
+                if max_count is None:
+                    max_count = 0
+                if id_key in time_count_dict:
+                    max_count += time_count_dict.get(id_key)
+                time_count_dict.update({id_key: max_count})
+
+        res_dict = self.get_day_download(time_count_dict, to)
+        return res_dict
+
     def getTotalOepkgsDown(self, from_date, count_key, query=None, query_index_name=None):
         fromTime = datetime.strptime(from_date, "%Y%m%d")
         to = datetime.today().strftime("%Y%m%d")
