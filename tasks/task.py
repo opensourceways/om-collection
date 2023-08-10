@@ -87,7 +87,8 @@ BACKEND_MAPPING = {
     'eur_openeuler_download': 'data.eur_openeuler_download.EurOpenEulerDownload',
     'big_model_research': 'data.big_model_research.BigModelResearch',
     'forum_post': 'data.forum_post.ForumPost',
-    'hub_oepkgs': 'data.hub_oepkgs.HubOepkgs'
+    'hub_oepkgs': 'data.hub_oepkgs.HubOepkgs',
+    'openeuler_swr': 'data.openeuler_swr.OpenEulerSwr'
 }
 
 
