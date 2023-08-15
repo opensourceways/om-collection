@@ -169,7 +169,7 @@ class Polymerization(object):
                 time_count_dict = self.esClient.getTotalOepkgsDown(from_date=polymerization_from_time,
                                                                    count_key=count_key, query=query,
                                                                    query_index_name=query_index_name)
-            if origin == 'swr':
+            elif origin == 'swr':
                 time_count_dict = self.esClient.splitSwr(from_date=polymerization_from_time,
                                                          count_key=count_key, query=query,
                                                          query_index_name=query_index_name)
