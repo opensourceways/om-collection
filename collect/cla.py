@@ -28,9 +28,10 @@ class ClaClient(object):
         self.username = config.get('cla_username')
         self.password = config.get('cla_password')
         self.timeout = config.get('timeout', 60)
+        self.gitee_token = config.get('gitee_token')
 
     def get_token_cla(self):
-        data = json.dumps({'password': self.password, 'username': self.username})
+        data = json.dumps({'token': self.gitee_token})
         auth_url = f'{self.api_url}/{AUTH}/{self.platform}'
         token_info = self.fetch_cla(method='post', url=auth_url, data=data)
         token = token_info['data']['access_token']

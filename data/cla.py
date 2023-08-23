@@ -62,10 +62,9 @@ class Cla(object):
         # third: get corporation
         corporation_url = f'{self.api_url}/{CORPORATION}/{link_id}'
         corporation_infos = self.claClient.fetch_cla(url=corporation_url, method='get', headers=headers)
-
         corDict = []
         for corporation_info in corporation_infos['data']:
-            admin_email = corporation_info['admin_email']
+            signing_id = corporation_info['id']
             corporation_name = corporation_info['corporation_name'].strip()
             admin_name = corporation_info['admin_name']
             admin_added = corporation_info['admin_added']
@@ -80,7 +79,7 @@ class Cla(object):
                 pdf_uploaded = 0
 
             # fourth: get users
-            employee_url = f'{self.api_url}/{EMPLOYEE}/{link_id}/{admin_email}'
+            employee_url = f'{self.api_url}/{EMPLOYEE}/{link_id}/{signing_id}'
             employee_infos = self.claClient.fetch_cla(url=employee_url, method='get', headers=headers)
             employees = employee_infos['data']
 
@@ -177,17 +176,16 @@ class Cla(object):
     def writeClaIndividuals(self, individuals):
         actions = ""
         for individual in individuals:
-            if individual['enabled']:
-                individual_enabled = 1
             action = {
                 "individual_id": individual["id"],
                 "email": individual["email"],
                 "name": individual["name"],
                 "created_at": individual['date'],
-                "is_enabled": individual_enabled,
                 "is_corporation_signing": 0,
                 "is_individual_signing": 1,
             }
+            if individual.get('enabled'):
+                action.update({"is_enabled": 1})
 
             if individual['email'] in self.claIds:
                 self.claIds.remove(individual['email'])
