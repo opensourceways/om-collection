@@ -6,11 +6,16 @@
 #  Vestibulum commodo. Ut rhoncus gravida arcu.
 
 import json
+import logging
 
 import requests
 import yaml
 from data.common import ESClient
 from collect.github import GithubClient
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger.addHandler(logging.StreamHandler())
 
 
 class EcosystemRepo(object):
@@ -64,30 +69,33 @@ class EcosystemRepo(object):
         description = yaml_data.get('description')
         name = yaml_data.get('name')
         for r in repo_list:
-            repo = r.get('name')
-            html_url = r.get('links')
-            introduction = r.get('introduction')
-            date = r.get('date').strftime("%Y-%m-%dT08:00:00+08:00")
-            owner = html_url.split('/')[3]
-            repo_path = html_url.split('/')[4]
-            star = self.get_star_count(owner, repo_path)
-            action = {
-                'name': name,
-                'type': repo_type,
-                'description': description,
-                'repo': repo,
-                'html_url': html_url,
-                'introduction': introduction,
-                'star': star,
-                'date': date,
-                'lang': lang
-            }
-            id = repo_type + '_' + owner + '_' + repo + '_' + lang
-            indexData = {"index": {"_index": self.index_name, "_id": id}}
-            actions += json.dumps(indexData) + '\n'
-            actions += json.dumps(action) + '\n'
-            if id in self.exists_ids:
-                self.exists_ids.remove(id)
+            try:
+                repo = r.get('name')
+                html_url = r.get('links')
+                introduction = r.get('introduction')
+                date = r.get('date').strftime("%Y-%m-%dT08:00:00+08:00")
+                owner = html_url.split('/')[3]
+                repo_path = html_url.split('/')[4]
+                star = self.get_star_count(owner, repo_path)
+                action = {
+                    'name': name,
+                    'type': repo_type,
+                    'description': description,
+                    'repo': repo,
+                    'html_url': html_url,
+                    'introduction': introduction,
+                    'star': star,
+                    'date': date,
+                    'lang': lang
+                }
+                id = repo_type + '_' + owner + '_' + repo + '_' + lang
+                indexData = {"index": {"_index": self.index_name, "_id": id}}
+                actions += json.dumps(indexData) + '\n'
+                actions += json.dumps(action) + '\n'
+                if id in self.exists_ids:
+                    self.exists_ids.remove(id)
+            except Exception as e:
+                logger.info('exception: ', e)
         return actions
 
     def get_id_func(self, hit):
