@@ -31,8 +31,6 @@ class SigMaintainer(object):
     def __init__(self, config=None):
         self.config = config
         self.index_name = config.get('index_name')
-        self.sig_mail_api = config.get('sig_mail_api')
-        self.sig_mail_auth = config.get('sig_mail_auth')
 
         self.url = config.get('es_url')
         self.authorization = config.get('authorization')
@@ -60,7 +58,7 @@ class SigMaintainer(object):
 
     def run(self, from_time):
         self.download_sigs()
-        # self.get_sig_mail()
+        self.get_sig_mail()
         if self.index_name_sigs and self.sig_mark:
             self.get_all_id()
             maintainer_sigs_dict = self.get_sigs_original()
@@ -486,6 +484,7 @@ class SigMaintainer(object):
                     committers = owners.get('committers')
                     action.update({'committers': committers})
                     action.update({'committer_info': self.attach_user_info(committers)})
+                    action.update({'mailing_list': self.sig_mail_dict.get(dir, 'dev@openeuler.org')})
                 except KeyError as e:
                     print('KeyError of %s is null.' % dir)
             except FileNotFoundError:
@@ -497,8 +496,10 @@ class SigMaintainer(object):
                         action.update({'description': info['description']})
                     if 'mentors' in info and info['mentors'] is not None:
                         action.update({'mentors': info['mentors']})
-                    if 'mailing_list' in info and info['mailing_list'] is not None:
-                        action.update({'mailing_list': info['mailing_list']})
+
+                    mailing_list = self.get_mailing_list(dir, info)
+                    action.update({'mailing_list': mailing_list})
+
                     if 'maintainers' in info and info['maintainers'] is not None:
                         maintainer_list = info['maintainers']
                         action.update({'maintainer_info': self.attach_user_info(maintainer_list)})
@@ -565,21 +566,16 @@ class SigMaintainer(object):
         if self.org == 'openeuler':
             _headers = {
                 'Content-Type': 'application/json',
-                'Authorization': self.sig_mail_auth
             }
-            try:
-                res = self.esClient.request_get(url=self.sig_mail_api, headers=_headers, timeout=60)
-                if res.status_code != 200:
-                    return
-                res = res.json().get('entries')
-                for r in res:
-                    sig = r.get('display_name').lower()
-                    if not sig.startswith('sig-'):
-                        sig = 'sig-' + sig
-                    mail = r.get('fqdn_listname')
-                    self.sig_mail_dict.update({sig: mail})
-            except:
+            res = self.esClient.request_get(url=self.maillist_path, headers=_headers, timeout=60)
+            if res.status_code != 200:
                 return
+            sig_list = yaml.safe_load(res.text)
+            for info in sig_list:
+                sig = info.get('group_name')
+                maillist = info.get('maillist')
+                self.sig_mail_dict.update({sig: maillist})
+            return
         if self.org == 'opengauss':
             try:
                 res = yaml.load_all(open(self.maillist_path), Loader=yaml.Loader).__next__()
@@ -589,3 +585,13 @@ class SigMaintainer(object):
                 print('maillist_path missing.')
         print(self.sig_mail_dict)
 
+    def get_mailing_list(self, sig, info):
+        mailing_list = 'dev@openeuler.org'
+        if 'mailing_list' in info and info['mailing_list'] is not None:
+            if '@' not in info['mailing_list'] or info['mailing_list'] == 'dev@openeuler.org':
+                mailing_list = self.sig_mail_dict.get(sig, mailing_list)
+            else:
+                mailing_list = info['mailing_list']
+        else:
+            mailing_list = self.sig_mail_dict.get(sig, mailing_list)
+        return mailing_list
