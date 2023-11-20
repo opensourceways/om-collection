@@ -74,8 +74,8 @@ class EcosystemRepo(object):
                 html_url = r.get('links')
                 introduction = r.get('introduction')
                 date = r.get('date').strftime("%Y-%m-%dT08:00:00+08:00")
-                owner = html_url.split('/')[3]
-                repo_path = html_url.split('/')[4]
+                owner = html_url.split('/')[-2]
+                repo_path = html_url.split('/')[-1]
                 star = self.get_star_count(owner, repo_path)
                 action = {
                     'name': name,
