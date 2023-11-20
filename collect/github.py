@@ -225,6 +225,8 @@ class GithubClient(object):
 
             if r.text == "[]":
                 break
+            if r.status_code == 404:
+                break
 
             repo = r.json()
             repos.extend(repo)
