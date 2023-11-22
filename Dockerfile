@@ -25,7 +25,7 @@ RUN cd /usr/bin \
     && ln -s /usr/local/python3/bin/pip3 /usr/bin/pip3
 
 RUN python3 -m pip install --upgrade pip \
-    && pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple \
+    && pip3 config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple \
     && pip3 install -r requirements.txt \
     && pip3 install google-api-python-client \
     && pip3 install --upgrade oauth2client
@@ -50,5 +50,3 @@ RUN git clone https://gitee.com/opensourceway/mailmanclient && \
     python3 setup.py install
 
 CMD python3 -u  george.py
-
-
