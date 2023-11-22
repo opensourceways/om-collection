@@ -7,6 +7,7 @@
 import base64
 import os
 import re
+import time
 
 from data.common import ESClient
 
@@ -32,6 +33,8 @@ class giteeFeature(object):
         self.code_path = ''
 
     def run(self, from_time):
+        curr_time = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time.localtime())
+        print(f'本次更新开始时间: {curr_time}')
         # 本地仓库地址
         self.local_path = os.path.join(self.repo_base_path, self.org_name, self.repo_name)
         self.code_path = os.path.join(self.local_path, self.repo_name)
@@ -43,6 +46,8 @@ class giteeFeature(object):
             feature_file = self.get_file(version = version)
             if os.path.exists(feature_file):
                 self.parse_file(feature_file, version)
+        curr_time = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time.localtime())
+        print(f'本次更新结束时间: {curr_time}')
 
     def download_gitee_repo(self):
         if not os.path.exists(self.local_path):
@@ -164,7 +169,11 @@ class giteeFeature(object):
         # 处理owner,返回数据格式为list
         new_owner = self.get_owner(owner)
         # 从giteeall数据库读取
-        user_login, tag_user_company, sig_name_from_index = self.esClient.get_data_from_index(issue_url)
+        try:
+            user_login, tag_user_company, sig_name_from_index = self.esClient.get_data_from_index(issue_url)
+        except Exception:
+            print('连接es数据库失败')
+            return
         # 如果feature中没有owner，则owner为user_login
         if len(new_owner) == 0:
             new_owner.append(user_login.strip())
@@ -179,6 +188,7 @@ class giteeFeature(object):
         # 判断issue_url是否是企业issue
         if len(issue_url) != 0 and 'e.gitee' in issue_url:
             is_enterprise_issue = 1
+        update_at = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time.localtime())
         # 组装数据
         action = {
             "feature_title": feature_title,
@@ -190,14 +200,18 @@ class giteeFeature(object):
             "sig_names": sig_names,
             "is_gitee_feature": is_gitee_feature,
             "issue_url": issue_url,
-            "is_enterprise_issue": is_enterprise_issue
+            "is_enterprise_issue": is_enterprise_issue,
+            "update_at": update_at
         }
         # 获取唯一id
         index_id = self.get_id(issue_url, base_label)
         # 若id不为空字符串，则写入数据库
         if len(index_id) != 0:
             # 只统计有issue的feature
-            self.esClient.update_feature_index(action = action, index_id = index_id)
+            try:
+                self.esClient.update_feature_index(action = action, index_id = index_id)
+            except Exception:
+                print(f'无法将数据更新到数据库： {index_id}')
 
     def get_id(self, issue_url, base_label):
         # 若issue_url格式：https://website.com/org/repo/issues/AAAAA，则提取org和repo及issue编号，返回唯一id字符串

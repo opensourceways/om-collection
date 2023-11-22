@@ -197,13 +197,15 @@ class ESClient(object):
         }''' % issue_url
         header = {
             "Content-Type": 'application/json',
-            'Authorization': self.authorization
+            'Authorization': self.authorization,
+            'Connection':'close'
         }
         url = self.url + '/' + self.index_name_gitee + '/_search'
         res = requests.post(url, headers=header, verify=False, data=query.encode('utf-8'))
         if res.status_code != 200:
             return
         data = res.json()['hits']['hits']
+        res.close()
         if len(data) != 0:
             return [data[0]['_source']['user_login'], data[0]['_source']['tag_user_company'], data[0]['_source']['sig_names']]
         else:
