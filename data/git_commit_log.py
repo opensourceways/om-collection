@@ -31,6 +31,7 @@ from data.common import ESClient
 
 GITEE_BASE = "gitee.com"
 GITHUB_BASE = "github.com"
+HUGGINGFACE_BASE = "huggingface.co"
 DEFAULT_BRANCH_HEAD = "  origin/HEAD ->"
 
 
@@ -61,6 +62,9 @@ class GitCommitLog(object):
         self.model_repo_yaml = config.get('model_repo_yaml')
         self.all_repo_default_branch = config.get('all_repo_default_branch', 'false')
         self.is_gitee_enterprise = config.get('is_gitee_enterprise')
+        self.huggingface_access_token = config.get('huggingface_access_token')
+        self.github_access_token = config.get('github_access_token')
+        self.gitee_access_token = config.get('gitee_access_token')
 
         self.email_user_dict = {}
 
@@ -130,7 +134,7 @@ class GitCommitLog(object):
                 except Exception:
                     print('*** platform: %s, owner: %s, repo: %s, fail ***' % (platform, owner, repo))
 
-    def getLog(self, platform, owner, repo_name, branch_name):
+    def getLog(self, platform, owner, repo_name, branch_name, path=None):
         # 本地仓库目录
         owner_path = self.code_base_path + platform + '/' + owner + '/'
         if not os.path.exists(owner_path):
@@ -141,10 +145,14 @@ class GitCommitLog(object):
         passwd = base64.b64decode(self.password).decode()
         if platform == 'gitee':
             remote_repo = 'https://%s/%s/%s' % (GITEE_BASE, owner, repo_name)
-            clone_url = 'https://%s:%s@%s/%s/%s' % (username, passwd, GITEE_BASE, owner, repo_name)
+            clone_url = 'https://%s:%s@%s/%s/%s' % (username, self.gitee_access_token, GITEE_BASE, owner, repo_name)
         elif platform == 'github':
             remote_repo = 'https://%s/%s/%s' % (GITHUB_BASE, owner, repo_name)
-            clone_url = 'https://%s:%s@%s/%s/%s' % (username, passwd, GITHUB_BASE, owner, repo_name)
+            clone_url = 'https://%s:%s@%s/%s/%s' % (username, self.github_access_token, GITHUB_BASE, owner, repo_name)
+        elif path and platform == 'huggingface':
+            remote_repo = 'https://%s/%s' % (HUGGINGFACE_BASE, path)
+            clone_url = 'https://%s:%s@%s/%s' % (
+                username, self.huggingface_access_token, HUGGINGFACE_BASE, path)
         else:
             remote_repo = None
             clone_url = None
@@ -157,7 +165,10 @@ class GitCommitLog(object):
         else:
             if clone_url is None:
                 return
-            cmd_clone = 'cd %s;git clone %s' % (owner_path, clone_url + '.git')
+            if platform == 'huggingface':
+                cmd_clone = 'cd %s;git clone %s' % (owner_path, clone_url)
+            else:
+                cmd_clone = 'cd %s;git clone %s' % (owner_path, clone_url + '.git')
             os.system(cmd_clone)
 
         try:
@@ -181,10 +192,15 @@ class GitCommitLog(object):
             repo.git.checkout(branch_name)
             cmd_pull = 'cd %s;git pull' % code_path
             os.system(cmd_pull)
-            merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, merges=True))
+            merge_commits = list(
+                repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name,
+                                  merges=True))
             self.parse_commits(merge_commits, platform, owner, branch_name, remote_repo, 1, default_branch, repo_name)
-            no_merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, no_merges=True))
-            self.parse_commits(no_merge_commits, platform, owner, branch_name, remote_repo, 0, default_branch, repo_name)
+            no_merge_commits = list(
+                repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name,
+                                  no_merges=True))
+            self.parse_commits(no_merge_commits, platform, owner, branch_name, remote_repo, 0, default_branch,
+                               repo_name)
         else:
             # 遍历所有分支，获取数据
             for branch in branchs:
@@ -195,10 +211,16 @@ class GitCommitLog(object):
                 repo.git.checkout(branch_name)
                 cmd_pull = 'cd %s;git pull' % code_path
                 os.system(cmd_pull)
-                merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, merges=True))
-                self.parse_commits(merge_commits, platform, owner, branch_name, remote_repo, 1, default_branch, repo_name)
-                no_merge_commits = list(repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name, no_merges=True))
-                self.parse_commits(no_merge_commits, platform, owner, branch_name, remote_repo, 0, default_branch, repo_name)
+                merge_commits = list(
+                    repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name,
+                                      merges=True))
+                self.parse_commits(merge_commits, platform, owner, branch_name, remote_repo, 1, default_branch,
+                                   repo_name)
+                no_merge_commits = list(
+                    repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name,
+                                      no_merges=True))
+                self.parse_commits(no_merge_commits, platform, owner, branch_name, remote_repo, 0, default_branch,
+                                   repo_name)
 
     # 数据解析
     def parse_commits(self, commits, platform, owner, branch, repo_url, is_merge, default_branch, repo_name):
@@ -306,7 +328,8 @@ class GitCommitLog(object):
                 ele = item.strip()
                 if ele.__contains__('openEuler_contributor') or ele.__contains__('openeuler_contributor'):
                     commit_contributors.append(re.findall(r'.*<', ele)[0].replace('<', '').strip())
-                    commit_contributor_emails.append(re.findall(r'<.*@\w*.\w*>', ele)[0].replace('<', '').replace('>', ''))
+                    commit_contributor_emails.append(
+                        re.findall(r'<.*@\w*.\w*>', ele)[0].replace('<', '').replace('>', ''))
                 if ele.__contains__('openEuler_reviewer') or ele.__contains__('openeuler_reviewer'):
                     commit_reviewers.append(re.findall(r'.*<', ele)[0].replace('<', '').strip())
                     commit_reviewer_emails.append(re.findall(r'<.*@\w*.\w*>', ele)[0].replace('<', '').replace('>', ''))
@@ -401,12 +424,13 @@ class GitCommitLog(object):
     def getCommitWhiteBox(self, repos, branch=''):
         for repo in repos:
             items = repo.split('/')
-            platform = items[2].replace('.com', '')
-            owner = items[3]
-            repo_name = items[4]
+            platform = items[2].replace('.com', '').replace('.co', '')
+            owner = items[-2]
+            repo_name = items[-1]
             branch_name = branch
+            path = '/'.join(items[3::])
             try:
-                self.getLog(platform, owner, repo_name, branch_name)
+                self.getLog(platform, owner, repo_name, branch_name, path)
             except Exception:
                 print('*** platform: %s, owner: %s, repo: %s, fail ***' % (platform, owner, repo))
 
