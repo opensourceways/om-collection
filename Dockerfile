@@ -7,7 +7,7 @@ RUN mkdir -p /var/lib/om
 RUN mkdir -p ${LOG_DIR}
 WORKDIR /var/lib/om
 
-COPY ./om-collections/ /var/lib/om
+COPY . /var/lib/om
 
 RUN yum update -y \
     && yum install -y shadow wget git rsync
@@ -42,7 +42,7 @@ RUN wget https://github.com/huaweicloud/huaweicloud-sdk-python/archive/v1.0.24.t
     tar -xvzf v1.0.24.tar.gz && \
     cd huaweicloud-sdk-python-1.0.24  &&\
     pip3 install -r requirements.txt &&\
-    python3 setup.py install 
+    python3 setup.py install
 
 #RUN pip3 install mailmanclient==3.1
 RUN git clone https://gitee.com/opensourceway/mailmanclient && \
