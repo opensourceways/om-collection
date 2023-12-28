@@ -421,6 +421,7 @@ class SigMaintainer(object):
                     else:
                         repos = []
                         committers = info['committers'] if 'committers' in info and info['committers'] is not None else None
+                    repos = sig_repos_dict.get(dir)
                     datas = ''
                     if 'maintainers' in info and info['maintainers'] is not None:
                         users_info = info['maintainers']
