@@ -359,9 +359,19 @@ class GithubClient(object):
         params = {
             'per_page': 10
         }
-        return self.commit_count(url=url, params=params)
+        return self.contribute_count(url=url, params=params)
 
-    def commit_count(self, url, params):
+    def get_contribute_count(self, owner, repo, item):
+        url = self.urijoin(self.base_url, 'repos', owner, repo, item)
+        payload = {
+            'state': "all",
+            'per_page': MAX_CATEGORY_ITEMS_PER_PAGE,
+            'direction': "desc",
+            'sort': "created"
+        }
+        return self.contribute_count(url, payload)
+
+    def contribute_count(self, url, params):
         per_page = params['per_page']
         req = self.http_req(url=url, params=params)
         if req.status_code != 200:

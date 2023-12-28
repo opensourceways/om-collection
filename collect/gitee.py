@@ -603,15 +603,25 @@ class GiteeClient():
         payload = {
             'per_page': PER_PAGE
         }
-        return self.commit_count(url, payload)
+        return self.contribute_count(url, payload)
 
-    def commit_count(self, url, payload):
+    def get_contribute_count(self, owner, repo, item):
+        url = self.urijoin(self.base_url, 'repos', owner, repo, item)
+        payload = {
+            'state': "all",
+            'per_page': PER_PAGE,
+            'direction': "desc",
+            'sort': "created"
+        }
+        return self.contribute_count(url, payload)
+
+    def contribute_count(self, url, payload):
         per_page = payload['per_page']
         req = self.fetch(url=url, payload=payload)
         if req.status_code != 200:
             print('Get data error, API: %s' % url)
 
-        max_count = int(req.headers['commit_count'])
+        max_count = int(req.headers['total_count'])
         last_page = 1 if max_count == 0 else math.ceil(max_count / per_page)
         payload['page'] = last_page
         last_req = self.fetch(url=url, payload=payload)

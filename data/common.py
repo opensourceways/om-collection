@@ -157,6 +157,59 @@ class ESClient(object):
         self.orgs = self.getOrgs(config.get('orgs'))
         self.company_location_index = config.get('company_location_index')
         self.email_gitee_authorization = config.get('email_gitee_authorization')
+        self.feature_write_index = config.get('feature_write_index')
+        self.index_name_gitee = config.get('index_name_gitee')
+
+    def update_feature_index(self, action, index_id):
+        header = {
+            "Content-Type": 'application/json',
+            'Authorization': self.authorization
+        }
+        query_json = json.dumps(action, ensure_ascii = False)
+        query_url = self.url + '/' + self.feature_write_index +  '/_doc' + '/' + index_id
+        res = requests.post(query_url, headers=header, verify=False, data = query_json.encode('utf-8'))
+        if (res.status_code != 200):
+            return
+
+    def get_data_from_index(self, issue_url):
+        '''
+        从es数据库中获取issue_url对应的tag_user_company, user_login, sig_names。如果不存在则返回空字符串。
+        '''
+        query = '''{
+            "size": 10000,
+            "query": {
+                "bool": {
+                    "filter": [
+                        {
+                            "query_string": {
+                                "analyze_wildcard": true,
+                                "query": "!is_removed: 1 AND issue_url:(\\\"%s\\\") AND is_gitee_issue:1"
+                            }
+                        }
+                    ]
+                }
+            },
+            "_source":[
+            "tag_user_company",
+            "user_login",
+            "sig_names"
+            ]
+        }''' % issue_url
+        header = {
+            "Content-Type": 'application/json',
+            'Authorization': self.authorization,
+            'Connection':'close'
+        }
+        url = self.url + '/' + self.index_name_gitee + '/_search'
+        res = requests.post(url, headers=header, verify=False, data=query.encode('utf-8'))
+        if res.status_code != 200:
+            return
+        data = res.json()['hits']['hits']
+        res.close()
+        if len(data) != 0:
+            return [data[0]['_source']['user_login'], data[0]['_source']['tag_user_company'], data[0]['_source']['sig_names']]
+        else:
+            return ["", "", ""]
 
     def getObsAllPackageName(self):
         search_json = '''{
