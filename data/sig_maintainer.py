@@ -61,8 +61,9 @@ class SigMaintainer(object):
         self.get_sig_mail()
         if self.index_name_sigs and self.sig_mark:
             self.get_all_id()
-            maintainer_sigs_dict = self.get_sigs_original()
-            self.get_sigs(maintainer_sigs_dict)
+            sig_repo_dict = self.get_sig_repo_dict()
+            maintainer_sigs_dict = self.get_sigs_original(sig_repo_dict)
+            self.get_sigs(sig_repo_dict, maintainer_sigs_dict)
 
     def getSingleAction(self, index_name, id, body, act="index"):
         action = ""
@@ -177,6 +178,17 @@ class SigMaintainer(object):
                     repositories.append(self.org + '/' + repo)
             sig_repos_dict.update({d['name']: repositories})
 
+        return sig_repos_dict
+
+    def get_sig_repo_dict(self):
+        sig_repos_dict = {}
+        if self.org == 'openeuler':
+            dirs = os.walk(self.sigs_dirs_path).__next__()[1]
+            for dir in dirs:
+                sig_repo_list = self.get_sig_repos(dir)
+                sig_repos_dict.update({dir: sig_repo_list})
+        if self.org == 'opengauss':
+            sig_repos_dict = self.get_sig_repos_opengauss()
         return sig_repos_dict
 
     def get_id_func(self, hit):
@@ -349,19 +361,12 @@ class SigMaintainer(object):
             cmdpull = 'cd %s;git pull' % gitpath
             os.system(cmdpull)
 
-    def get_sigs(self, maintainer_sigs_dict=None):
+    def get_sigs(self, sig_repos_dict=None, maintainer_sigs_dict=None):
         dic = self.esClient.getOrgByGiteeID()
         self.esClient.giteeid_company_dict = dic[0]
         self.gitee.internalUsers = self.gitee.getItselfUsers(self.gitee.internal_users)
 
         dirs = os.walk(self.sigs_dirs_path).__next__()[1]
-        sig_repos_dict = {}
-        if self.org == 'openeuler':
-            for dir in dirs:
-                sig_repo_list = self.get_sig_repos(dir)
-                sig_repos_dict.update({dir: sig_repo_list})
-        if self.org == 'opengauss':
-            sig_repos_dict = self.get_sig_repos_opengauss()
 
         for dir in dirs:
             try:
@@ -444,15 +449,9 @@ class SigMaintainer(object):
         self.mark_removed_sigs(dirs=dirs, index=self.index_name_sigs)
         self.mark_removed_ids()
 
-    def get_sigs_original(self):
+    def get_sigs_original(self, sig_repos_dict):
         dirs = os.walk(self.sigs_dirs_path).__next__()[1]
-        sig_repos_dict = {}
-        if self.org == 'openeuler':
-            for dir in dirs:
-                sig_repo_list = self.get_sig_repos(dir)
-                sig_repos_dict.update({dir: sig_repo_list})
         if self.org == 'opengauss':
-            sig_repos_dict = self.get_sig_repos_opengauss()
             self.sig_label_dict = self.get_gauss_sig_label()
 
         actions = ''
