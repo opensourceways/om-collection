@@ -380,6 +380,8 @@ class SigMaintainer(object):
                     key = key.lower()
                     if key == "committer":
                         key = "committers"
+                    if key != 'committers' and key != 'maintainers':
+                        continue
                     for owner in val:
                         times_owner = None
                         for r in rs:
@@ -445,6 +447,8 @@ class SigMaintainer(object):
                     print("this sig done: %s" % dir)
                 except FileNotFoundError:
                     print('sig-info.yaml of %s is not exist. ' % dir)
+            except Exception as e:
+                print("this sig error: %s" % dir)
 
         self.mark_removed_sigs(dirs=dirs, index=self.index_name_sigs)
         self.mark_removed_ids()
