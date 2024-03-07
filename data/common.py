@@ -1685,7 +1685,9 @@ class ESClient(object):
                 'Content-Type': 'application/json',
                 'Authorization': es_authorization
             }
-        requests.post(url, headers=_headers, verify=False, data=query)
+        res = requests.post(url, headers=_headers, verify=False, data=query)
+        if res.status_code != 200:
+            print('update by query error, ', res.text)
 
     def getUniqueCountByDate(self, field, from_date, to_date,
                              url=None, index_name=None):
