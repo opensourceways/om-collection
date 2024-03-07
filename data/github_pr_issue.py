@@ -652,7 +652,7 @@ class GitHubPrIssue(object):
 
     def get_user_info(self, user):
         is_project_internal_user = 0
-        tag_user_company = self.user_org_dic.get(user)
+        tag_user_company = self.user_org_dic.get(user, 'independent')
         if tag_user_company == 'MindSpore':
             is_project_internal_user = 1
 
