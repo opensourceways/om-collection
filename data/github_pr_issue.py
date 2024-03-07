@@ -41,8 +41,12 @@ class GitHubPrIssue(object):
         self.from_page = config.get('from_page')
         self.end_page = config.get('end_page')
         self.label_removed_swf = config.get('label_removed_swf', 'false')
+        self.index_name_org = config.get('index_name_org')
+        self.user_org_dic = {}
 
     def run(self, from_date):
+        dic = self.esClient.getOrgByGiteeID()
+        self.user_org_dic = dic[0]
         print('Start collection github pr/issue/swf')
         if self.is_set_repo == 'true' and self.repos is None:
             self.write_repos()
@@ -105,6 +109,7 @@ class GitHubPrIssue(object):
                 'is_github_account': 1,
                 'is_project_internal_user': 0,
             }
+            repo_data.update(self.get_user_info(repo['owner']['login']))
             index_id = 'repo_' + str(repo['id'])
             index_data = {"index": {"_index": self.index_name, "_id": index_id}}
             actions += json.dumps(index_data) + '\n'
@@ -164,6 +169,7 @@ class GitHubPrIssue(object):
                     'is_github_account': 1,
                     'is_project_internal_user': 0,
                 }
+                reviews_data.update(self.get_user_info(review_user_login))
                 index_id = 'pr_review_' + repo + '_' + str(pr_num) + '_' + str(review['id'])
                 index_data = {"index": {"_index": self.index_name, "_id": index_id}}
                 review_actions += json.dumps(index_data) + '\n'
@@ -208,6 +214,7 @@ class GitHubPrIssue(object):
                     'is_github_account': 1,
                     'is_project_internal_user': 0,
                 }
+                comments_data.update(self.get_user_info(comment_user_login))
                 index_id = 'pr_comment_' + repo + '_' + str(pr_num) + '_' + str(comment['id'])
                 index_data = {"index": {"_index": self.index_name, "_id": index_id}}
                 comment_actions += json.dumps(index_data) + '\n'
@@ -253,6 +260,7 @@ class GitHubPrIssue(object):
                     'is_github_account': 1,
                     'is_project_internal_user': 0,
                 }
+                issue_comments_data.update(self.get_user_info(issue_comment_user_login))
                 index_id = 'pr_issue_comment_' + repo + '_' + str(pr_num) + '_' + str(issue_comment['id'])
                 index_data = {"index": {"_index": self.index_name, "_id": index_id}}
                 issue_comment_actions += json.dumps(index_data) + '\n'
@@ -285,6 +293,7 @@ class GitHubPrIssue(object):
                 'base_label': pr['base']['label'],
                 'base_label_ref': pr['base']['ref'],
             }
+            pr_data.update(self.get_user_info(pr['user']['login']))
             pr_first_reply_times = []
             if reviews and len(reviews) != 0:
                 pr_data['pr_review_count'] = len(reviews)
@@ -387,6 +396,7 @@ class GitHubPrIssue(object):
                     'is_github_account': 1,
                     'is_project_internal_user': 0,
                 }
+                comments_data.update(self.get_user_info(comment_user_login))
                 index_id = 'issue_comment_' + repo + '_' + str(issue_num) + '_' + str(comment['id'])
                 index_data = {"index": {"_index": self.index_name, "_id": index_id}}
                 comment_actions += json.dumps(index_data) + '\n'
@@ -414,6 +424,7 @@ class GitHubPrIssue(object):
                 'is_github_account': 1,
                 'is_project_internal_user': 0,
             }
+            issue_data.update(self.get_user_info(issue['user']['login']))
             if comments and len(comments) != 0:
                 issue_data['issue_comment_count'] = len(comments)
                 if len(comment_times) != 0:
@@ -463,6 +474,7 @@ class GitHubPrIssue(object):
                 'is_github_account': 1,
                 'is_project_internal_user': 0,
             }
+            star_data.update(self.get_user_info(user['login']))
             index_id = 'star_' + repo + '_' + str(user['id'])
             index_data = {"index": {"_index": self.index_name, "_id": index_id}}
             actions += json.dumps(index_data) + '\n'
@@ -489,6 +501,7 @@ class GitHubPrIssue(object):
                 'is_github_account': 1,
                 'is_project_internal_user': 0,
             }
+            watch_data.update(self.get_user_info(watch['user']['login']))
             index_id = 'watch_' + repo + '_' + str(watch['id'])
             index_data = {"index": {"_index": self.index_name, "_id": index_id}}
             actions += json.dumps(index_data) + '\n'
@@ -516,6 +529,7 @@ class GitHubPrIssue(object):
                 'is_github_account': 1,
                 'is_project_internal_user': 0,
             }
+            fork_data.update(self.get_user_info(user['login']))
             index_id = 'fork_' + repo + '_' + str(user['id'])
             index_data = {"index": {"_index": self.index_name, "_id": index_id}}
             actions += json.dumps(index_data) + '\n'
@@ -635,6 +649,55 @@ class GitHubPrIssue(object):
             }], 
             matchs_not=[{"name": "is_removed", "value": 1}], repo=client.repository
         )
+
+    def get_user_info(self, user):
+        is_project_internal_user = 0
+        tag_user_company = self.user_org_dic.get(user)
+        if tag_user_company == 'MindSpore':
+            is_project_internal_user = 1
+
+        user_info = {
+            'is_project_internal_user': is_project_internal_user,
+            'tag_user_company': tag_user_company
+        }
+        return user_info
+
+    def update_user_org(self):
+        all_user = self.esClient.getTotalAuthorName(size=20000)
+        user_map = {}
+        for item in all_user:
+            user_map.update({item['key']: 'independent'})
+
+        for key, value in self.user_org_dic.items():
+            user_map.update({key: value})
+
+        for user, tag_user_company in user_map.items():
+            print('*** update %s : %s' % (user, tag_user_company))
+            is_project_internal_user = 0
+            if tag_user_company == 'MindSpore':
+                is_project_internal_user = 1
+            query = '''{
+                "script": {
+                    "source": "ctx._source.tag_user_company = params.tag_user_company;ctx._source.is_project_internal_user = params.is_project_internal_user",
+                    "params": {
+                        "tag_user_company": "%s",
+                        "is_project_internal_user": "%s"
+                    },
+                    "lang": "painless"
+                },
+                "query": {
+                    "bool": {
+                        "must": [
+                            {
+                                "term": {
+                                    "user_login.keyword": "%s"
+                                }
+                            }
+                        ]
+                    }
+                }
+            }''' % (tag_user_company, is_project_internal_user, user)
+            self.esClient.updateByQuery(query=query.encode('utf-8'))
 
     @staticmethod
     def format_time_z(time_str):
