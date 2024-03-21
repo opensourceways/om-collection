@@ -58,6 +58,8 @@ class Meetings(object):
             meet_date = datetime.datetime.strptime(i.get("end"), "%H:%M") - datetime.datetime.strptime(i.get("start"), "%H:%M")
             i["duration_time"] = int(meet_date.seconds)
             participants = self.get_participants_by_meet(i.get("mid"))
+            if participants == -1:
+                continue
             i["total_records"] = participants.get("total_records", 0)
             if self.org == 'mindspore':
                 i["total_records"] = participants.get("total_count", 0)
@@ -78,7 +80,10 @@ class Meetings(object):
     def get_participants_by_meet(self, mid):
         res = self.esClient.request_get(url=self.meetings_url + "participants/" + mid + "/?token=" + self.query_token)
         if res.status_code != 200:
-            if res.status_code == 404:
+            if res.status_code == 401:
+                print('token authorization')
+                return -1
+            elif res.status_code == 404:
                 print("The meeting participants not found: ", res.status_code)
                 return {}
             else:
@@ -112,27 +117,27 @@ class Meetings(object):
                 company = vMap.get(times[i - 1])
 
                 query = '''{
-                            	"script": {
-                            		"source": "ctx._source['tag_user_company']='%s'"
-                            	},
-                            	"query": {
-                            		"bool": {
-                            			"must": [
-                            				{
-                            					"range": {
-                            						"create_time": {
-                            							"gte": "%s",
-                            							"lt": "%s"
-                            						}
-                            					}
-                            				},
-                            				{
-                            					"term": {
-                            						"sponsor.keyword": "%s"
-                            					}
-                            				}
-                            			]
-                            		}
-                            	}
-                            }''' % (company, startTime, endTime, key)
+                    "script": {
+                        "source": "ctx._source['tag_user_company']='%s'"
+                    },
+                    "query": {
+                        "bool": {
+                            "must": [
+                                {
+                                    "range": {
+                                        "create_time": {
+                                            "gte": "%s",
+                                            "lt": "%s"
+                                        }
+                                    }
+                                },
+                                {
+                                    "term": {
+                                        "sponsor.keyword": "%s"
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }''' % (company, startTime, endTime, key)
                 self.esClient.updateByQuery(query=query.encode(encoding='UTF-8'))
