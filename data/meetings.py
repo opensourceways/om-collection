@@ -58,7 +58,7 @@ class Meetings(object):
             meet_date = datetime.datetime.strptime(i.get("end"), "%H:%M") - datetime.datetime.strptime(i.get("start"), "%H:%M")
             i["duration_time"] = int(meet_date.seconds)
             participants = self.get_participants_by_meet(i.get("mid"))
-            if len(participants) == 0:
+            if participants == -1:
                 continue
             i["total_records"] = participants.get("total_records", 0)
             if self.org == 'mindspore':
@@ -80,7 +80,10 @@ class Meetings(object):
     def get_participants_by_meet(self, mid):
         res = self.esClient.request_get(url=self.meetings_url + "participants/" + mid + "/?token=" + self.query_token)
         if res.status_code != 200:
-            if res.status_code == 404:
+            if res.status_code == 401:
+                print('token authorization')
+                return -1
+            elif res.status_code == 404:
                 print("The meeting participants not found: ", res.status_code)
                 return {}
             else:
