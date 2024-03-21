@@ -58,6 +58,8 @@ class Meetings(object):
             meet_date = datetime.datetime.strptime(i.get("end"), "%H:%M") - datetime.datetime.strptime(i.get("start"), "%H:%M")
             i["duration_time"] = int(meet_date.seconds)
             participants = self.get_participants_by_meet(i.get("mid"))
+            if len(participants) == 0:
+                continue
             i["total_records"] = participants.get("total_records", 0)
             if self.org == 'mindspore':
                 i["total_records"] = participants.get("total_count", 0)
@@ -112,27 +114,27 @@ class Meetings(object):
                 company = vMap.get(times[i - 1])
 
                 query = '''{
-                            	"script": {
-                            		"source": "ctx._source['tag_user_company']='%s'"
-                            	},
-                            	"query": {
-                            		"bool": {
-                            			"must": [
-                            				{
-                            					"range": {
-                            						"create_time": {
-                            							"gte": "%s",
-                            							"lt": "%s"
-                            						}
-                            					}
-                            				},
-                            				{
-                            					"term": {
-                            						"sponsor.keyword": "%s"
-                            					}
-                            				}
-                            			]
-                            		}
-                            	}
-                            }''' % (company, startTime, endTime, key)
+                    "script": {
+                        "source": "ctx._source['tag_user_company']='%s'"
+                    },
+                    "query": {
+                        "bool": {
+                            "must": [
+                                {
+                                    "range": {
+                                        "create_time": {
+                                            "gte": "%s",
+                                            "lt": "%s"
+                                        }
+                                    }
+                                },
+                                {
+                                    "term": {
+                                        "sponsor.keyword": "%s"
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }''' % (company, startTime, endTime, key)
                 self.esClient.updateByQuery(query=query.encode(encoding='UTF-8'))
