@@ -81,7 +81,7 @@ class Meetings(object):
         res = self.esClient.request_get(url=self.meetings_url + "participants/" + mid + "/?token=" + self.query_token)
         if res.status_code != 200:
             if res.status_code == 401:
-                print('token authorization')
+                print('token unauthorization')
                 return -1
             elif res.status_code == 404:
                 print("The meeting participants not found: ", res.status_code)
