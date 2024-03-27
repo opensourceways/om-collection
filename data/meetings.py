@@ -13,8 +13,6 @@
 # Create: 2020-05
 #
 
-import requests
-import json
 from data.common import ESClient
 from data import common
 import datetime
@@ -30,9 +28,11 @@ class Meetings(object):
         self.index_name = config.get('index_name')
         self.esClient = ESClient(config)
         self.meetings_url = config.get('meetings_url')
+        self.participants_url = config.get('participants_url')
         self.headers = {'Content-Type': 'application/json', 'Authorization': config.get('authorization')}
         self.use_headers = config.get('use_headers', 'true')
         self.query_token = config.get('query_token')
+        self.page_size = config.get('page_size', 50)
 
     def run(self, from_time):
         print("*** Meetings collection start ***")
@@ -42,55 +42,61 @@ class Meetings(object):
 
     def get_all_meetings(self):
         print('get all meetings start...')
-        url = self.meetings_url + "allmeetings/?token=" + self.query_token
-        if self.org == 'mindspore':
-            url = self.meetings_url + "meetingslist/?token=" + self.query_token
-        if self.use_headers == 'true':
-            res = self.esClient.request_get(url=url, headers=self.headers)
-        else:
-            res = self.esClient.request_get(url=url)
-        if res.status_code != 200:
-            print('request fail, code=%d' % res.status_code)
-            return
-        print('meetings data len: %d' % len(res.json()))
-        datap = ''
-        for i in json.loads(res.content):
-            meet_date = datetime.datetime.strptime(i.get("end"), "%H:%M") - datetime.datetime.strptime(i.get("start"), "%H:%M")
-            i["duration_time"] = int(meet_date.seconds)
-            participants = self.get_participants_by_meet(i.get("mid"))
-            if participants == -1:
-                continue
-            i["total_records"] = participants.get("total_records", 0)
-            if self.org == 'mindspore':
-                i["total_records"] = participants.get("total_count", 0)
-            i["participants"] = participants.get("participants", [])
-            company = 'independent'
-            if i['sponsor'] in self.esClient.giteeid_company_dict:
-                company = self.esClient.giteeid_company_dict[i['sponsor']]
-            i["tag_user_company"] = company
-            datar = common.getSingleAction(self.index_name, i['id'], i)
-            datap += datar
-        header = {
-            "Content-Type": 'application/x-ndjson',
-            'Authorization': self.target_authorization
-        }
-        self.esClient.safe_put_bulk(bulk_json=datap, header=header, url=self.target_es_url)
+        page = 0
+        while True:
+            page += 1
+            params = {
+                "token": self.query_token,
+                "page": page,
+                "size": self.page_size
+            }
+            res = self.esClient.request_get(url=self.meetings_url, params=params)
+            if res.status_code != 200:
+                print("Get all meeting status: ", res.status_code)
+                break
+            meeting_list = res.json().get("data")
+            actions = ''
+            for meeting in meeting_list:
+                action = self.get_meeting_info(meeting)
+                actions += action
+            header = {
+                "Content-Type": 'application/x-ndjson',
+                'Authorization': self.target_authorization
+            }
+            self.esClient.safe_put_bulk(bulk_json=actions, header=header, url=self.target_es_url)
         print('get all meetings end...')
 
+    def get_meeting_info(self, meeting):
+        meet_date = datetime.datetime.strptime(meeting.get("end"), "%H:%M") - datetime.datetime.strptime(
+            meeting.get("start"), "%H:%M")
+        meeting["duration_time"] = int(meet_date.seconds)
+        participants = self.get_participants_by_meet(meeting.get("mid"))
+        if participants == -1:
+            return ''
+        meeting["total_records"] = participants.get("total_records", 0)
+        meeting["participants"] = participants.get("participants", [])
+        company = 'independent'
+        if meeting['sponsor'] in self.esClient.giteeid_company_dict:
+            company = self.esClient.giteeid_company_dict[meeting['sponsor']]
+        meeting["tag_user_company"] = company
+        action = common.getSingleAction(self.index_name, meeting['id'], meeting)
+        return action
+
     def get_participants_by_meet(self, mid):
-        res = self.esClient.request_get(url=self.meetings_url + "participants/" + mid + "/?token=" + self.query_token)
+        url = self.participants_url + mid + "/?token=" + self.query_token
+        res = self.esClient.request_get(url=url)
         if res.status_code != 200:
             if res.status_code == 401:
-                print('token authorization')
+                print("token failed: %s,  mid: %s" % (res.status_code, mid))
                 return -1
             elif res.status_code == 404:
-                print("The meeting participants not found: ", res.status_code)
+                print("participants not found: %s,  mid: %s" % (res.status_code, mid))
                 return {}
             else:
-                print("Get participants failed: ", res.status_code)
+                print("Get participants failed: %s,  mid: %s" % (res.status_code, mid))
                 return {}
 
-        participants = json.loads(res.content)
+        participants = res.json()
         return participants
 
     def getGiteeId2Company(self):
