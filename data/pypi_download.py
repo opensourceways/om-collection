@@ -72,8 +72,6 @@ class pypiDownload(object):
             # 检索查询结果
             results = query_job.result()
 
-            # for row in results:
-            #     print(row)
             # 上传数据到es
             self.upload_data(results)
 
