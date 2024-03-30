@@ -24,15 +24,12 @@ class pypiDownload(object):
         self.google_key_path = config.get("google_key_path")
         self.projects = config.get("projects")
 
-    def run(self, start_time):
-        self.download_data(start_time)
+    def run(self):
+        self.download_data()
 
-    def download_data(self, start_time):
+    def download_data(self):
+        # 获取凭证，并创建bigquery客户端
         google_key_path = self.google_key_path
-        # 获取数据的时间
-        start_time = datetime.datetime.strptime(start_time, "%Y%m%d")
-        start_date = start_time.strftime("%Y-%m-%d")
-
         credentials = service_account.Credentials.from_service_account_file(
             google_key_path
         )
@@ -40,11 +37,9 @@ class pypiDownload(object):
             project=credentials.project_id, credentials=credentials
         )
 
-        datei = datetime.datetime.strptime(start_date, "%Y-%m-%d")
-        end_data = datetime.datetime.strftime(
+        datei = datetime.datetime.strftime(
             datetime.datetime.now() - datetime.timedelta(days=1), "%Y-%m-%d"
         )
-        datenow = datetime.datetime.strptime(end_data, "%Y-%m-%d")
 
         projects_arr = self.arr_add_quotation(self.projects.split(","))
         projects_str = ",".join(projects_arr)
@@ -56,7 +51,7 @@ class pypiDownload(object):
                 """ % (
             projects_str,
             datei,
-            end_data,
+            datei,
         )
 
         # 获取请求数据
