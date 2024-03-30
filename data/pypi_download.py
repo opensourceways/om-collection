@@ -22,6 +22,7 @@ class pypiDownload(object):
 
         self.index_name = config.get("index_name")
         self.google_key_path = config.get("google_key_path")
+        self.projects = config.get("projects")
 
     def run(self, from_time):
         self.download_data()
@@ -46,19 +47,35 @@ class pypiDownload(object):
         datenow = datetime.datetime.strptime(end_data, "%Y-%m-%d")
         while datei < datenow:
             print(datei)
-            query_str = """ SELECT timestamp, file.project, file.version, details.python, details.system.name 
-                        FROM `bigquery-public-data.pypi.file_downloads` 
-                        WHERE file.project IN ('mindspore', 'mindspore-ascend', 'mindspore-gpu', 'tinyms') 
-                        AND DATE(timestamp) BETWEEN DATE('%s') AND DATE('%s') 
-                    """ % (
-                datei,
-                datei,
-            )
+            query_template = """
+            SELECT timestamp, file.project, file.version, details.python, details.system.name 
+            FROM `bigquery-public-data.pypi.file_downloads` 
+            WHERE file.project IN UNNEST(@projects) 
+            AND DATE(timestamp) BETWEEN DATE(@start_date) AND DATE(@end_date)
+            """
+            projects = self.projects
+
+            # 准备查询参数
+            query_params = [
+                bigquery.ArrayQueryParameter('projects', 'STRING', projects),
+                bigquery.ScalarQueryParameter('start_date', 'DATE', datei.date().isoformat()),
+                bigquery.ScalarQueryParameter('end_date', 'DATE', datei.date().isoformat())
+            ]
+
             # 获取请求数据
-            res = client.query(query_str)
-            res = res.result()
+            # 运行参数化查询
+            job_config = bigquery.QueryJobConfig()
+            job_config.query_parameters = query_params
+
+            query_job = client.query(query_template, job_config=job_config)
+
+            # 检索查询结果
+            results = query_job.result()
+
+            # for row in results:
+            #     print(row)
             # 上传数据到es
-            self.upload_data(res)
+            self.upload_data(results)
 
             datei += datetime.timedelta(days=1)
 
