@@ -29,7 +29,7 @@ class pypiDownload(object):
 
     def download_data(self, start_time):
         google_key_path = self.google_key_path
-        # 获取数据的时间，days是几天前
+        # 获取数据的时间
         start_time = datetime.datetime.strptime(start_time, "%Y%m%d")
         start_date = start_time.strftime("%Y-%m-%d")
 
@@ -41,7 +41,9 @@ class pypiDownload(object):
         )
 
         datei = datetime.datetime.strptime(start_date, "%Y-%m-%d")
-        end_data = datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d")
+        end_data = datetime.datetime.strftime(
+            datetime.datetime.now() - datetime.timedelta(days=1), "%Y-%m-%d"
+        )
         datenow = datetime.datetime.strptime(end_data, "%Y-%m-%d")
 
         projects_arr = self.arr_add_quotation(self.projects.split(","))
@@ -54,7 +56,7 @@ class pypiDownload(object):
                 """ % (
             projects_str,
             datei,
-            datei,
+            end_data,
         )
 
         # 获取请求数据
