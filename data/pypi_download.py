@@ -48,7 +48,7 @@ class pypiDownload(object):
             print(datei)
             query_str = """ SELECT timestamp, file.project, file.version, details.python, details.system.name 
                         FROM `bigquery-public-data.pypi.file_downloads` 
-                        WHERE file.project IN ('mindspore', 'mindspore-cpu', 'mindspore-gpu', 'tinyms') 
+                        WHERE file.project IN ('mindspore', 'mindspore-ascend', 'mindspore-gpu', 'tinyms') 
                         AND DATE(timestamp) BETWEEN DATE('%s') AND DATE('%s') 
                     """ % (
                 datei,
