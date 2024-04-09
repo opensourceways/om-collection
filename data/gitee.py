@@ -154,7 +154,7 @@ class Gitee(object):
             if self.is_set_sigs_star == 'true':
                 self.getSartUsersList()
 
-            change_repo_sig_dic = self.get_change_repo_sig_dict()
+            change_repo_sig_dic = self.get_change_repo_sig_dict(repo_sigs_dict)
             self.esClient.tagRepoSigChanged(change_repo_sig_dic)
             self.esClient.tagUserOrgChanged()
         endTime = time.time()
@@ -208,12 +208,12 @@ class Gitee(object):
         self.esClient.updateByQuery(query=queryNoRepo)
         print('***** No Repo No Sig *****')
 
-    def get_change_repo_sig_dict(self):
+    def get_change_repo_sig_dict(self, repo_sigs_dict):
         change_repo_sig_dic = {}
         self.last_repo_sig = self.esClient.getLastRepoSigs()
-        for repo in self.repo_sigs_dict:
-            if self.last_repo_sig.get(repo) and self.repo_sigs_dict[repo] != self.last_repo_sig.get(repo):
-                change_repo_sig_dic[repo] = self.repo_sigs_dict[repo]
+        for repo in self.last_repo_sig:
+            if self.last_repo_sig.get(repo) and repo_sigs_dict.get(repo) != self.last_repo_sig.get(repo):
+                change_repo_sig_dic[repo] = repo_sigs_dict.get(repo, ['No-SIG'])
         return change_repo_sig_dic
 
     def getGiteeId2Company(self):
