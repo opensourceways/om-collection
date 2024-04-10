@@ -90,7 +90,8 @@ BACKEND_MAPPING = {
     'hub_oepkgs': 'data.hub_oepkgs.HubOepkgs',
     'openeuler_swr': 'data.openeuler_swr.OpenEulerSwr',
     'gitee_feature': 'data.gitee_feature.giteeFeature',
-    'pypi_download': 'data.pypi_download.pypiDownload'
+    'pypi_download': 'data.pypi_download.pypiDownload',
+    'package_status': 'data.package.package_status.packageStatus',
 }
 
 
