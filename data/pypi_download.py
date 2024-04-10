@@ -12,7 +12,7 @@ from data import common
 from data.common import ESClient
 
 
-class pypiDownload(object):
+class PypiDownload(object):
     def __init__(self, config=None):
         self.config = config
         self.url = config.get("es_url")
@@ -24,7 +24,7 @@ class pypiDownload(object):
         self.google_key_path = config.get("google_key_path")
         self.projects = config.get("projects")
 
-    def run(self):
+    def run(self, start_time):
         self.download_data()
 
     def download_data(self):
@@ -60,18 +60,15 @@ class pypiDownload(object):
         # 上传数据到es
         self.upload_data(res)
 
-        datei += datetime.timedelta(days=1)
-
     def upload_data(self, res):
         actions = ""
         for row in res:
             timestamp = row.timestamp
             # 将对象都转化为字符串和字典基础类型
-            id = timestamp.isoformat()
+            doc_id = timestamp.isoformat()
             row_dic = self.obj2dic(row)
 
-            print(row_dic)
-            action = common.getSingleAction(self.index_name, id, row_dic)
+            action = common.getSingleAction(self.index_name, doc_id, row_dic)
             actions += action
 
         self.esClient.safe_put_bulk(actions)

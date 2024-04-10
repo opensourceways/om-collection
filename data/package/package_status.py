@@ -10,7 +10,7 @@ import json
 from data.common import ESClient
 
 
-class packageStatus(object):
+class PackageStatus(object):
     def __init__(self, config=None):
         self.config = config
         self.url = config.get("es_url")
