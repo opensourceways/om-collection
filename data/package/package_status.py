@@ -11,7 +11,7 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # Create: 2024/4/8
-
+import csv
 import datetime
 import json
 import logging
@@ -41,13 +41,17 @@ class PackageStatus(object):
         self.gitee_all_index_name = config.get('gitee_all_index_name')
         self.cve_index_name = config.get('cve_index_name')
         self.pkg_version_url = config.get('pkg_version_url')
+        self.package_level_index_name = config.get('package_level_index_name')
         self.repo_active = {}
+        self.package_level = {}
 
     def run(self, from_date):
+        self.tag_last_update()
         repos = self.get_repo_list()
         actions = ''
         cnt = 0
         self.get_active_dict()
+        self.get_package_level()
         for repo, sig in repos.items():
             cnt += 1
             actions += self.write_repo_data(repo, sig)
@@ -78,11 +82,11 @@ class PackageStatus(object):
             if repo_active['users'] > 10:
                 participant = {"is_positive": 1, "status": "贡献人数多", "num": repo_active['users']}
             else:
-                participant = {"is_positive": 1, "status": "贡献人数少", "num": repo_active['users']}
+                participant = {"is_positive": 0, "status": "贡献人数少", "num": repo_active['users']}
             if repo_active['companies'] > 5:
                 company = {"is_positive": 1, "status": "贡献组织多", "num": repo_active['companies']}
             else:
-                company = {"is_positive": 1, "status": "贡献组织少", "num": repo_active['companies']}
+                company = {"is_positive": 0, "status": "贡献组织少", "num": repo_active['companies']}
         return participant, company
 
     def get_active_dict(self):
@@ -338,7 +342,7 @@ class PackageStatus(object):
         """
         cve = {}
         search = (
-            """
+                """
         {
             "track_total_hits": true,
             "size": 1000,
@@ -369,7 +373,7 @@ class PackageStatus(object):
                 }
             }
         }"""
-            % repo_name
+                % repo_name
         )
         scroll_duration = "1m"
         data_dic_list = []
@@ -377,13 +381,14 @@ class PackageStatus(object):
         def func(data):
             for item in data:
                 data_dic_list.append(item['_source'])
+
         self.esClient.scrollSearch(self.cve_index_name, search, scroll_duration, func)
         fixed_cve_count = 0
         cve_count = len(data_dic_list)
         for data_dic in data_dic_list:
             if (
-                data_dic["issue_state"] == "closed"
-                or data_dic["issue_state"] == "rejected"
+                    data_dic["issue_state"] == "closed"
+                    or data_dic["issue_state"] == "rejected"
             ):
                 fixed_cve_count += 1
         if fixed_cve_count == cve_count > 0:
@@ -403,9 +408,14 @@ class PackageStatus(object):
     def write_repo_data(self, repo, sig):
         created_at = time.strftime("%Y-%m-%d", time.localtime())
         action = self.get_repo_status(repo)
-        action['status'] = self.get_repo_maintenance(action)
         action['created_at'] = created_at
         action['sig_names'] = sig
+        action['is_last'] = 1
+        action.update(self.get_repo_maintenance(action))
+        if self.package_level.get(repo):
+            action.update(self.package_level.get(repo))
+        else:
+            action.update({'level': 'Unmarked'})
         doc_id = created_at + '_' + repo
         actions = self.single_data(action, doc_id)
         return actions
@@ -429,23 +439,76 @@ class PackageStatus(object):
 
     def get_repo_maintenance(self, action):
         if action.get('cve').get('status') == '有CVE全部未修复' and action.get('issue').get('status') == '没有Issue修复':
-            status = '没有人维护'
+            status = {'status': '没有人维护', 'is_no_maintenance': 1}
         elif action.get('cve').get('status') == '有CVE全部未修复':
-            status = '缺人维护'
+            status = {'status': '缺人维护', 'is_lack_of_maintenance': 1}
         elif action.get('cve').get('status') == '有CVE部分修复':
-            status = '缺人维护'
+            status = {'status': '缺人维护', 'is_lack_of_maintenance': 1}
         elif action.get('cve').get('status') == '有CVE且全部修复':
-            status = '健康'
+            status = {'status': '健康', 'is_health': 1}
         elif action.get('cve').get('status') == '没有CVE问题' \
                 and action.get('package_update').get('status') == '没有PR提交' \
                 and action.get('package_version').get('status') == '最新版本':
-            status = '健康'
+            status = {'status': '健康', 'is_health': 1}
         elif action.get('cve').get('status') == '没有CVE问题' \
                 and action.get('package_update').get('status') == '没有PR提交' \
                 and action.get('package_version').get('status') == '落后版本':
-            status = '静止'
+            status = {'status': '静止', 'is_inactive': 1}
         elif action.get('cve').get('status') == '没有CVE问题':
-            status = '活跃'
+            status = {'status': '活跃', 'is_active': 1}
         else:
-            status = '其他'
+            status = {'status': '其他'}
         return status
+
+    def get_package_level(self):
+        search = '''{
+            "size": 1000,
+            "_source": [
+                "repo",
+                "level",
+                "responsible_team",
+                "responsible"
+            ]   
+        }'''
+
+        data_dic_list = []
+
+        def func(data):
+            for item in data:
+                data_dic_list.append(item['_source'])
+
+        self.esClient.scrollSearch(self.package_level_index_name, search, "1m", func)
+        for data_item in data_dic_list:
+            data_item['level'] = data_item['level'] if data_item.get('level') else "Unmarked"
+            self.package_level[data_item.get('repo')] = data_item
+
+    # 标记数据是否是最近更新
+    def tag_last_update(self):
+        try:
+            query = '''{
+                "script": {
+                    "source": "ctx._source['is_last']=0"
+                },
+                "query": {
+                    "bool": {
+                        "filter": [
+                            {
+                                "range": {
+                                    "created_at": {
+                                        "lt": "%s"
+                                    }
+                                }
+                            },
+                            {
+                                "query_string": {
+                                    "analyze_wildcard": true,
+                                    "query": "is_last:1"
+                                }
+                            }
+                        ]
+                    }
+                }
+            }''' % time.strftime("%Y-%m-%d", time.localtime())
+            self.esClient.updateByQuery(query)
+        except Exception as e:
+            logger.info(e)
