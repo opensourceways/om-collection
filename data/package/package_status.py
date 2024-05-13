@@ -26,8 +26,6 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logger.addHandler(logging.StreamHandler())
 
-GITEE_BASE = "gitee.com"
-
 
 class PackageStatus(object):
     def __init__(self, config=None):
@@ -42,6 +40,7 @@ class PackageStatus(object):
         self.cve_index_name = config.get('cve_index_name')
         self.pkg_version_url = config.get('pkg_version_url')
         self.package_level_index_name = config.get('package_level_index_name')
+        self.gitee_repo_base = config.get("gitee_repo_base")
         self.repo_active = {}
         self.package_level = {}
 
@@ -210,7 +209,7 @@ class PackageStatus(object):
 
     def get_package_update(self, repo):
         time_range = self.get_time_range()
-        repo = "https://gitee.com/src-openeuler/" + repo
+        repo = self.gitee_repo_base + repo
         query = '''{
             "size": 0,
             "query": {
@@ -265,7 +264,7 @@ class PackageStatus(object):
 
     def get_issue_update(self, repo):
         time_range = self.get_time_range()
-        repo = "https://gitee.com/src-openeuler/" + repo
+        repo = self.gitee_repo_base + repo
         query = '''{
             "size": 0,
             "query": {
