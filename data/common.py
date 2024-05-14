@@ -424,14 +424,14 @@ class ESClient(object):
             "aggs": {
                 "2": {
                     "terms": {
-                        "field": "sig_names.keyword",
-                        "size": 500
+                        "field": "gitee_repo.keyword",
+                        "size": 20000
                     },
                     "aggs": {
                         "3": {
                             "terms": {
-                                "field": "gitee_repo.keyword",
-                                "size": 1000
+                                "field": "sig_names.keyword",
+                                "size": 100
                             },
                             "aggs": {}
                         }
@@ -446,13 +446,9 @@ class ESClient(object):
             return dict_comb
         data = res.json()
         for d in data['aggregations']['2']['buckets']:
-            repos = [repo['key'][18:] for repo in d['3']['buckets']]
-            sig = d['key']
-            dt = defaultdict(dict)
-            for repo in repos:
-                dt.update({repo: [sig]})
-            combined_keys = dict_comb.keys() | dt.keys()
-            dict_comb = {key: dict_comb.get(key, []) + dt.get(key, []) for key in combined_keys}
+            repo = d['key'][18:]
+            sig_names = [sig['key'] for sig in d['3']['buckets']]
+            dict_comb.update({repo: sig_names})
         return dict_comb
 
     def getAllGiteeRepo(self):
@@ -834,6 +830,7 @@ class ESClient(object):
             }}'''
             query = query_str.format(sig_names=sig_names, gitee_repo=gitee_repo).replace("'", "\"")
             self.updateByQuery(query=query.encode('utf-8'))
+            print(f"update the sig of {gitee_repo} over!")
 
     def get_update_loc_info_query(self, company, startTime, endTime, user):
         company_info = self.getCompanyLocationInfo(company, self.company_location_index)
@@ -2868,6 +2865,32 @@ class ESClient(object):
             services.append(service_token)
 
         return services
+
+    def get_access_token_service(self, index_name_token, service):
+        url = self.url + '/' + index_name_token + '/' + '_search'
+        _headers = {'Content-Type': 'application/json;charset=UTF-8', 'Authorization': self.authorization}
+        query = '''{
+            "query": {
+                "bool": {
+                    "must": [
+                        {
+                            "match": {
+                                "service.keyword": "%s"
+                            }
+                        }
+                    ]
+                }
+            }
+        }''' % service
+        res = self.request_get(url=url, headers=_headers, data=query)
+        if res.status_code != 200:
+            print('The index not exist, error=', res.json())
+            return []
+        token = res.json()
+        hits = token['hits']['hits']
+        for hit in hits:
+            return hit.get('_source').get('access_token')
+        return None
 
     def request_get(self, url, data=None, headers=None, params=None, verify=False, timeout=60):
         res = requests.get(url, data=data, headers=headers, params=params, verify=verify, timeout=timeout)

@@ -92,6 +92,7 @@ BACKEND_MAPPING = {
     'gitee_feature': 'data.gitee_feature.giteeFeature',
     'pypi_download': 'data.pypi_download.PypiDownload',
     'package_status': 'data.package.package_status.PackageStatus',
+    'event_log_v8': 'data.event_log_v8.EventLogV8'
 }
 
 
