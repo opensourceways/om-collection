@@ -31,10 +31,11 @@ class EventLogV8(object):
         self.org = config.get('org')
         self.index_name_token = config.get('index_name_token')
         self.service = config.get('service')
+        self.duration = config.get('duration')
 
     def run(self, from_time):
         now = datetime.today()
-        start = now - relativedelta(days=1)
+        start = now - relativedelta(days=int(self.duration))
         start_date = start.strftime("%Y-%m-%d")
         end_date = now.strftime("%Y-%m-%d")
         print("collect event log from ", now)
