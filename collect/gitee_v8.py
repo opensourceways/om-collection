@@ -322,3 +322,17 @@ class GiteeClient():
 
             res = self.session.post(url, json=params, headers=_header, stream=False, auth=None)
             return res
+
+    def get_event_log(self, page, start_date, end_date):
+        url = self.urijoin(GITEE_API_URL, self.enterpriseId, 'log_statistics', 'projects_access_log')
+        params = {
+            'page': page,
+            'per_page': PER_PAGE,
+            'start_date': start_date,
+            'end_date': end_date
+        }
+        response = self.fetch(url=url, payload=params)
+        if response.status_code != 200:
+            print("get event log error", response.text)
+            return {}
+        return response
