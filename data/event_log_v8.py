@@ -74,7 +74,7 @@ class EventLogV8(object):
                 'created_at': event.get('created_at'),
                 'updated_at': event.get('updated_at')
             }
-            action.update(self.esClient.getLocationByIP(event.get('ip')))
+            action.update(self.esClient.getLocationByIP(event.get('ip_filter')))
             doc_id = event.get('uuid') + event.get('stat_type_cn')
             index_data = {"index": {"_index": self.index_name, "_id": doc_id}}
             actions += json.dumps(index_data) + '\n'
