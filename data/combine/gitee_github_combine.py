@@ -31,6 +31,7 @@ class GiteeGithubCombine(object):
         self.config = config
         self.gitee_token = config.get('gitee_token')
         self.github_token = config.get('github_token')
+        self.tokens = config.get('tokens').split(',')
         self.esClient = ESClient(config)
         self.index_name = config.get('index_name')
         self.owner_project_yaml = config.get('owner_project_yaml', 'owner_project.yaml')
@@ -71,10 +72,10 @@ class GiteeGithubCombine(object):
 
     def github_org_repos(self, org, repo):
         if repo is None:
-            client = GithubClient(org=org, repository=None, token=self.github_token)
+            client = GithubClient(org=org, repository=None, token=self.github_token, tokens=self.tokens)
             repos = client.get_repos(org=org)
         else:
-            client = GithubClient(org=org, repository=repo, token=self.github_token)
+            client = GithubClient(org=org, repository=repo, token=self.github_token, tokens=self.tokens)
             repos = client.get_repo(org=org, repo=repo)
         return repos
 
@@ -112,7 +113,7 @@ class GiteeGithubCombine(object):
 
     def repo_commit_count(self, org, repo, platform, item):
         if platform == GITHUB:
-            client = GithubClient(org=org, repository=repo['name'], token=self.github_token)
+            client = GithubClient(org=org, repository=repo['name'], token=self.github_token, tokens=self.tokens)
             total_count = client.get_contribute_count(org, repo['name'], item)
         else:
             client = GiteeClient(org, repo['path'], self.gitee_token)
