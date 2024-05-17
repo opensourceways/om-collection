@@ -99,14 +99,11 @@ def globalExceptionHandler(func):
             if isinstance(response, requests.models.Response):
                 if response.status_code == 401 or response.status_code == 403:
                     print({"状态码": response.status_code})
-                else:
-                    print("globalExceptionHandler else: response.status_code is not 401 and 403.")
             else:
                 print("globalExceptionHandler else: response is not requests.models.Response.")
             # 重试成功，修改状态
             globa_threadinfo.retrystate = 1
             globa_threadinfo.num = 0
-            print("globalExceptionHandler else: retry success globa_threadinfo.retrystate set to 1.")
             return response
 
     return warp
@@ -459,7 +456,6 @@ class GiteeClient():
         :returns a response object
         """
         # Add the access_token to the payload
-        print("fetch threading num start: " + threading.currentThread().getName())
         if self.access_token:
             if not payload:
                 payload = {}
@@ -473,7 +469,6 @@ class GiteeClient():
                 response = self.session.post(url, data=payload, headers=headers, stream=stream,
                                              verify=self.ssl_verify, auth=auth)
 
-            print("fetch threading num end: " + threading.currentThread().getName())
             return response
 
     def fetch_items(self, path, payload):
@@ -616,24 +611,13 @@ class GiteeClient():
         return self.contribute_count(url, payload)
 
     def contribute_count(self, url, payload):
-        per_page = payload['per_page']
         req = self.fetch(url=url, payload=payload)
         if req.status_code != 200:
             print('Get data error, API: %s' % url)
-
+            print(req.text)
+            return 0
         max_count = int(req.headers['total_count'])
-        last_page = 1 if max_count == 0 else math.ceil(max_count / per_page)
-        payload['page'] = last_page
-        last_req = self.fetch(url=url, payload=payload)
-        last_count = len(last_req.json())
-
-        while last_count == per_page:
-            last_page += 1
-            payload['page'] = last_page
-            last_req = self.fetch(url=url, payload=payload)
-            last_count = len(last_req.json())
-
-        return (last_page - 1) * per_page + last_count
+        return max_count
 
     def is_exists_issue(self, url):
         req = requests.get(url, timeout=60)

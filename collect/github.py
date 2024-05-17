@@ -47,12 +47,11 @@ class GithubClient(object):
 
     def __init__(self, org, repository, token,
                  base_url=None, max_items=MAX_CATEGORY_ITEMS_PER_PAGE, tokens=None):
+        if tokens is None:
+            tokens = []
         self.org = org
         self.repository = repository
-        self.headers = {
-            'Content-Type': 'application/json'
-        }
-        self.headers["Authorization"] = token
+        self.headers = {'Content-Type': 'application/json', "Authorization": token}
         self.base_url = BASE_URL
         self.session = requests.Session()
         self.ssl_verify = True
@@ -376,6 +375,7 @@ class GithubClient(object):
         req = self.http_req(url=url, params=params)
         if req.status_code != 200:
             print('Get data error, API: %s' % url)
+            print(req.text)
 
         if 'last' in req.links:
             url_last = req.links['last']['url']

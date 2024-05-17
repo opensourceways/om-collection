@@ -39,18 +39,16 @@ class PackageStatus(object):
         self.gitee_all_index_name = config.get('gitee_all_index_name')
         self.cve_index_name = config.get('cve_index_name')
         self.pkg_version_url = config.get('pkg_version_url')
-        self.package_level_index_name = config.get('package_level_index_name')
         self.gitee_repo_base = config.get("gitee_repo_base")
         self.repo_active = {}
-        self.package_level = {}
+        self.size = int(config.get('size', '20000'))
 
     def run(self, from_date):
         self.tag_last_update()
-        repos = self.get_repo_list()
+        repos = self.get_repo_list(self.size)
         actions = ''
         cnt = 0
-        self.get_active_dict()
-        self.get_package_level()
+        self.get_active_dict(self.size)
         for repo, sig in repos.items():
             cnt += 1
             actions += self.write_repo_data(repo, sig)
@@ -88,7 +86,7 @@ class PackageStatus(object):
                 company = {"is_positive": 0, "status": "贡献组织少", "num": repo_active['companies']}
         return participant, company
 
-    def get_active_dict(self):
+    def get_active_dict(self, size):
         time_range = self.get_time_range()
         query = '''{
             "size": 0,
@@ -117,7 +115,7 @@ class PackageStatus(object):
                 "2": {
                     "terms": {
                         "field": "gitee_repo.keyword",
-                        "size": 20000,
+                        "size": %d,
                         "order": {
                             "_key": "desc"
                         },
@@ -137,7 +135,7 @@ class PackageStatus(object):
                     }
                 }
             }
-        }''' % (time_range[0], time_range[1])
+        }''' % (time_range[0], time_range[1], size)
         url = self.url + '/' + self.gitee_all_index_name + '/_search'
         res = requests.post(url, headers=self.esClient.default_headers, verify=False, data=query.encode('utf-8'))
         buckets = res.json()['aggregations']['2']['buckets']
@@ -153,7 +151,7 @@ class PackageStatus(object):
                 }
             })
 
-    def get_repo_list(self):
+    def get_repo_list(self, size):
         query = '''{
             "size": 0,
             "query": {
@@ -172,7 +170,7 @@ class PackageStatus(object):
                 "2": {
                     "terms": {
                         "field": "gitee_repo.keyword",
-                        "size": 20000,
+                        "size": %d,
                         "order": {
                             "_key": "desc"
                         },
@@ -193,7 +191,7 @@ class PackageStatus(object):
                     }
                 }
             }
-        }'''
+        }''' % size
         url = self.url + '/' + self.gitee_all_index_name + '/_search'
         res = requests.post(url, headers=self.esClient.default_headers, verify=False, data=query.encode('utf-8'))
         buckets = res.json()['aggregations']['2']['buckets']
@@ -207,7 +205,7 @@ class PackageStatus(object):
 
         return repo_list
 
-    def get_package_update(self, repo):
+    def get_package_update(self, repo, size):
         time_range = self.get_time_range()
         repo = self.gitee_repo_base + repo
         query = '''{
@@ -237,7 +235,7 @@ class PackageStatus(object):
                 "2": {
                     "terms": {
                         "field": "pull_state.keyword",
-                        "size": 20000,
+                        "size": %d,
                         "order": {
                             "_key": "desc"
                         },
@@ -246,7 +244,7 @@ class PackageStatus(object):
                     "aggs": {}
                 }
             }
-        }''' % (time_range[0], time_range[1], repo)
+        }''' % (time_range[0], time_range[1], repo, size)
 
         resp = self.esClient.esSearch(index_name=self.gitee_all_index_name, search=query)
         aggregations = resp.get('aggregations').get('2').get('buckets')
@@ -262,7 +260,7 @@ class PackageStatus(object):
                 return {"is_positive": 1, "status": "有PR合入"}
         return {"is_positive": 0, "status": "有PR提交未合入"}
 
-    def get_issue_update(self, repo):
+    def get_issue_update(self, repo, size):
         time_range = self.get_time_range()
         repo = self.gitee_repo_base + repo
         query = '''{
@@ -291,8 +289,8 @@ class PackageStatus(object):
             "aggs": {
                 "2": {
                     "terms": {
-                        "field": "pull_state.keyword",
-                        "size": 20000,
+                        "field": "issue_state.keyword",
+                        "size": %d,
                         "order": {
                             "_key": "desc"
                         },
@@ -301,7 +299,7 @@ class PackageStatus(object):
                     "aggs": {}
                 }
             }
-        }''' % (time_range[0], time_range[1], repo)
+        }''' % (time_range[0], time_range[1], repo, size)
 
         resp = self.esClient.esSearch(index_name=self.gitee_all_index_name, search=query)
         aggregations = resp.get('aggregations').get('2').get('buckets')
@@ -411,10 +409,6 @@ class PackageStatus(object):
         action['sig_names'] = sig
         action['is_last'] = 1
         action.update(self.get_repo_maintenance(action))
-        if self.package_level.get(repo):
-            action.update(self.package_level.get(repo))
-        else:
-            action.update({'level': 'Unmarked'})
         doc_id = created_at + '_' + repo
         actions = self.single_data(action, doc_id)
         return actions
@@ -422,8 +416,8 @@ class PackageStatus(object):
     def get_repo_status(self, repo):
         participant, company = self.get_active(repo)
         cve = self.get_openeuper_cve_state(repo)
-        issue = self.get_issue_update(repo)
-        package_update = self.get_package_update(repo)
+        issue = self.get_issue_update(repo, self.size)
+        package_update = self.get_package_update(repo, self.size)
         package_version = self.get_repo_version(repo)
         action = {
             'repo': repo,
@@ -458,28 +452,6 @@ class PackageStatus(object):
         else:
             status = {'status': '其他'}
         return status
-
-    def get_package_level(self):
-        search = '''{
-            "size": 1000,
-            "_source": [
-                "repo",
-                "level",
-                "responsible_team",
-                "responsible"
-            ]   
-        }'''
-
-        data_dic_list = []
-
-        def func(data):
-            for item in data:
-                data_dic_list.append(item['_source'])
-
-        self.esClient.scrollSearch(self.package_level_index_name, search, "1m", func)
-        for data_item in data_dic_list:
-            data_item['level'] = data_item['level'] if data_item.get('level') else "Unmarked"
-            self.package_level[data_item.get('repo')] = data_item
 
     # 标记数据是否是最近更新
     def tag_last_update(self):
