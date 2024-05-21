@@ -19,7 +19,7 @@ import requests
 from data.common import ESClient
 
 
-class OpenEulerSwr(object):
+class Swr(object):
     def __init__(self, config=None):
         self.config = config
         self.index_name = config.get('index_name')
@@ -27,14 +27,23 @@ class OpenEulerSwr(object):
         self.authorization = config.get('authorization')
         self.esClient = ESClient(config)
         self.token_url = self.config.get('token_url')
+        self.repo_list_url = self.config.get('repo_list_url')
         self.base_url = self.config.get('base_url')
         self.username = self.config.get('username')
         self.password = self.config.get('password')
         self.domain = self.config.get('domain')
+        self.region = self.config.get('region')
+        self.namespace = self.config.get('namespace')
         self.token = self.generate_token()
+        self.repos = self.config.get('repos')
 
     def run(self, start):
-        self.get_data()
+        print('start collect swr download data')
+        if self.repos:
+            self.get_data()
+        else:
+            self.get_namespace_repo()
+        print('collect over')
 
     def get_data(self):
         self.refresh_token()
@@ -42,19 +51,59 @@ class OpenEulerSwr(object):
             "Content-Type": 'application/json',
             'X-Auth-Token': self.token.get('token')
         }
-        response = requests.get(url=self.base_url, headers=_header, timeout=60)
+        download = 0
+        repos = self.repos.split(',')
+        for repo in repos:
+            response = requests.get(url=self.base_url + repo, headers=_header, timeout=60)
+            if response.status_code != 200:
+                print(f'get repo {repo} download data failed')
+                continue
+            download += response.json().get('num_download')
+
+        now = datetime.datetime.today()
+        created_at = now.strftime("%Y-%m-%dT08:00:00+08:00")
+        action = {
+            'download': download,
+            'created_at': created_at
+        }
+        index_data = {"index": {"_index": self.index_name, "_id": created_at}}
+        actions = json.dumps(index_data) + '\n'
+        actions += json.dumps(action) + '\n'
+        self.esClient.safe_put_bulk(actions)
+
+    def get_namespace_repo(self):
+        self.refresh_token()
+        _header = {
+            "Content-Type": 'application/json',
+            'X-Auth-Token': self.token.get('token')
+        }
+        param = {'namespace': self.namespace} if self.namespace else None
+        response = requests.get(url=self.repo_list_url, params=param, headers=_header, timeout=60)
         if response.status_code != 200:
+            print('get namespace repo error: ', response.text)
             return
 
         now = datetime.datetime.today()
         created_at = now.strftime("%Y-%m-%dT08:00:00+08:00")
-        download = response.json().get('num_download')
+        download = 0
+        actions = ''
+        for repo in response.json():
+            action = {
+                'repo': repo.get('name'),
+                'repo_download': repo.get('num_download'),
+                'created_at': created_at
+            }
+            index_data = {"index": {"_index": self.index_name, "_id": repo.get('name') + created_at}}
+            actions += json.dumps(index_data) + '\n'
+            actions += json.dumps(action) + '\n'
+            download += repo.get('num_download')
+
         action = {
             'download': download,
-            'created_at': '2023-08-08T08:00:00+08:00'
+            'created_at': created_at
         }
         index_data = {"index": {"_index": self.index_name, "_id": created_at}}
-        actions = json.dumps(index_data) + '\n'
+        actions += json.dumps(index_data) + '\n'
         actions += json.dumps(action) + '\n'
         self.esClient.safe_put_bulk(actions)
 
@@ -80,7 +129,7 @@ class OpenEulerSwr(object):
                 },
                 "scope": {
                     "project": {
-                        "name": "cn-north-4"
+                        "name": self.region
                     }
                 }
             }

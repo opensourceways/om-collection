@@ -88,7 +88,7 @@ BACKEND_MAPPING = {
     'big_model_research': 'data.big_model_research.BigModelResearch',
     'forum_post': 'data.forum_post.ForumPost',
     'hub_oepkgs': 'data.hub_oepkgs.HubOepkgs',
-    'openeuler_swr': 'data.openeuler_swr.OpenEulerSwr',
+    'swr': 'data.swr.Swr',
     'gitee_feature': 'data.gitee_feature.giteeFeature',
     'pypi_download': 'data.pypi_download.PypiDownload',
     'package_status': 'data.package.package_status.PackageStatus',
