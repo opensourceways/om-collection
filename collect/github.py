@@ -293,7 +293,6 @@ class GithubClient(object):
         return datas
 
     def get_pull_by_number(self, owner, repo, number):
-        """https://api.github.com/repos/OWNER/REPO/pulls/PULL_NUMBER"""
         url = self.urijoin(BASE_URL, 'repos', owner, repo, 'pulls', number)
         datas = []
         self.get_data(url=url, params={}, current_page=1, datas=datas)
