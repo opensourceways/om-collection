@@ -563,6 +563,51 @@ class ESClient(object):
 
         return dic, dic_change
 
+    def get_mark_org(self, field):
+        org_dic = {}
+        field_orgs_dict = defaultdict(dict)
+        if self.index_name_org is None:
+            return org_dic, field_orgs_dict
+        search_json = '''{
+            "size": 1000,
+            "_source": {
+                "includes": [
+                    "gitee_id",
+                    "github_id",
+                    "company",
+                    "username",
+                    "created_at"
+                ]
+            }
+        }'''
+
+        scroll_duration = "1m"
+        resp_list = []
+
+        def func(resp):
+            for item in resp:
+                resp_list.append(item['_source'])
+
+        self.scrollSearch(self.index_name_org, search_json, scroll_duration, func)
+
+        for hit in resp_list:
+            field_id = hit[field]
+            if field_id is None:
+                continue
+            value = {hit['created_at']: hit['company']}
+            field_orgs_dict[field_id].update(value)
+
+        dic_change = field_orgs_dict.copy()
+        for key, vMap in field_orgs_dict.items():
+            if len(vMap) > 1:
+                last_time = max(vMap.keys())
+                org_dic.update({key: vMap[last_time]})
+            else:
+                org_dic.update({key: list(vMap.values())[0]})
+                dic_change.pop(key)
+
+        return org_dic, dic_change
+
     def getuserInfoFromCla(self):
         if self.is_update_tag_company_cla != 'true' or self.index_name_cla is None:
             return {}

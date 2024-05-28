@@ -292,6 +292,12 @@ class GithubClient(object):
         self.get_data(url=url, params=params, current_page=1, datas=datas)
         return datas
 
+    def get_pull_by_number(self, owner, repo, number):
+        url = self.urijoin(BASE_URL, 'repos', owner, repo, 'pulls', number)
+        datas = []
+        self.get_data(url=url, params={}, current_page=1, datas=datas)
+        return datas
+
     def get_issue_pre(self, owner, repo, func):
         url = self.urijoin(BASE_URL, 'repos', owner, repo, 'issues')
         params = {

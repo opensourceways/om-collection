@@ -93,6 +93,7 @@ BACKEND_MAPPING = {
     'pypi_download': 'data.pypi_download.PypiDownload',
     'package_status': 'data.package.package_status.PackageStatus',
     'package_overview': 'data.package.package_overview.PackageOverview',
+    'github_account': 'data.github_account.GitHubAccount',
     'event_log_v8': 'data.event_log_v8.EventLogV8'
 }
 

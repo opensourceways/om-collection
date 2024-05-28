@@ -45,7 +45,7 @@ class GitHubPrIssue(object):
         self.user_org_dic = {}
 
     def run(self, from_date):
-        dic = self.esClient.getOrgByGiteeID()
+        dic = self.esClient.get_mark_org('github_id')
         self.user_org_dic = dic[0]
         print('Start collection github pr/issue/swf')
         if self.is_set_repo == 'true' and self.repos is None:
@@ -293,6 +293,13 @@ class GitHubPrIssue(object):
                 'base_label': pr['base']['label'],
                 'base_label_ref': pr['base']['ref'],
             }
+            if pr['merged_at']:
+                pull_info = client.get_pull_by_number(self.org, repo, pr_num)
+                pr_data.update({
+                    'additions': pull_info[0]['additions'],
+                    'deletions': pull_info[0]['deletions'],
+                    'changed_files': pull_info[0]['changed_files']
+                })
             pr_data.update(self.get_user_info(pr['user']['login']))
             pr_first_reply_times = []
             if reviews and len(reviews) != 0:
