@@ -73,8 +73,11 @@ class Meetings(object):
         participants = self.get_participants_by_meet(meeting.get("mid"))
         if participants == -1:
             return ''
-        meeting["total_records"] = participants.get("total_records", 0)
-        meeting["participants"] = participants.get("participants", [])
+        tuple_sList = [tuple(d.items()) for d in participants.get("participants", [])]
+        unique_list = list(set(tuple_sList))
+        unique_dict = [dict(t) for t in unique_list]
+        meeting["total_records"] = len(unique_dict)
+        meeting["participants"] = unique_dict
         company = 'independent'
         if meeting['sponsor'] in self.esClient.giteeid_company_dict:
             company = self.esClient.giteeid_company_dict[meeting['sponsor']]
