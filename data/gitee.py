@@ -349,9 +349,11 @@ class Gitee(object):
             org_data = self.getGenerator(client.org())
 
         if self.filters is None:
+            repos = []
             for repo in org_data:
-                print(repo['path'])
-            return org_data
+                if repo['namespace']['path'] == org:
+                    repos.append(repo)
+            return repos
 
         repos = []
         for repo in org_data:
