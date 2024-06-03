@@ -23,6 +23,7 @@ from collections import defaultdict
 from json import JSONDecodeError
 
 import git
+import requests
 import yaml
 
 from collect.gitee import GiteeClient
@@ -136,13 +137,12 @@ class GitCommitLog(object):
 
     def getLog(self, platform, owner, repo_name, branch_name, path=None):
         # 本地仓库目录
-        owner_path = self.code_base_path + platform + '/' + owner + '/'
+        owner_path = self.code_base_path + platform + os.sep + owner + os.sep
         if not os.path.exists(owner_path):
             os.makedirs(owner_path)
         code_path = owner_path + repo_name
 
         username = base64.b64decode(self.username).decode()
-        passwd = base64.b64decode(self.password).decode()
         if platform == 'gitee':
             remote_repo = 'https://%s/%s/%s' % (GITEE_BASE, owner, repo_name)
             clone_url = 'https://%s:%s@%s/%s/%s' % (username, self.gitee_access_token, GITEE_BASE, owner, repo_name)
@@ -161,7 +161,9 @@ class GitCommitLog(object):
         self.removeGitLockFile(code_path)
         if os.path.exists(code_path):
             cmd_pull = 'cd %s;git pull' % code_path
-            os.system(cmd_pull)
+            status_code = os.system(cmd_pull)
+            if status_code != 0:
+                print(f"{code_path} git pull failed!")
         else:
             if clone_url is None:
                 return
@@ -398,18 +400,12 @@ class GitCommitLog(object):
         all_branch_repos = []
         default_branch_repos = []
         try:
-            cmd = 'wget -N -P %s %s' % (self.code_base_path, yaml_file)
-            os.system(cmd)
-
-            # 解析yaml
-            file_name = str(yaml_file).split('/')[-1]
-            file = self.code_base_path + file_name
-            datas = yaml.safe_load_all(open(file, encoding='UTF-8')).__next__()
-            for data in datas['users']:
-                if 'repos' in data and data['repos']:
-                    default_branch_repos.extend(data['repos'])
-                if 'repos_all_branches' in data and data['repos_all_branches']:
-                    all_branch_repos.extend(data['repos_all_branches'])
+            content = self.get_yaml_file(yaml_file)
+            for user in content['users']:
+                if 'repos' in user and user['repos']:
+                    default_branch_repos.extend(user['repos'])
+                if 'repos_all_branches' in user and user['repos_all_branches']:
+                    all_branch_repos.extend(user['repos_all_branches'])
 
             # 去重
             all_branch_repos_res = set(all_branch_repos)
@@ -440,15 +436,10 @@ class GitCommitLog(object):
         domain_org_dict = {}
         email_user_dict = {}
         try:
-            cmd = 'wget -N -P %s %s' % (self.code_base_path, user_yaml)
-            os.system(cmd)
-            user_file_name = str(user_yaml).split('/')[-1]
-            user_file = self.code_base_path + user_file_name
-
             domain_org_dict, aliases_company_dict = self.get_domain_org(company_yaml)
 
             # 用户邮箱和组织
-            user_datas = yaml.safe_load_all(open(user_file, encoding='UTF-8')).__next__()
+            user_datas = self.get_yaml_file(user_yaml)
             for user in user_datas['users']:
                 user_company = user['companies'][0]['company_name']
                 if user_company in aliases_company_dict:
@@ -465,13 +456,8 @@ class GitCommitLog(object):
         domain_org_dict = {}
         aliases_company_dict = {}
         try:
-            cmd = 'wget -N -P %s %s' % (self.code_base_path, company_yaml)
-            os.system(cmd)
-            company_file_name = str(company_yaml).split('/')[-1]
-            company_file = self.code_base_path + company_file_name
-
             # 企业别名和企业名称
-            company_datas = yaml.safe_load_all(open(company_file, encoding='UTF-8')).__next__()
+            company_datas = self.get_yaml_file(company_yaml)
             for company in company_datas['companies']:
                 company_name = company['company_name']
                 for alias in company['aliases']:
@@ -481,3 +467,20 @@ class GitCommitLog(object):
             return domain_org_dict, aliases_company_dict
         except Exception:
             return domain_org_dict, aliases_company_dict
+
+    def get_yaml_file(self, yaml_file):
+        if GITEE_BASE in yaml_file:
+            token = self.gitee_access_token
+        else:
+            token = self.github_access_token
+        headers = {'Authorization': f'token {token}'}
+        yaml_response = requests.get(yaml_file, headers=headers, verify=False, timeout=60)
+        if yaml_response.status_code != 200:
+            print('Cannot fetch online yaml file.', yaml_response.text)
+            return
+        try:
+            yaml_json = yaml.safe_load(yaml_response.text)
+        except yaml.YAMLError as e:
+            print(f'Error parsing YAML: {e}')
+            return
+        return yaml_json
