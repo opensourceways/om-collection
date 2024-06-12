@@ -66,6 +66,7 @@ class GitCommitLog(object):
         self.huggingface_access_token = config.get('huggingface_access_token')
         self.github_access_token = config.get('github_access_token')
         self.gitee_access_token = config.get('gitee_access_token')
+        self.tokens = config.get('tokens').split(',') if config.get('tokens') else None
 
         self.email_user_dict = {}
 
@@ -365,7 +366,7 @@ class GitCommitLog(object):
         return repos_names
 
     def github_repos(self, owner, token):
-        client = GithubClient(org=owner, repository=None, token=token)
+        client = GithubClient(org=owner, repository=None, token=token, tokens=self.tokens)
         repos = client.get_repos(org=owner)
         repos_names = []
         for repo in repos:
