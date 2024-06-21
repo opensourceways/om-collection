@@ -16,6 +16,8 @@ import datetime
 import json
 import time
 
+import dateutil.relativedelta
+
 from data.common import ESClient
 
 
@@ -30,6 +32,7 @@ class RuDownload(object):
         self.target_index_name = config.get('target_index_name')
         self.vhost = config.get('vhost')
         self.last_run_date = None
+        self.collect_from_time = config.get('collect_from_time', 'false')
 
     def run(self, from_time):
         date_now = time.strftime("%Y.%m.%d", time.localtime())
@@ -37,25 +40,38 @@ class RuDownload(object):
             print("has been executed today")
             return
         self.last_run_date = date_now
-        date_yesterday = (datetime.datetime.now() - datetime.timedelta(days=self.before_day)).strftime("%Y.%m.%d")
-        source_index_name = self.source_index_name_head + '-' + date_yesterday
+        if self.collect_from_time == 'true':
+            self.get_data_from_time(from_time)
+        else:
+            date_yesterday = (datetime.datetime.now() - datetime.timedelta(days=self.before_day)).strftime("%Y.%m.%d")
+            source_index_name = self.source_index_name_head + '-' + date_yesterday
+            self.get_data_by_day(source_index_name)
 
+    def get_data_by_day(self, source_index_name):
         search = '''{
-                      "size":10000,
-                      "query": {
+                    "size": 1000,
+                    "query": {
                         "bool": {
-                          "must": [
-                            {
-                              "match": {
-                                "vhost.keyword": "%s"
-                              }
-                            }
-                          ]
+                            "must": [
+                                {
+                                    "match": {
+                                        "vhost.keyword": "%s"
+                                    }
+                                }
+                            ]
                         }
-                      }
-                    }''' % self.vhost
+                    }
+                }''' % self.vhost
         self.esClient.scrollSearch(index_name=source_index_name, search=search, scroll_duration='2m',
                                    func=self.processingHits)
+
+    def get_data_from_time(self, from_time):
+        start_time = datetime.datetime.strptime(from_time, "%Y%m%d")
+        to = datetime.datetime.today().strftime("%Y.%m.%d")
+        while start_time.strftime("%Y.%m.%d") < to:
+            source_index_name = self.source_index_name_head + '-' + start_time.strftime("%Y.%m.%d")
+            self.get_data_by_day(source_index_name)
+            start_time += dateutil.relativedelta.relativedelta(days=1)
 
     def processingHits(self, hits):
         actions = ''
