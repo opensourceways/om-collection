@@ -158,7 +158,7 @@ class PackageOverview(object):
         elif "xfusion" in company.lower():
             return "超聚变数字技术有限公司"
         elif "uniontech" in company.lower():
-            return "统信软件技术有限公司 "
+            return "统信软件技术有限公司"
         else:
             return company
 
