@@ -41,10 +41,12 @@ class PackageStatus(object):
         self.pkg_version_url = config.get('pkg_version_url')
         self.gitee_repo_base = config.get("gitee_repo_base")
         self.repo_active = {}
+        self.repo_versions = {}
         self.size = int(config.get('size', '20000'))
 
     def run(self, from_date):
         self.tag_last_update()
+        self.repo_versions = self.get_all_repo_version()
         repos = self.get_repo_list(self.size)
         actions = ''
         cnt = 0
@@ -314,21 +316,49 @@ class PackageStatus(object):
                 return {"is_positive": 1, "status": "全部Issue修复"}
         return {"is_positive": 0, "status": "有部分Issue修复"}
 
-    def get_repo_version(self, repo):
-        params = {"name": repo}
-        resp = requests.get(url=self.pkg_version_url, params=params, timeout=60)
-        up_version, openeuler_version = None, None
-        if resp.status_code == 200:
+    def get_all_repo_version(self):
+        page = 1
+        repo_versions = {}
+        while True:
+            params = {"page": page, "items_per_page": 100}
+            resp = requests.get(url=self.pkg_version_url, params=params, timeout=60)
+            page += 1
+            if resp.status_code != 200:
+                print('get version error', resp.text)
+                resp.raise_for_status()
             items = resp.json().get('items')
+            if not items:
+                break
             for item in items:
+                name = item.get('name')
+                if name not in repo_versions:
+                    repo_versions[name] = {}
+
                 if item.get('tag').endswith('_up'):
                     up_version = item.get('version')
+                    repo_versions[name].update({"up_version": up_version})
                 if item.get('tag').endswith('_openeuler'):
                     openeuler_version = item.get('version')
-        if up_version == openeuler_version and up_version and openeuler_version:
-            version = {"is_positive": 1, "status": "最新版本", "version": openeuler_version, "up_version": up_version}
+                    repo_versions[name].update({"version": openeuler_version})
+
+        version_status = {}
+        for repo, version in repo_versions.items():
+            up_version = version.get('up_version')
+            openeuler_version = version.get('version')
+            if up_version == openeuler_version and up_version and openeuler_version:
+                version = {"is_positive": 1, "status": "最新版本", "version": openeuler_version,
+                           "up_version": up_version}
+            else:
+                version = {"is_positive": 0, "status": "落后版本", "version": openeuler_version,
+                           "up_version": up_version}
+            version_status[repo] = version
+        return version_status
+
+    def get_repo_version(self, repo):
+        if repo in self.repo_versions:
+            version = self.repo_versions.get(repo)
         else:
-            version = {"is_positive": 0, "status": "落后版本", "version": openeuler_version, "up_version": up_version}
+            version = {"is_positive": 0, "status": "落后版本", "version": None, "up_version": None}
         return version
 
     def get_openeuper_cve_state(self, repo_name):
@@ -403,6 +433,7 @@ class PackageStatus(object):
         return cve
 
     def write_repo_data(self, repo, sig):
+        print(f'start collect repo: {repo}')
         created_at = time.strftime("%Y-%m-%d", time.localtime())
         action = self.get_repo_status(repo)
         action['created_at'] = created_at
