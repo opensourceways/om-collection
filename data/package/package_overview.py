@@ -143,11 +143,13 @@ class PackageOverview(object):
                 actions += json.dumps(indexData) + '\n'
                 actions += json.dumps(action) + '\n'
         self.esClient.safe_put_bulk(actions)
+        repos = repo_types.keys()
+        self.update_status(repos)
 
     def normalize_company(self, company):
         if "kylinsoft" in company.lower() or "麒麟软件" in company:
             return "麒麟软件有限公司"
-        elif "华为" in company:
+        elif "华为" in company or "huawei" in company.lower():
             return "huawei"
         elif "kylinsec" in company.lower():
             return "湖南麒麟信安科技股份有限公司"
@@ -155,6 +157,8 @@ class PackageOverview(object):
             return "江苏润和软件股份有限公司"
         elif "xfusion" in company.lower():
             return "超聚变数字技术有限公司"
+        elif "uniontech" in company.lower():
+            return "统信软件技术有限公司"
         else:
             return company
 
@@ -601,3 +605,97 @@ class PackageOverview(object):
                 actions += json.dumps(index_data) + '\n'
                 actions += json.dumps(action) + '\n'
         self.esClient.safe_put_bulk(actions)
+
+    def update_status(self, repos):
+        update_query = '''{
+            "script": {
+                "source": "ctx._source.final_status = params.final_status",
+                "params": {
+                    "final_status": "%s"
+                },
+                "lang": "painless"
+            },
+            "query": {
+                "bool": {
+                    "filter": [
+                        {
+                            "query_string": {
+                                "analyze_wildcard": true,
+                                "query": "is_last:1 AND repo.keyword:%s"
+                            }
+                        }
+                    ]
+                }
+            }
+        }'''
+        re_query = '''{
+            "script": {
+                "source": "ctx._source.final_status = ctx._source.status",
+                "lang": "painless"
+            },
+            "query": {
+                "bool": {
+                    "filter": [
+                        {
+                            "query_string": {
+                                "analyze_wildcard": true,
+                                "query": "is_last:1 AND repo.keyword:%s"
+                            }
+                        }
+                    ]
+                }
+            }
+        }'''
+        update_repos = self.get_update_repos()
+        for repo in repos:
+            if repo in update_repos:
+                print(f'update {repo}')
+                query = update_query % ("合理静止", repo)
+            else:
+                query = re_query % repo
+
+            self.esClient.updateByQuery(query.encode('utf-8'))
+
+    def get_update_repos(self):
+        csv_file = open("baseos_repos.csv", mode="r", encoding="utf-8")
+        reader = csv.reader(csv_file)
+        repos = []
+        for item in reader:
+            if reader.line_num == 1:
+                continue
+            repos.append(item[0])
+
+        base_repos = self.get_kind_status_repos("baseos", "静止")
+        update_repos = [repo for repo in repos if repo in base_repos]
+        return update_repos
+
+    def get_kind_status_repos(self, kind, status):
+        search = '''{
+            "size": 1000,
+            "query": {
+                "bool": {
+                    "filter": [
+                        {
+                            "query_string": {
+                                "analyze_wildcard": true,
+                                "query": "is_last:1 AND kind.keyword:%s AND status.keyword:\\"%s\\""
+                            }
+                        }
+                    ]
+                }
+            },
+            "_source": [
+                "repo"
+            ]
+        }''' % (kind, status)
+        repos = []
+        data_dic_list = []
+
+        def func(data):
+            for item in data:
+                data_dic_list.append(item['_source'])
+
+        self.esClient.scrollSearch(self.index_name, search, "1m", func)
+        for data_item in data_dic_list:
+            repos.append(data_item.get('repo'))
+        return repos
