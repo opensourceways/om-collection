@@ -30,10 +30,15 @@ class ExportTask(object):
         self.product_id = config.get('product_id')
         self.task_url = config.get('task_url')
         self.events = config.get('events')
+        self.last_run_date = None
 
     def run(self, from_date):
         yesterday = datetime.datetime.today() - relativedelta(days=1)
         start_date = yesterday.strftime("%Y-%m-%d")
+        if self.last_run_date == start_date:
+            print("has been executed today")
+            return
+        self.last_run_date = start_date
         print(f'export task: {start_date}')
         self.get_task(start_date, start_date)
 
