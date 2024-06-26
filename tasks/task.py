@@ -94,6 +94,9 @@ BACKEND_MAPPING = {
     'package_status': 'data.package.package_status.PackageStatus',
     'package_overview': 'data.package.package_overview.PackageOverview',
     'github_account': 'data.github_account.GitHubAccount',
+    'export_task': 'data.huawei_analytic.export_task.ExportTask',
+    'openmind_owner': 'data.time_series.openmind_owner.OpenmindOwner',
+
     'event_log_v8': 'data.event_log_v8.EventLogV8'
 }
 
