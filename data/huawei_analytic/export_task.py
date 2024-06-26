@@ -32,9 +32,9 @@ class ExportTask(object):
         self.events = config.get('events')
 
     def run(self, from_date):
-        yesterday = datetime.datetime.strptime(from_date, "%Y%m%d") - relativedelta(days=1)
+        yesterday = datetime.datetime.today() - relativedelta(days=1)
         start_date = yesterday.strftime("%Y-%m-%d")
-        print(f'export task: {yesterday}')
+        print(f'export task: {start_date}')
         self.get_task(start_date, start_date)
 
     def get_access_token(self):
