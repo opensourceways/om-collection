@@ -96,7 +96,7 @@ BACKEND_MAPPING = {
     'github_account': 'data.github_account.GitHubAccount',
     'export_task': 'data.huawei_analytic.export_task.ExportTask',
     'openmind_owner': 'data.time_series.openmind_owner.OpenmindOwner',
-
+    'authing_user': 'data.authing.authing_user.AuthingUser',
     'event_log_v8': 'data.event_log_v8.EventLogV8'
 }
 
