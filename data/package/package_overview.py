@@ -451,7 +451,7 @@ class PackageOverview(object):
         elif kind == 'baseos':
             level = 'L3'
         elif kind == 'epol':
-            level = 'Unmarked'
+            level = 'epol'
         else:
             level = 'L4'
         return level
@@ -591,7 +591,7 @@ class PackageOverview(object):
                 if row[1] == "everything":
                     level = "L4"
                 if row[1] == "epol":
-                    level = "Unmarked"
+                    level = "epol"
                 action = {
                     "repo": row[0],
                     "kind": row[1],
