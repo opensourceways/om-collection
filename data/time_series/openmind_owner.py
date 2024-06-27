@@ -11,6 +11,7 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # Create: 2024/6/25
+import datetime
 import json
 import time
 
@@ -27,23 +28,15 @@ class OpenmindOwner(object):
         self.kind = config.get('kind')
 
     def run(self, from_data=None):
-        created_at = time.strftime("%Y-%m-%d", time.localtime())
-        owners = self.get_owners()
+        self.get_owners()
         kinds = self.kind.split(',')
         for kind in kinds:
-            actions = ''
-            for owner in owners:
-                action = self.get_repo_by_owner(kind=kind, owner=owner)
-                doc_id = created_at + owner + kind
-                index_data = {"index": {"_index": self.index_name, "_id": doc_id}}
-                actions += json.dumps(index_data) + '\n'
-                actions += json.dumps(action) + '\n'
-            self.esClient.safe_put_bulk(actions)
+            self.get_all_repos(kind)
 
     def get_owners(self):
         owner_url = f'{self.api_base}/organization'
         page = 1
-        owners = []
+        orgs, users = 0, 0
         while True:
             params = {"page_num": page}
             resp = request_url(owner_url, payload=params)
@@ -53,23 +46,68 @@ class OpenmindOwner(object):
             items = resp.json().get('data').get('Labels')
             for item in items:
                 if item.get('type') == 1:
-                    owners.append(item.get('account'))
-        return owners
+                    orgs += 1
+                else:
+                    users += 1
 
-    def get_repo_by_owner(self, kind, owner):
-        repo_url = f'{self.api_base}/{kind}/{owner}'
-        params = {"count": 1}
-        resp = request_url(repo_url, payload=params)
-        if resp.status_code != 200:
-            print(f'get repo by {owner} error', resp.text)
-            return ''
-        nums = resp.json().get('data').get('total')
+        actions = self.write_owner_count(orgs, 1)
+        actions += self.write_owner_count(users, 0)
+        self.esClient.safe_put_bulk(actions)
+
+    def get_all_repos(self, kind):
+        repo_url = f'{self.api_base}/{kind}'
+        cur = 1
+        actions = ''
+        field = f'{kind}s'
+        org_count, user_count = 0, 0
+        while True:
+            params = {"page_num": cur, "count": 1}
+            response = request_url(repo_url, payload=params)
+            cur += 1
+            objs = response.json().get('data').get(field)
+            if not objs:
+                break
+            for obj in objs:
+                ts_obj = datetime.datetime.fromtimestamp(obj['updated_at'])
+                created_at = ts_obj.strftime('%Y-%m-%dT%H:%M:%S+08:00')
+                obj['created_at'] = created_at
+                obj['type'] = kind
+                index_data = {"index": {"_index": self.index_name, "_id": kind + obj['id']}}
+                actions += json.dumps(index_data) + '\n'
+                actions += json.dumps(obj) + '\n'
+                if obj.get('owner_type') == 1:
+                    org_count += 1
+                else:
+                    user_count += 1
+
+        actions += self.write_project_count(kind, org_count, 1)
+        actions += self.write_project_count(kind, user_count, 0)
+        self.esClient.safe_put_bulk(actions)
+
+    def write_project_count(self, kind, count, owner_type):
         created_at = time.strftime("%Y-%m-%d", time.localtime())
         action = {
-            'owner': owner,
-            'count': nums,
+            'all_count': count,
             'created_at': created_at,
-            'type': kind
+            'type': kind,
+            'owner_type': owner_type
         }
-        return action
+        doc_id = created_at + kind + f'_{owner_type}'
+        index_data = {"index": {"_index": self.index_name, "_id": doc_id}}
+        actions = json.dumps(index_data) + '\n'
+        actions += json.dumps(action) + '\n'
+        return actions
 
+    def write_owner_count(self, count, owner_type):
+        created_at = time.strftime("%Y-%m-%d", time.localtime())
+        action = {
+            'all_count': count,
+            'created_at': created_at,
+            'is_owner': 1,
+            'owner_type': owner_type
+        }
+        doc_id = created_at + f'owner_{owner_type}'
+        index_data = {"index": {"_index": self.index_name, "_id": doc_id}}
+        actions = json.dumps(index_data) + '\n'
+        actions += json.dumps(action) + '\n'
+        return actions
