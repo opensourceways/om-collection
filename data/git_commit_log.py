@@ -25,6 +25,7 @@ from json import JSONDecodeError
 import git
 import requests
 import yaml
+from git import GitCommandError
 
 from collect.gitee import GiteeClient
 from collect.github import GithubClient
@@ -160,12 +161,7 @@ class GitCommitLog(object):
 
         # 本地仓库已存在执行git pull；否则执行git clone
         self.removeGitLockFile(code_path)
-        if os.path.exists(code_path):
-            cmd_pull = 'cd %s;git pull' % code_path
-            status_code = os.system(cmd_pull)
-            if status_code != 0:
-                print(f"{code_path} git pull failed!")
-        else:
+        if not os.path.exists(code_path):
             if clone_url is None:
                 return
             if platform == 'huggingface':
@@ -193,8 +189,7 @@ class GitCommitLog(object):
             # checkout到指定分支获取数据
             print('*** start %s repo: %s/%s; branch: %s ***' % (platform, owner, repo_name, branch_name))
             repo.git.checkout(branch_name)
-            cmd_pull = 'cd %s;git pull' % code_path
-            os.system(cmd_pull)
+            self.get_pull_branch(repo, code_path, branch_name)
             merge_commits = list(
                 repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name,
                                   merges=True))
@@ -212,8 +207,8 @@ class GitCommitLog(object):
                 branch_name = branch.split('/', 1)[1]
                 print('*** start %s repo: %s/%s; branch: %s ***' % (platform, owner, repo_name, branch_name))
                 repo.git.checkout(branch_name)
-                cmd_pull = 'cd %s;git pull' % code_path
-                os.system(cmd_pull)
+                repo.git.checkout(branch_name)
+                self.get_pull_branch(repo, code_path, branch_name)
                 merge_commits = list(
                     repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name,
                                       merges=True))
@@ -485,3 +480,17 @@ class GitCommitLog(object):
             print(f'Error parsing YAML: {e}')
             return
         return yaml_json
+
+    @staticmethod
+    def get_pull_branch(repo, code_path, branch):
+        try:
+            # git fetch origin
+            origin = repo.remote(name='origin')
+            origin.fetch()
+
+            # git reset --hard origin/<branch>
+            reset_branch = f'origin/{branch}'
+            repo.git.reset('--hard', reset_branch)
+            print(f"{code_path} git pull {branch} success!")
+        except GitCommandError as e:
+            print(f"{code_path} git pull failed!", e)
