@@ -12,6 +12,9 @@ COPY . /var/lib/om
 RUN yum update -y \
     && yum install -y shadow wget git rsync
 
+RUN groupadd -g 1001 user \
+    && useradd -u 1001 -g user -s /bin/bash -m user
+
 RUN wget https://repo.huaweicloud.com/python/3.7.17/Python-3.7.17.tgz \
     && tar -zxvf Python-3.7.17.tgz \
     && cd Python-3.7.17 \
@@ -44,4 +47,5 @@ RUN wget https://github.com/huaweicloud/huaweicloud-sdk-python/archive/v1.0.24.t
     pip3 install -r requirements.txt &&\
     python3 setup.py install
 
+USER user
 CMD python3 -u  george.py
