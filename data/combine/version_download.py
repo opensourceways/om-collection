@@ -88,7 +88,8 @@ class VersionDownload(object):
         rows = self.my_client.query_data(query)
         for row in rows:
             try:
-                item = {'sign_at': row[1], 'company': row[2], 'email': row[3], 'phone': row[4], 'photo': row[5]}
+                signed_at = row[1].strftime('%Y-%m-%dT%H:%M:%S+08:00')
+                item = {'signed_at': signed_at, 'company': row[2], 'email': row[3], 'phone': row[4], 'photo': row[5]}
                 user_info[row[0]] = item
             except IndexError as e:
                 print(f'{row[0]} user info error:', e)
