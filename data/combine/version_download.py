@@ -68,18 +68,19 @@ class VersionDownload(object):
         actions = ''
         for hit in hits:
             source = hit['_source']
-            action = {
-                "user_login": source.get('user_login'),
-                "created_at": source.get('created_at'),
-                "softwareArchitecture": source.get('properties').get('softwareArchitecture'),
-                "softwareName": source.get('properties').get('softwareName'),
-                "softwareOs": source.get('properties').get('softwareOs')
-            }
-            if source.get('user_login') in self.user_info:
-                action.update(self.user_info.get(source.get('user_login')))
-            index_data = {"index": {"_index": self.index_name, "_id": hit['_id']}}
-            actions += json.dumps(index_data) + '\n'
-            actions += json.dumps(action) + '\n'
+            if source.get('properties'):
+                action = {
+                    "user_login": source.get('user_login'),
+                    "created_at": source.get('created_at'),
+                    "softwareArchitecture": source.get('properties').get('softwareArchitecture'),
+                    "softwareName": source.get('properties').get('softwareName'),
+                    "softwareOs": source.get('properties').get('softwareOs')
+                }
+                if source.get('user_login') in self.user_info:
+                    action.update(self.user_info.get(source.get('user_login')))
+                index_data = {"index": {"_index": self.index_name, "_id": hit['_id']}}
+                actions += json.dumps(index_data) + '\n'
+                actions += json.dumps(action) + '\n'
         self.esClient.safe_put_bulk(actions)
 
     def get_user_info(self):
