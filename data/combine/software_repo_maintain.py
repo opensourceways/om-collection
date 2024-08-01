@@ -18,6 +18,7 @@ import time
 
 import requests
 
+from collect.api import request_url
 from data.common import ESClient
 
 
@@ -32,6 +33,7 @@ class SoftwareRepoMaintain(object):
         self.authorization = config.get('authorization')
         self.exists_ids = []
         self.now_ids = queue.Queue()
+        self.repo_url = config.get('repo_url')
 
     def run(self, start):
         start_time = time.time()
@@ -41,11 +43,10 @@ class SoftwareRepoMaintain(object):
         spent_time = time.strftime("%H:%M:%S", time.gmtime(end_time - start_time))
         self.mark_removed_ids()
         print(f'cost time: {spent_time}')
-        return
 
     def get_repo_committer(self, repo):
         query = '''{
-            "_source": ["user_login", "repo_name", "created_at", "email", "name", "owner_type", "tag_user_company", "organization"],
+            "_source": ["user_login", "repo_name", "created_at", "email", "name", "owner_type", "tag_user_company", "organization", "sig_name"],
             "size": 1000,
             "query": {
                 "bool": {
@@ -53,7 +54,7 @@ class SoftwareRepoMaintain(object):
                         {
                             "query_string": {
                                 "analyze_wildcard": true,
-                                "query": "is_sig_repo_committer:1 AND !is_removed:1 AND repo_name.keyword:\\"%s\\" AND email.keyword:*"
+                                "query": "is_sig_repo_committer:1 AND !is_removed:1 AND repo_name.keyword:\\"src-openeuler/%s\\" AND !email:na"
                             }
                         }
                     ]
@@ -91,51 +92,20 @@ class SoftwareRepoMaintain(object):
         return actions
 
     def get_repo_list(self):
-        search = '''{
-            "size": 0,
-            "query": {
-                "bool": {
-                    "filter": [
-                        {
-                            "query_string": {
-                                "analyze_wildcard": true,
-                                "query": "is_sig_repo_committer:1 AND !is_removed:1"
-                            }
-                        }
-                    ]
-                }
-            },
-            "aggs": {
-                "repos": {
-                    "terms": {
-                        "field": "repo_name.keyword",
-                        "size": 20000,
-                        "order": {
-                            "_key": "desc"
-                        },
-                        "min_doc_count": 1
-                    },
-                    "aggs": {}
-                }
-            }
-        }'''
-        url = self.url + '/' + self.sig_index_name + '/_search'
-        response = requests.post(url, headers=self.esClient.default_headers, verify=False, data=search.encode('utf-8'))
+        response = request_url(self.repo_url)
         if response.status_code != 200:
             return []
-        buckets = response.json().get('aggregations').get('repos').get('buckets')
-        repos = [bucket['key'] for bucket in buckets]
+        buckets = response.json().get('data')
+        repos = []
+        for bucket in buckets:
+            repos.extend(list(bucket.keys()))
         return repos
-
-    def pick_committer(self, users):
-        return
 
     def write_data(self):
         thread_pool_num = 20
         threads = []
         thread_max_num = threading.Semaphore(thread_pool_num)
-        repos = self.get_repo_list()[:20]
-        print(repos)
+        repos = self.get_repo_list()
 
         for repo in repos:
             with thread_max_num:
@@ -166,6 +136,7 @@ class SoftwareRepoMaintain(object):
         while not self.now_ids.empty():
             now_id.append(self.now_ids.get())
 
+        print('remove maintainers: ', len(self.exists_ids) - len(now_id))
         for exist_id in self.exists_ids:
             if exist_id not in now_id:
                 mark = '''{
@@ -180,3 +151,4 @@ class SoftwareRepoMaintain(object):
                 }''' % exist_id
                 url = self.url + '/' + self.index_name + '/_update_by_query'
                 requests.post(url, headers=self.esClient.default_headers, verify=False, data=mark)
+
