@@ -47,5 +47,7 @@ RUN wget https://github.com/huaweicloud/huaweicloud-sdk-python/archive/v1.0.24.t
     pip3 install -r requirements.txt &&\
     python3 setup.py install
 
+RUN chown -R user:user /var/lib/om
+
 USER user
 CMD python3 -u  george.py
