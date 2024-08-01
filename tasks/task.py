@@ -98,6 +98,7 @@ BACKEND_MAPPING = {
     'openmind_owner': 'data.time_series.openmind_owner.OpenmindOwner',
     'authing_user': 'data.authing.authing_user.AuthingUser',
     'version_download': 'data.combine.version_download.VersionDownload',
+    'software_repo_maintain': 'data.combine.software_repo_maintain.SoftwareRepoMaintain',
     'event_log_v8': 'data.event_log_v8.EventLogV8'
 }
 
