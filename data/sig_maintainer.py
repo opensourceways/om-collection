@@ -55,6 +55,10 @@ class SigMaintainer(object):
         self.sig_label_path = config.get('sig_label_path')
         self.sig_mail_dict = {}
         self.maillist_path = config.get('maillist_path')
+        self.owner_info_dict = {}
+        self.email_gitee_es = config.get('email_gitee_es')
+        self.email_gitee_authorization = config.get('email_gitee_authorization')
+        self.email_gitee_index = config.get('email_gitee_index')
 
     def run(self, from_time):
         self.download_sigs()
@@ -76,33 +80,33 @@ class SigMaintainer(object):
     def mark_removed_sigs(self, dirs, index):
         time.sleep(5)
         search = '''{
-                    	"size": 0,
-                    	"query": {
-                    		"bool": {
-                    			"filter": [
-                    				{
-                    					"query_string": {
-                    						"analyze_wildcard": true,
-                    						"query": "*"
-                    					}
-                    				}
-                    			]
-                    		}
-                    	},
-                    	"aggs": {
-                    		"2": {
-                    			"terms": {
-                    				"field": "sig_name.keyword",
-                    				"size": 10000,
-                    				"order": {
-                    					"_key": "desc"
-                    				},
-                    				"min_doc_count": 0
-                    			},
-                    			"aggs": {}
-                    		}
-                    	}
-                    }'''
+            "size": 0,
+            "query": {
+                "bool": {
+                    "filter": [
+                        {
+                            "query_string": {
+                                "analyze_wildcard": true,
+                                "query": "*"
+                            }
+                        }
+                    ]
+                }
+            },
+            "aggs": {
+                "2": {
+                    "terms": {
+                        "field": "sig_name.keyword",
+                        "size": 10000,
+                        "order": {
+                            "_key": "desc"
+                        },
+                        "min_doc_count": 0
+                    },
+                    "aggs": {}
+                }
+            }
+        }'''
         url = self.url + '/' + index + '/_search'
         res = requests.post(url, headers=self.esClient.default_headers, verify=False, data=search)
         data = res.json()
@@ -115,15 +119,15 @@ class SigMaintainer(object):
 
         for s in removed_sigs:
             mark = '''{
-                            "script": {
-                                "source":"ctx._source['is_removed']=1"
-                            },
-                            "query": {
-                                "term": {
-                                    "sig_name.keyword":"%s"
-                                }
-                            } 
-                        }''' % s
+                "script": {
+                    "source":"ctx._source['is_removed']=1"
+                },
+                "query": {
+                    "term": {
+                        "sig_name.keyword":"%s"
+                    }
+                } 
+            }''' % s
             url = self.url + '/' + index + '/_update_by_query'
             requests.post(url, headers=self.esClient.default_headers, verify=False, data=mark)
             print('<%s> has been marked for removal' % s)
@@ -281,7 +285,7 @@ class SigMaintainer(object):
         rs.append('\n'.join(loglist[n:]))
         return rs
 
-    def get_sig_info(self, owner_type, repos, users, dir, users_dict=None, repo_committer_dic=None):
+    def get_sig_info(self, owner_type, repos, users, dir, repo_committer_dic=None):
         repo_path = self.sigs_dirs_path + '/' + dir
         rs = self.get_sig_info_log(repo_path)
         datas = ''
@@ -291,7 +295,7 @@ class SigMaintainer(object):
             for r in rs:
                 if r == '':
                     continue
-                if re.search(r'\+\s*-\s*gitee_id:\s*%s\n' % user, r):
+                if re.search(r'\+\s*-\s*gitee_id:\s*%s' % user, r):
                     date = re.search(r'Date:\s*(.*)\n', r).group(1)
                     # time_struct = time.strptime(date, '%a %b %d %H:%M:%S %Y')
                     time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
@@ -302,7 +306,7 @@ class SigMaintainer(object):
                 ID = self.org + '_' + dir + '_' + repo + '_' + owner_type + '_' + user
                 if ID in self.exists_ids:
                     self.exists_ids.remove(ID)
-                dataw = self.writecommonData(dir, repo, owner_type, user, times, times_owner, users_dict, committers)
+                dataw = self.writecommonData(dir, repo, owner_type, user, times, times_owner, committers)
                 datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
                 datas += datar
                 repo_mark = False
@@ -310,12 +314,12 @@ class SigMaintainer(object):
                 ID = self.org + '_' + dir + '_null_' + owner_type + '_' + user
                 if ID in self.exists_ids:
                     self.exists_ids.remove(ID)
-                dataw = self.writecommonData(dir, None, owner_type, user, times, times_owner, users_dict)
+                dataw = self.writecommonData(dir, None, owner_type, user, times, times_owner)
                 datar = self.getSingleAction(self.index_name_sigs, ID, dataw)
                 datas += datar
         return datas
 
-    def writecommonData(self, dir, repo, owner_type, user, times, times_owner, users_dict=None, committers=None):
+    def writecommonData(self, dir, repo, owner_type, user, times, times_owner, committers=None):
         dataw = {"sig_name": dir,
                  "repo_name": repo,
                  "committer": user,
@@ -324,29 +328,25 @@ class SigMaintainer(object):
                  "committer_time": times_owner,
                  "is_sig_repo_committer": 1,
                  "owner_type": owner_type}
-        if users_dict is not None and user in users_dict:
-            dataw['organization'] = users_dict[user]
-        if committers is not None and user in committers:
+        if user in self.owner_info_dict:
+            dataw.update(self.owner_info_dict[user])
+        if committers and user in committers:
             dataw['is_repo_committer'] = 1
         userExtra = self.esClient.getUserInfo(user)
         dataw.update(userExtra)
         return dataw
 
-    def get_repo_from_yaml(self, info, repo_committer_dict):
-        repositories = info.get('repositories')
-        if repositories is None:
-            return
-        repos = []
+    def get_repo_committer_from_yaml(self, repositories):
+        repo_committer_dict = {}
         committers = []
         for repo in repositories:
             for r in repo['repo']:
-                repos.append(r)
                 if repo.get('committers'):
                     user_login = [user['gitee_id'] for user in repo['committers']]
                     repo_committer_dict.update({r: user_login})
             if 'committers' in repo:
                 committers.extend(repo['committers'])
-        return repos, committers, repo_committer_dict
+        return committers, repo_committer_dict
 
     def download_sigs(self):
         path = self.sigs_dir
@@ -378,8 +378,7 @@ class SigMaintainer(object):
                 datas = ''
                 for key, val in owner_logins.items():
                     key = key.lower()
-                    if key == "committer":
-                        key = "committers"
+                    key = "committers" if key == "committer" else key
                     if key != 'committers' and key != 'maintainers':
                         continue
                     for owner in val:
@@ -423,26 +422,20 @@ class SigMaintainer(object):
                     repo_committer_dic = {}
                     sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
                     info = yaml.load_all(open(sig_info), Loader=yaml.Loader).__next__()
-                    if self.get_repo_from_yaml(info, repo_committer_dic):
-                        repos, committers, repo_committer_dic = self.get_repo_from_yaml(info, repo_committer_dic)
+                    if info.get('repositories'):
+                        committers, repo_committer_dic = self.get_repo_committer_from_yaml(info.get('repositories'))
                     else:
-                        repos = []
-                        committers = info['committers'] if 'committers' in info and info['committers'] is not None else None
+                        committers = info['committers'] if 'committers' in info and info['committers'] else None
                     repos = sig_repos_dict.get(dir)
                     datas = ''
-                    if 'maintainers' in info and info['maintainers'] is not None:
+                    if 'maintainers' in info and info['maintainers']:
                         users_info = info['maintainers']
-                        users = [user['gitee_id'] for user in users_info]
-                        users_dict = {}
-                        for user in users_info:
-                            if 'organization' in user:
-                                users_dict[user['gitee_id']] = user['organization']
-                        datas = self.get_sig_info('maintainers', repos, users, dir, users_dict)
+                        maintainer_users = [user['gitee_id'] for user in users_info]
+                        datas = self.get_sig_info('maintainers', repos, maintainer_users, dir)
 
                     if committers and len(committers) != 0:
-                        c_users = [user['gitee_id'] for user in committers]
-                        datas += self.get_sig_info('committers', repos, c_users, dir,
-                                                   users_dict=None, repo_committer_dic=repo_committer_dic)
+                        committer_users = [user['gitee_id'] for user in committers]
+                        datas += self.get_sig_info('committers', repos, committer_users, dir, repo_committer_dic)
                     self.esClient.safe_put_bulk(datas)
                     print("this sig done: %s" % dir)
                 except FileNotFoundError:
@@ -506,13 +499,15 @@ class SigMaintainer(object):
 
                     if 'maintainers' in info and info['maintainers'] is not None:
                         maintainer_list = info['maintainers']
+                        self.get_owner_info(maintainer_list)
                         action.update({'maintainer_info': self.attach_user_info(maintainer_list)})
                         maintainers = [user['gitee_id'] for user in info['maintainers']]
                         action.update({'maintainers': maintainers})
-                    if self.get_repo_from_yaml(info, {}):
-                        committers_info = self.get_repo_from_yaml(info, {})[1]
-                        action.update({'committer_info': self.attach_user_info(committers_info)})
-                        committers = [user['gitee_id'] for user in committers_info]
+                    if info.get('repositories'):
+                        committer_list = self.get_repo_committer_from_yaml(info.get('repositories'))[0]
+                        self.get_owner_info(committer_list)
+                        action.update({'committer_info': self.attach_user_info(committer_list)})
+                        committers = [user['gitee_id'] for user in committer_list]
                         action.update({'committers': committers})
                 except FileNotFoundError:
                     print('sig-info.yaml %s is not exist.' % dir)
@@ -548,10 +543,9 @@ class SigMaintainer(object):
             try:
                 gitee_id = user.get('gitee_id')
                 user_dict = user
+                user_dict['avatar_url'] = self.owner_info_dict.get(gitee_id, {}).get('avatar_url')
             except AttributeError:
                 user_dict = {'gitee_id': user}
-            avatar_url = self.get_user_info(user_dict.get('gitee_id'))
-            user_dict.update({'avatar_url': avatar_url})
             user_list.append(user_dict)
         return user_list
 
@@ -599,3 +593,65 @@ class SigMaintainer(object):
         else:
             mailing_list = self.sig_mail_dict.get(sig, mailing_list)
         return mailing_list
+
+    def get_owner_info(self, owners):
+        for owner in owners:
+            gitee_id = owner.get('gitee_id')
+            if not gitee_id:
+                continue
+            if gitee_id not in self.owner_info_dict:
+                email = self.get_email_by_gitee_id(gitee_id)
+                if owner.get('email') and owner.get('email', 'na').lower() != 'na':
+                    email = owner.get('email')
+                owner_info = {
+                    'organization': owner.get('organization', 'na'),
+                    'email': email,
+                    'name': owner.get('name'),
+                    'avatar_url': self.get_user_info(gitee_id)
+                }
+                self.owner_info_dict[gitee_id] = owner_info
+            else:
+                if owner.get('email', 'na').lower() != 'na':
+                    self.owner_info_dict[gitee_id].update({'email': owner.get('email')})
+                if owner.get('organization', 'na').lower() != 'na':
+                    self.owner_info_dict[gitee_id].update({'organization': owner.get('organization')})
+
+    def get_email_by_gitee_id(self, gitee_id):
+        search = '''{
+            "size": 10,
+            "query": {
+                "bool": {
+                    "filter": [
+                        {
+                            "query_string": {
+                                "analyze_wildcard": true,
+                                "query": "gitee_id.keyword:%s"
+                            }
+                        }
+                    ]
+                }
+            },
+            "sort": [
+                {
+                    "created_at": {
+                        "order": "desc"
+                    }
+                }
+            ]
+        }''' % gitee_id
+        headers = {
+                'Content-Type': 'application/json',
+                'Authorization': self.email_gitee_authorization
+            }
+        resp = self.esClient.request_get(
+            self.esClient.getSearchUrl(url=self.email_gitee_es, index_name=self.email_gitee_index),
+            data=search,
+            headers=headers)
+        email = 'NA'
+        if resp.status_code == 200:
+            hits = resp.json().get('hits').get('hits')
+            for hit in hits:
+                email = hit.get('_source').get('email')
+                break
+
+        return email
