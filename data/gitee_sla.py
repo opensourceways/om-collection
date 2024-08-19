@@ -1,3 +1,16 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright 2024 The community Authors.
+# A-Tune is licensed under the Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#     http://license.coscl.org.cn/MulanPSL2
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+# PURPOSE.
+# See the Mulan PSL v2 for more details.
+# Create: 2024/8/19
 from datetime import datetime, timedelta
 import pytz
 import json
@@ -15,6 +28,7 @@ class GiteeSLA(object):
         self.owner = config.get("owner")
         self.skip_user = config.get("skip_user")
         self.bug_tags = config.get("bug_tags").split("/")
+        self.request_url = config.get("request_url")
 
     def run(self, from_time):
         self.get_issue_item()
@@ -108,7 +122,7 @@ class GiteeSLA(object):
             }
             issue_number = issue["_source"]["issue_number"]
             repo = issue["_source"]["repository"].split("/")[-1]
-            url = f"https://gitee.com/api/v5/repos/{self.owner}/issues/{issue_number}/operate_logs"
+            url = f"{self.request_url}/repos/{self.owner}/issues/{issue_number}/operate_logs"
             params = {
                 "access_token": self.access_token,
                 "repo": repo,
@@ -139,7 +153,7 @@ class GiteeSLA(object):
                 issue_cla_dic["last_responsible_name"]
             )
             # 获取首次评论时间
-            url = f"https://gitee.com/api/v5/repos/{self.owner}/{repo}/issues/{issue_number}/comments"
+            url = f"{self.request_url}/repos/{self.owner}/{repo}/issues/{issue_number}/comments"
             params = {
                 "access_token": self.access_token,
                 "repo": repo,
