@@ -124,6 +124,7 @@ class SoftwareRepoMaintain(object):
                 ]
             }
         }'''
+        self.exists_ids = []
 
         def func(hit):
             for data in hit:
