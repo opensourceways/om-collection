@@ -43,7 +43,10 @@ class OpenmindOwner(object):
             page += 1
             if resp.json().get('data').get('total') == 0:
                 break
-            items = resp.json().get('data').get('Labels')
+            items = resp.json().get('data').get('labels')
+            if not items:
+                print('Get organization info error')
+                break
             for item in items:
                 if item.get('type') == 1:
                     orgs += 1
@@ -66,6 +69,7 @@ class OpenmindOwner(object):
             cur += 1
             objs = response.json().get('data').get(field)
             if not objs:
+                print(f'Get {kind} info error')
                 break
             for obj in objs:
                 ts_obj = datetime.datetime.fromtimestamp(obj['updated_at'])
