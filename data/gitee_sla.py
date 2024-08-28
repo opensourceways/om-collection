@@ -29,6 +29,7 @@ class GiteeSLA(object):
         self.skip_user = config.get("skip_user")
         self.bug_tags = config.get("bug_tags").split("/")
         self.request_url = config.get("request_url")
+        self.login_to_name_dict = {}
 
     def run(self, from_time):
         self.get_issue_item()
@@ -50,7 +51,8 @@ class GiteeSLA(object):
                 "body",
                 "repository",
                 "org_name",
-                "issue_url"
+                "issue_url",
+                "issue_customize_state"
             ],
             "size": 1000,
             "query": {
@@ -62,15 +64,10 @@ class GiteeSLA(object):
                             }
                         }
                     ],
-                    "filter": [
+                    "must_not": [
                         {
-                            "bool": {
-                                "should": [
-                                    {"match": {"issue_labels.keyword": "bug-critical"}},
-                                    {"match": {"issue_labels.keyword": "bug-major"}},
-                                    {"match": {"issue_labels.keyword": "bug-minor"}},
-                                    {"match": {"issue_labels.keyword": "bug-suggestion"}}
-                                ]
+                            "match": {
+                                "user_login": "modelfoundry-ci-bot"
                             }
                         }
                     ]
@@ -84,7 +81,7 @@ class GiteeSLA(object):
         }
         """
         self.esClient.scrollSearch(
-            index_name=self.index_name_all, search=search, func=self.func
+            index_name=self.index_name_all, search=search, scroll_duration='5m', func=self.func
         )
 
     def func(self, data):
@@ -101,7 +98,7 @@ class GiteeSLA(object):
                 "issue_title": None,
                 "body": None,
                 "issue_url": None,
-
+                "issue_customize_state": None,
                 "last_responsible_name": None,
                 "last_responsible_login": None,
                 "tags": None,
@@ -119,7 +116,11 @@ class GiteeSLA(object):
                 "responsible_duration": None,
                 "firstreplyissuetime": None,
                 "firstreplyissuetime_except_weekend": None,
+                # 是否规定时间内
+                "is_timely_firstreplyissue": 0,
+                "is_timely_bug_resolve": 0,
             }
+            # 获取issue操作日志
             issue_number = issue["_source"]["issue_number"]
             repo = issue["_source"]["repository"].split("/")[-1]
             url = f"{self.request_url}/repos/{self.owner}/issues/{issue_number}/operate_logs"
@@ -131,24 +132,26 @@ class GiteeSLA(object):
             issue_res = self.esClient.request_get(url=url, params=params)
 
             if issue_res.status_code != 200:
-
                 print(issue_res.text)
-                return
-            
-            issue_cla_dic["issue_number"] = issue["_source"]["issue_number"] 
+                continue
+
+            issue_cla_dic["issue_number"] = issue["_source"]["issue_number"]
             issue_cla_dic["repository"] = issue["_source"]["repository"]
             issue_cla_dic["user_name"] = issue["_source"]["user_name"]
             issue_cla_dic["org_name"] = issue["_source"]["org_name"]
             issue_cla_dic["issue_title"] = issue["_source"]["issue_title"]
             issue_cla_dic["body"] = issue["_source"]["body"]
             issue_cla_dic["issue_url"] = issue["_source"]["issue_url"]
-
+            issue_cla_dic["issue_customize_state"] = issue["_source"][
+                "issue_customize_state"
+            ]
 
             # 对issue的每个操作进行遍历
             for operation in issue_res.json():
                 # 获取最新责任人 & 时间点
                 self.parse_operation(operation, issue_cla_dic)
-            
+
+            # 责任人、通过user_name获取user_login
             issue_cla_dic["last_responsible_login"] = self.get_login_from_name(
                 issue_cla_dic["last_responsible_name"]
             )
@@ -162,7 +165,7 @@ class GiteeSLA(object):
             comment_res = self.esClient.request_get(url=url, params=params)
             if comment_res.status_code != 200:
                 print(comment_res.text)
-                return
+                continue
             for comment in comment_res.json():
                 if comment["user"]["login"] != self.skip_user:
                     issue_cla_dic["firstreplyissuetime_at"] = comment["created_at"]
@@ -230,7 +233,7 @@ class GiteeSLA(object):
                 format,
             )
 
-            # 首次回复非周末,todo
+            # 首次回复非周末
             issue_cla_dic["firstreplyissuetime_except_weekend"] = (
                 self.get_firstreplyissuetime_except_weekend(
                     issue_cla_dic["firstreplyissuetime_at"],
@@ -238,7 +241,21 @@ class GiteeSLA(object):
                 )
             )
 
-            doc_id = issue_cla_dic["repository"]+issue_cla_dic["issue_number"]
+            # 判断是否及时回复(24小时内)，除去周末
+            if (
+                issue_cla_dic.get("firstreplyissuetime_except_weekend")
+                and issue_cla_dic["firstreplyissuetime_except_weekend"] <= 24 * 60 * 60
+            ):
+                issue_cla_dic["is_timely_firstreplyissue"] = 1
+
+            # 根据不同bug严重程度判断解决时间是否及时
+            if issue_cla_dic["bug_tag"] is not None:
+                issue_cla_dic["is_timely_bug_resolve"] = self.parse_bug_resolve_timely(
+                    issue_cla_dic["issue_resolve_bug_tag_duration"],
+                    issue_cla_dic["bug_tag"],
+                )
+
+            doc_id = issue_cla_dic["repository"] + issue_cla_dic["issue_number"]
             indexData = {"index": {"_index": self.index_name, "_id": doc_id}}
             actions += json.dumps(indexData) + "\n"
             actions += json.dumps(issue_cla_dic) + "\n"
@@ -283,12 +300,9 @@ class GiteeSLA(object):
 
     # 获取bug_tag
     def get_bug_tag(self, tags):
-        if len(tags) == 1:
-            return tags[0]
-        else:
-            for tag in tags:
-                if tag in self.bug_tags:
-                    return tag
+        for tag in tags:
+            if tag in self.bug_tags:
+                return tag
         return None
 
     def parse_operation(self, operation, issue_cla_dic):
@@ -297,7 +311,9 @@ class GiteeSLA(object):
             issue_cla_dic["last_responsible_name"] = operation["content"][7:]
             issue_cla_dic["last_responsible_created_at"] = operation["created_at"]
         elif operation["action_type"] == "change_assignee":
-            issue_cla_dic["last_responsible_name"] = operation["content"].split(" ")[-1][3:]
+            issue_cla_dic["last_responsible_name"] = operation["content"].split(" ")[
+                -1
+            ][3:]
             issue_cla_dic["last_responsible_created_at"] = operation["created_at"]
         # 获取first_bug_tag_created_at & last_bug_tag_created_at
         if operation["action_type"] == "add_label":
@@ -307,6 +323,11 @@ class GiteeSLA(object):
             issue_cla_dic["last_bug_tag_created_at"] = operation["created_at"]
 
     def get_login_from_name(self, name):
+        # todo 新增字典，减少post请求数量
+        if name is None:
+            return None
+        if self.login_to_name_dict.get(name):
+            return self.login_to_name_dict.get(name)
         search = """
             {
                 "size": 1,
@@ -325,7 +346,24 @@ class GiteeSLA(object):
         )
         try:
             res = self.esClient.esSearch(index_name=self.index_name_all, search=search)
+            login = res["hits"]["hits"][0]["_source"]["user_login"]
+            self.login_to_name_dict[name] = login
+            return login
         except:
             print("name search error")
             return None
-        return res["hits"]["hits"][0]["_source"]["user_login"]
+
+    def parse_bug_resolve_timely(self, duration, bug_tag):
+        if bug_tag == "bug-suggestion":
+            if duration <= 24 * 60 * 60 * 15:
+                return 1
+        elif bug_tag == "bug-minor":
+            if duration <= 24 * 60 * 60 * 7:
+                return 1
+        elif bug_tag == "bug-major":
+            if duration <= 24 * 60 * 60 * 3:
+                return 1
+        elif bug_tag == "bug-critical":
+            if duration <= 24 * 60 * 60 * 2:
+                return 1
+        return 0
