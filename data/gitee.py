@@ -89,6 +89,7 @@ class Gitee(object):
         self.giteeid_company_dict_last = {}
         self.index_name_all = None
         self.robot_user_logins = str(config.get('robot_user_login', 'I-am-a-robot')).split(',')
+        self.blacklist_user = str(config.get('blacklist_user', '')).split(',')
         self.once_update_num_of_pr = int(config.get('once_update_num_of_pr', 200))
         if 'index_name_all' in config:
             self.index_name_all = config.get('index_name_all').split(',')
@@ -858,6 +859,10 @@ class Gitee(object):
         actions = ""
         issue_data = self.getGenerator(client.issues(from_date))
         for i in issue_data:
+            user = i.get('user', {})
+            if user.get('login') in self.blacklist_user:
+                continue
+
             print(str(i['number']))
             issue_comments = self.getGenerator(client.issue_comments(i['number']))
             i['comments_data'] = issue_comments

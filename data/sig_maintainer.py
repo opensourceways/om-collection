@@ -123,10 +123,17 @@ class SigMaintainer(object):
                     "source":"ctx._source['is_removed']=1"
                 },
                 "query": {
-                    "term": {
-                        "sig_name.keyword":"%s"
+                    "bool": {
+                        "filter": [
+                            {
+                                "query_string": {
+                                    "analyze_wildcard": true,
+                                    "query": "sig_name.keyword:%s AND !is_removed:1"
+                                }
+                            }
+                        ]
                     }
-                } 
+                }
             }''' % s
             url = self.url + '/' + index + '/_update_by_query'
             requests.post(url, headers=self.esClient.default_headers, verify=False, data=mark)
@@ -201,24 +208,25 @@ class SigMaintainer(object):
 
     def get_all_id(self):
         search = '''{
-                      "size": 10000,
-                      "_source": {
-                        "includes": [
-                          "committer"
-                        ]
-                      },
-                      "query": {
-                        "bool": {
-                          "must": [
-                            {
-                              "term": {
-                                "is_sig_repo_committer": 1
-                              }
+            "size": 10000,
+            "_source": {
+                "includes": [
+                    "committer"
+                ]
+            },
+            "query": {
+                "bool": {
+                    "filter": [
+                        {
+                            "query_string": {
+                                "analyze_wildcard": true,
+                                "query": "is_sig_repo_committer:1 AND !is_removed:1"
                             }
-                          ]
                         }
-                      }
-                    }'''
+                    ]
+                }
+            }
+        }'''
         self.esClient.scrollSearch(self.index_name_sigs, search=search, func=self.get_id_func)
 
     def mark_removed_ids(self):
@@ -302,7 +310,9 @@ class SigMaintainer(object):
                     times_owner = time.strftime('%Y-%m-%dT%H:%M:%S+08:00', time_struct)
             repo_mark = True
             for repo in repos:
-                committers = repo_committer_dic.get(repo) if repo_committer_dic else None
+                committers = repo_committer_dic.get(repo, []) if repo_committer_dic else []
+                if owner_type == 'committers' and user not in committers:
+                    continue
                 ID = self.org + '_' + dir + '_' + repo + '_' + owner_type + '_' + user
                 if ID in self.exists_ids:
                     self.exists_ids.remove(ID)
