@@ -377,21 +377,20 @@ class PackageStatus(object):
                 "repository",
                 "CVE_level",
                 "issue_state",
-                "issue_customize_state",
-                ""
+                "issue_customize_state"
             ],
             "query": {
                 "bool": {
                     "must": [
                         {
-                            "match_phrase": {
-                                "repository": "%s"
+                            "match": {
+                                "repository.keyword": "%s"
                             }
                         },
                         {
                             "range": {
                                 "created_at": {
-                                    "gte": "now-1y/y",
+                                    "gte": "now-1y",
                                     "lte": "now"
                                 }
                             }
