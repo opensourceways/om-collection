@@ -107,6 +107,9 @@ class Gitee(object):
         self.is_collect_all = config.get('is_collect_all')
         self.multi_threading = config.get('multi_threading')
         self.company_location_index = config.get('company_location_index')
+        self.set_repo_issue = config.get('set_repo_issue', 'false')
+        self.set_repo_pr = config.get('set_repo_pr', 'false')
+        self.set_repos = config.get('set_repos')
 
     def run(self, from_time):
         print("Collect gitee data: staring")
@@ -143,6 +146,10 @@ class Gitee(object):
                 self.writeData(self.writeRepoSingleRepo, from_time)
             if self.is_set_fork == 'true':
                 self.writeData(self.writeForkSingleRepo, from_time)
+            if self.set_repo_issue == 'true' and self.set_repos:
+                self.writeDataRepos(self.set_repos, self.writeIssueSingleRepo, from_time)
+            if self.set_repo_pr == 'true' and self.set_repos:
+                self.writeDataRepos(self.set_repos, self.writePullSingleRepo, from_time)
 
             self.externalUpdateRepo()
             if self.is_set_first_contribute == 'true':
@@ -222,6 +229,19 @@ class Gitee(object):
         dic = self.esClient.getOrgByGiteeID()
         self.esClient.giteeid_company_dict = dic[0]
         self.esClient.giteeid_company_change_dict = dic[1]
+
+    def writeDataRepos(self, repos, func, from_time):
+        repo_list = repos.split(',')
+        for item in repo_list:
+            try:
+                owner, repo = item.split('/')
+                repo = {
+                    'path': repo,
+                    'public': True
+                }
+                func(owner, repo, from_time)
+            except:
+                print('writeDataRepos error: ', item)
 
     def writeData(self, func, from_time):
         if self.multi_threading != 'true':
@@ -1863,10 +1883,10 @@ class Gitee(object):
 
     def is_invalid_comment(self, body):
         if not body.strip().startswith('/') and not body.strip().startswith('／'):
-            return
+            return False
         for _char in body:
             if '\u4e00' <= _char <= '\u9fff':
-                return
+                return False
         res = []
         strs = body.strip().split(' ')
         for s in strs:
