@@ -25,7 +25,6 @@ class GiteeSLA(object):
         self.index_name = config.get("index_name")
         self.index_name_all = config.get("index_name_all")
         self.access_token = config.get("access_token")
-        self.owner = config.get("owner")
         self.skip_user = config.get("skip_user")
         self.bug_tags = config.get("bug_tags").split("/")
         self.request_url = config.get("request_url")
@@ -85,8 +84,9 @@ class GiteeSLA(object):
         )
 
     def func(self, data):
+        actions = ""
+        cnt = 0
         for issue in data:
-            actions = ""
             issue_cla_dic = {
                 # issue信息
                 "issue_id": None,
@@ -120,20 +120,10 @@ class GiteeSLA(object):
                 "is_timely_firstreplyissue": 0,
                 "is_timely_bug_resolve": 0,
             }
+            owner = issue["_source"]["org_name"]
             # 获取issue操作日志
             issue_number = issue["_source"]["issue_number"]
             repo = issue["_source"]["repository"].split("/")[-1]
-            url = f"{self.request_url}/repos/{self.owner}/issues/{issue_number}/operate_logs"
-            params = {
-                "access_token": self.access_token,
-                "repo": repo,
-                "sort": "asc",
-            }
-            issue_res = self.esClient.request_get(url=url, params=params)
-
-            if issue_res.status_code != 200:
-                print(issue_res.text)
-                continue
 
             issue_cla_dic["issue_number"] = issue["_source"]["issue_number"]
             issue_cla_dic["repository"] = issue["_source"]["repository"]
@@ -146,17 +136,28 @@ class GiteeSLA(object):
                 "issue_customize_state"
             ]
 
-            # 对issue的每个操作进行遍历
-            for operation in issue_res.json():
-                # 获取最新责任人 & 时间点
-                self.parse_operation(operation, issue_cla_dic)
+            url = f"{self.request_url}/repos/{owner}/issues/{issue_number}/operate_logs"
+            params = {
+                "access_token": self.access_token,
+                "repo": repo,
+                "sort": "asc",
+            }
+            issue_res = self.esClient.request_get(url=url, params=params)
+
+            if issue_res.status_code != 200:
+                print('Get operate_logs error:', issue_res.text)
+            else:
+                # 对issue的每个操作进行遍历
+                for operation in issue_res.json():
+                    # 获取最新责任人 & 时间点
+                    self.parse_operation(operation, issue_cla_dic)
 
             # 责任人、通过user_name获取user_login
             issue_cla_dic["last_responsible_login"] = self.get_login_from_name(
                 issue_cla_dic["last_responsible_name"]
             )
             # 获取首次评论时间
-            url = f"{self.request_url}/repos/{self.owner}/{repo}/issues/{issue_number}/comments"
+            url = f"{self.request_url}/repos/{owner}/{repo}/issues/{issue_number}/comments"
             params = {
                 "access_token": self.access_token,
                 "repo": repo,
@@ -164,7 +165,7 @@ class GiteeSLA(object):
             }
             comment_res = self.esClient.request_get(url=url, params=params)
             if comment_res.status_code != 200:
-                print(comment_res.text)
+                print('get comments error: ', comment_res.text)
                 continue
             for comment in comment_res.json():
                 if comment["user"]["login"] != self.skip_user:
@@ -259,8 +260,12 @@ class GiteeSLA(object):
             indexData = {"index": {"_index": self.index_name, "_id": doc_id}}
             actions += json.dumps(indexData) + "\n"
             actions += json.dumps(issue_cla_dic) + "\n"
-            self.esClient.safe_put_bulk(actions)
-            # return
+            cnt += 1
+            if cnt == 1000:
+                self.esClient.safe_put_bulk(actions)
+                actions = ""
+                cnt = 0
+        self.esClient.safe_put_bulk(actions)
 
     # 将字符串转换为时间戳,做减法,返回秒数
     def time_subtract(self, time1, time2, format="%Y-%m-%dT%H:%M:%S%z"):
@@ -323,7 +328,6 @@ class GiteeSLA(object):
             issue_cla_dic["last_bug_tag_created_at"] = operation["created_at"]
 
     def get_login_from_name(self, name):
-        # todo 新增字典，减少post请求数量
         if name is None:
             return None
         if self.login_to_name_dict.get(name):
