@@ -166,11 +166,11 @@ class GiteeSLA(object):
             comment_res = self.esClient.request_get(url=url, params=params)
             if comment_res.status_code != 200:
                 print('get comments error: ', comment_res.text)
-                continue
-            for comment in comment_res.json():
-                if comment["user"]["login"] != self.skip_user:
-                    issue_cla_dic["firstreplyissuetime_at"] = comment["created_at"]
-                    break
+            else:
+                for comment in comment_res.json():
+                    if comment["user"]["login"] != self.skip_user:
+                        issue_cla_dic["firstreplyissuetime_at"] = comment["created_at"]
+                        break
 
             # 获取id
             issue_cla_dic["issue_id"] = issue["_source"]["id"]
