@@ -15,10 +15,10 @@ RUN yum update -y \
 RUN groupadd -g 1001 user \
     && useradd -u 1001 -g user -s /bin/bash -m user
 
-RUN wget https://repo.huaweicloud.com/python/3.7.17/Python-3.7.17.tgz \
-    && tar -zxvf Python-3.7.17.tgz \
-    && cd Python-3.7.17 \
-    && yum install -y gcc libffi-devel zlib* openssl-devel make \
+RUN wget https://repo.huaweicloud.com/python/3.9.20/Python-3.9.20.tgz \
+    && tar -zxvf Python-3.9.20.tgz \
+    && cd Python-3.9.20 \
+    && yum install -y gcc libffi-devel bzip2-devel zlib* openssl-devel make \
     && ./configure --prefix=/usr/local/python3 \
     && make && make install
 
