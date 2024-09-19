@@ -87,7 +87,7 @@ class GiteeSLA(object):
         actions = ""
         cnt = 0
         for issue in data:
-            issue_cla_dic = {
+            issue_sla_dic = {
                 # issue信息
                 "issue_id": None,
                 "issue_number": None,
@@ -120,19 +120,19 @@ class GiteeSLA(object):
                 "is_timely_firstreplyissue": 0,
                 "is_timely_bug_resolve": 0,
             }
-            owner = issue["_source"]["org_name"]
             # 获取issue操作日志
+            owner = issue["_source"]["org_name"]
             issue_number = issue["_source"]["issue_number"]
             repo = issue["_source"]["repository"].split("/")[-1]
 
-            issue_cla_dic["issue_number"] = issue["_source"]["issue_number"]
-            issue_cla_dic["repository"] = issue["_source"]["repository"]
-            issue_cla_dic["user_name"] = issue["_source"]["user_name"]
-            issue_cla_dic["org_name"] = issue["_source"]["org_name"]
-            issue_cla_dic["issue_title"] = issue["_source"]["issue_title"]
-            issue_cla_dic["body"] = issue["_source"]["body"]
-            issue_cla_dic["issue_url"] = issue["_source"]["issue_url"]
-            issue_cla_dic["issue_customize_state"] = issue["_source"][
+            issue_sla_dic["issue_number"] = issue["_source"]["issue_number"]
+            issue_sla_dic["repository"] = issue["_source"]["repository"]
+            issue_sla_dic["user_name"] = issue["_source"]["user_name"]
+            issue_sla_dic["org_name"] = issue["_source"]["org_name"]
+            issue_sla_dic["issue_title"] = issue["_source"]["issue_title"]
+            issue_sla_dic["body"] = issue["_source"]["body"]
+            issue_sla_dic["issue_url"] = issue["_source"]["issue_url"]
+            issue_sla_dic["issue_customize_state"] = issue["_source"][
                 "issue_customize_state"
             ]
 
@@ -144,17 +144,19 @@ class GiteeSLA(object):
             }
             issue_res = self.esClient.request_get(url=url, params=params)
 
+            # 无法获取操作日志就跳过
             if issue_res.status_code != 200:
-                print('Get operate_logs error:', issue_res.text)
+                print(f'Get {issue_sla_dic["issue_number"]} operate_logs error:', issue_res.text)
+                continue
             else:
                 # 对issue的每个操作进行遍历
                 for operation in issue_res.json():
                     # 获取最新责任人 & 时间点
-                    self.parse_operation(operation, issue_cla_dic)
+                    self.parse_operation(operation, issue_sla_dic)
 
             # 责任人、通过user_name获取user_login
-            issue_cla_dic["last_responsible_login"] = self.get_login_from_name(
-                issue_cla_dic["last_responsible_name"]
+            issue_sla_dic["last_responsible_login"] = self.get_login_from_name(
+                issue_sla_dic["last_responsible_name"]
             )
             # 获取首次评论时间
             url = f"{self.request_url}/repos/{owner}/{repo}/issues/{issue_number}/comments"
@@ -165,26 +167,26 @@ class GiteeSLA(object):
             }
             comment_res = self.esClient.request_get(url=url, params=params)
             if comment_res.status_code != 200:
-                print('get comments error: ', comment_res.text)
+                print('Get comments error: ', comment_res.text)
             else:
                 for comment in comment_res.json():
                     if comment["user"]["login"] != self.skip_user:
-                        issue_cla_dic["firstreplyissuetime_at"] = comment["created_at"]
+                        issue_sla_dic["firstreplyissuetime_at"] = comment["created_at"]
                         break
 
             # 获取id
-            issue_cla_dic["issue_id"] = issue["_source"]["id"]
+            issue_sla_dic["issue_id"] = issue["_source"]["id"]
             # 获取user_login
-            issue_cla_dic["user_login"] = issue["_source"]["user_login"]
+            issue_sla_dic["user_login"] = issue["_source"]["user_login"]
             # 获取tags列表
-            issue_cla_dic["tags"] = issue["_source"]["issue_labels"]
+            issue_sla_dic["tags"] = issue["_source"]["issue_labels"]
             # 获取bug_tag
-            issue_cla_dic["bug_tag"] = self.get_bug_tag(issue_cla_dic["tags"])
+            issue_sla_dic["bug_tag"] = self.get_bug_tag(issue_sla_dic["tags"])
 
             # 获取created_at
-            issue_cla_dic["issue_created_at"] = issue["_source"]["created_at"]
+            issue_sla_dic["issue_created_at"] = issue["_source"]["created_at"]
             # 获取closed_at
-            issue_cla_dic["issue_closed_at"] = issue["_source"]["closed_at"]
+            issue_sla_dic["issue_closed_at"] = issue["_source"]["closed_at"]
 
             # 获取当前时间
             format = "%Y-%m-%dT%H:%M:%S%z"  # 指定时间格式
@@ -192,74 +194,74 @@ class GiteeSLA(object):
             now = datetime.now().astimezone(beijing)  # 当前时间
 
             # issue持续时间
-            if issue_cla_dic["issue_closed_at"] is None:
-                issue_cla_dic["issue_duration"] = self.time_subtract(
-                    now, issue_cla_dic["issue_created_at"], format
+            if issue_sla_dic["issue_closed_at"] is None:
+                issue_sla_dic["issue_duration"] = self.time_subtract(
+                    now, issue_sla_dic["issue_created_at"], format
                 )
             else:
-                issue_cla_dic["issue_duration"] = self.time_subtract(
-                    issue_cla_dic["issue_closed_at"],
-                    issue_cla_dic["issue_created_at"],
+                issue_sla_dic["issue_duration"] = self.time_subtract(
+                    issue_sla_dic["issue_closed_at"],
+                    issue_sla_dic["issue_created_at"],
                     format,
                 )
 
             # issue bug_tag持续时间
-            if issue_cla_dic["issue_closed_at"] is None:
-                issue_cla_dic["issue_resolve_bug_tag_duration"] = self.time_subtract(
-                    now, issue_cla_dic["first_bug_tag_created_at"], format
+            if issue_sla_dic["issue_closed_at"] is None:
+                issue_sla_dic["issue_resolve_bug_tag_duration"] = self.time_subtract(
+                    now, issue_sla_dic["first_bug_tag_created_at"], format
                 )
             else:
-                issue_cla_dic["issue_resolve_bug_tag_duration"] = self.time_subtract(
-                    issue_cla_dic["issue_closed_at"],
-                    issue_cla_dic["first_bug_tag_created_at"],
+                issue_sla_dic["issue_resolve_bug_tag_duration"] = self.time_subtract(
+                    issue_sla_dic["issue_closed_at"],
+                    issue_sla_dic["first_bug_tag_created_at"],
                     format,
                 )
 
             # 责任人持续时间
-            if issue_cla_dic["issue_closed_at"] is None:
-                issue_cla_dic["responsible_duration"] = self.time_subtract(
-                    now, issue_cla_dic["last_responsible_created_at"], format
+            if issue_sla_dic["issue_closed_at"] is None:
+                issue_sla_dic["responsible_duration"] = self.time_subtract(
+                    now, issue_sla_dic["last_responsible_created_at"], format
                 )
             else:
-                issue_cla_dic["responsible_duration"] = self.time_subtract(
-                    issue_cla_dic["issue_closed_at"],
-                    issue_cla_dic["last_responsible_created_at"],
+                issue_sla_dic["responsible_duration"] = self.time_subtract(
+                    issue_sla_dic["issue_closed_at"],
+                    issue_sla_dic["last_responsible_created_at"],
                     format,
                 )
 
             # 首次回复持续时间
-            issue_cla_dic["firstreplyissuetime"] = self.time_subtract(
-                issue_cla_dic["firstreplyissuetime_at"],
-                issue_cla_dic["issue_created_at"],
+            issue_sla_dic["firstreplyissuetime"] = self.time_subtract(
+                issue_sla_dic["firstreplyissuetime_at"],
+                issue_sla_dic["issue_created_at"],
                 format,
             )
 
             # 首次回复非周末
-            issue_cla_dic["firstreplyissuetime_except_weekend"] = (
+            issue_sla_dic["firstreplyissuetime_except_weekend"] = (
                 self.get_firstreplyissuetime_except_weekend(
-                    issue_cla_dic["firstreplyissuetime_at"],
-                    issue_cla_dic["issue_created_at"],
+                    issue_sla_dic["firstreplyissuetime_at"],
+                    issue_sla_dic["issue_created_at"],
                 )
             )
 
             # 判断是否及时回复(24小时内)，除去周末
             if (
-                issue_cla_dic.get("firstreplyissuetime_except_weekend")
-                and issue_cla_dic["firstreplyissuetime_except_weekend"] <= 24 * 60 * 60
+                issue_sla_dic.get("firstreplyissuetime_except_weekend")
+                and issue_sla_dic["firstreplyissuetime_except_weekend"] <= 24 * 60 * 60
             ):
-                issue_cla_dic["is_timely_firstreplyissue"] = 1
+                issue_sla_dic["is_timely_firstreplyissue"] = 1
 
             # 根据不同bug严重程度判断解决时间是否及时
-            if issue_cla_dic["bug_tag"] is not None:
-                issue_cla_dic["is_timely_bug_resolve"] = self.parse_bug_resolve_timely(
-                    issue_cla_dic["issue_resolve_bug_tag_duration"],
-                    issue_cla_dic["bug_tag"],
+            if issue_sla_dic["bug_tag"] is not None:
+                issue_sla_dic["is_timely_bug_resolve"] = self.parse_bug_resolve_timely(
+                    issue_sla_dic["issue_resolve_bug_tag_duration"],
+                    issue_sla_dic["bug_tag"],
                 )
 
-            doc_id = issue_cla_dic["repository"] + issue_cla_dic["issue_number"]
+            doc_id = issue_sla_dic["repository"] + issue_sla_dic["issue_number"]
             indexData = {"index": {"_index": self.index_name, "_id": doc_id}}
             actions += json.dumps(indexData) + "\n"
-            actions += json.dumps(issue_cla_dic) + "\n"
+            actions += json.dumps(issue_sla_dic) + "\n"
             cnt += 1
             if cnt == 1000:
                 self.esClient.safe_put_bulk(actions)
@@ -293,9 +295,9 @@ class GiteeSLA(object):
         while created_at.weekday() > 4:
             created_at = created_at + timedelta(days=1)
             created_flag = True
-        if first_flag == True:
+        if first_flag:
             first_at = first_at.replace(hour=0, minute=0, second=0, microsecond=0)
-        if created_flag == True:
+        if created_flag:
             created_at = created_at.replace(hour=0, minute=0, second=0, microsecond=0)
         weeks = (first_at - created_at).days / 7
         weeks = int(weeks)
@@ -310,22 +312,20 @@ class GiteeSLA(object):
                 return tag
         return None
 
-    def parse_operation(self, operation, issue_cla_dic):
+    def parse_operation(self, operation, issue_sla_dic):
         # 获取最新责任人 & 时间点
         if operation["action_type"] == "setting_assignee":
-            issue_cla_dic["last_responsible_name"] = operation["content"][7:]
-            issue_cla_dic["last_responsible_created_at"] = operation["created_at"]
+            issue_sla_dic["last_responsible_name"] = operation["content"][7:]
+            issue_sla_dic["last_responsible_created_at"] = operation["created_at"]
         elif operation["action_type"] == "change_assignee":
-            issue_cla_dic["last_responsible_name"] = operation["content"].split(" ")[
-                -1
-            ][3:]
-            issue_cla_dic["last_responsible_created_at"] = operation["created_at"]
+            issue_sla_dic["last_responsible_name"] = operation["content"].split(" ")[-1][3:]
+            issue_sla_dic["last_responsible_created_at"] = operation["created_at"]
         # 获取first_bug_tag_created_at & last_bug_tag_created_at
         if operation["action_type"] == "add_label":
-            if issue_cla_dic["first_bug_tag_created_at"] is None:
-                issue_cla_dic["first_bug_tag_created_at"] = operation["created_at"]
-                issue_cla_dic["last_bug_tag_created_at"] = operation["created_at"]
-            issue_cla_dic["last_bug_tag_created_at"] = operation["created_at"]
+            if issue_sla_dic["first_bug_tag_created_at"] is None:
+                issue_sla_dic["first_bug_tag_created_at"] = operation["created_at"]
+                issue_sla_dic["last_bug_tag_created_at"] = operation["created_at"]
+            issue_sla_dic["last_bug_tag_created_at"] = operation["created_at"]
 
     def get_login_from_name(self, name):
         if name is None:
@@ -354,10 +354,12 @@ class GiteeSLA(object):
             self.login_to_name_dict[name] = login
             return login
         except:
-            print("name search error")
+            print(f"{name} name search error")
             return None
 
     def parse_bug_resolve_timely(self, duration, bug_tag):
+        if duration is None:
+            return 0
         if bug_tag == "bug-suggestion":
             if duration <= 24 * 60 * 60 * 15:
                 return 1
