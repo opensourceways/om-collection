@@ -41,9 +41,8 @@ class Ndcg(object):
         if self.start_time:
             s_time = datetime.datetime.strptime(self.start_time, "%Y-%m-%d").date()
         else:
-            s_time = today
-        e_time = today + datetime.timedelta(days=1)
-        return s_time, e_time
+            s_time = today - datetime.timedelta(days=1)
+        return s_time, today
 
     def getData(self):
         start_time, end_time = self.getDate()
@@ -55,7 +54,7 @@ class Ndcg(object):
                               "range": {
                                 "created_at": {
                                   "gte": "%s",
-                                  "lt": "%s"
+                                  "lte": "%s"
                                 }
                               }
                             },
@@ -80,6 +79,9 @@ class Ndcg(object):
                       "size": 1000
                     }''' % (start_time, end_time)
         self.esClient.scrollSearch(index_name=self.source_index, search=query, func=self.getDataFunc)
+        if not self.search_datas:
+            print(f'{start_time} - {end_time}: No selectSearchResult data')
+            return
         df = pd.json_normalize(self.search_datas)
 
         dfg = df.groupby('search_event_id').apply(self.agg_func)
