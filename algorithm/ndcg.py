@@ -11,7 +11,7 @@ class NDCG:
         """
         top = 100 if top_n > 100 else top_n
         log2_table = np.log2(np.arange(2, 102))
-        rel = np.asfarray(rel)[:top]
+        rel = np.asarray(rel)[:top]
         dcg = np.sum(np.divide(rel, log2_table[:rel.shape[0]]))
         return dcg
 
@@ -24,7 +24,7 @@ class NDCG:
         """
         top = 100 if top_n > 100 else top_n
         log2_table = np.log2(np.arange(2, 102))
-        rel = np.asfarray(rel)[:top]
+        rel = np.asarray(rel)[:top]
         dcg = np.sum(np.divide(np.power(2, rel) - 1, log2_table[:rel.shape[0]]))
         return dcg
 
