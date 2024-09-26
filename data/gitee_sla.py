@@ -53,7 +53,7 @@ class GiteeSLA(object):
                 "issue_url",
                 "issue_customize_state"
             ],
-            "size": 1000,
+            "size": 100,
             "query": {
                 "bool": {
                     "must": [
