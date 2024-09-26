@@ -11,15 +11,21 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # Create: 2024/8/14
+import functools
 import json
 import logging
 import os
+import re
 import threading
 import time
+from itertools import zip_longest
+from packaging.version import Version, InvalidVersion
 
 import requests
 import yaml
 
+from constant.pkg_maintenance_constant import CVE_STATUS, VERSION_STATUS, CONTRIBUTE_STATUS, UPDATE_STATUS, \
+    ISSUE_STATUS, REPO_STATUS
 from data.common import ESClient
 
 logger = logging.getLogger(__name__)
@@ -39,17 +45,20 @@ class PackageStatus(object):
         self.gitee_all_index_name = config.get('gitee_all_index_name')
         self.cve_index_name = config.get('cve_index_name')
         self.sig_index_name = config.get("sig_index_name")
+        self.package_level_index_name = config.get("package_level_index_name")
         self.repo_query = config.get("repo_query")
         self.active_query = config.get("active_query")
         self.query_format = config.get("query_format")
 
-        self.pkg_version_url = config.get('pkg_version_url')
+        self.pkg_up_version_url = config.get('pkg_up_version_url')
+        self.pkg_euler_version_url = config.get('pkg_euler_version_url')
         self.gitee_repo_base = config.get("gitee_repo_base")
         self.repo_active = {}
         self.repo_versions = {}
         self.user_owner_repo = {}
         self.collaboration_update_repo = {}
         self.repo_type = {}
+        self.package_level = {}
         self.company_num = int(config.get('company_num', '5'))
         self.user_num = int(config.get('company_num', '10'))
 
@@ -57,7 +66,7 @@ class PackageStatus(object):
         self.obs_meta_org = config.get('obs_meta_org')
         self.obs_meta_repo = config.get('obs_meta_repo')
         self.obs_meta_dir = config.get('obs_meta_dir')
-        self.versions = config.get('versions', 'openEuler-24.03-LTS')
+        self.versions = config.get('versions', 'openEuler-24.09')
         self.code_base_path = config.get('code_base_path')
 
         self.thread_pool_num = int(config.get('thread_pool_num', 8))
@@ -73,43 +82,63 @@ class PackageStatus(object):
             os.remove(lock_file)
 
     @staticmethod
+    def compare_version(version1, version2):
+        version1 = PackageStatus.format_version(version1)
+        version2 = PackageStatus.format_version(version2)
+        v1_parts = list(map(int, filter(None, version1.split('.'))))
+        v2_parts = list(map(int, filter(None, version2.split('.'))))
+
+        for v1, v2 in zip_longest(v1_parts, v2_parts, fillvalue=0):
+            if v1 < v2:
+                return -1
+            elif v1 > v2:
+                return 1
+        return 0
+
+    @staticmethod
+    def format_version(version: str):
+        version = re.sub(r'[a-zA-Z]', '', version)
+        version = re.sub(r'[-/_+~]', '.', version)
+        return version
+
+    @staticmethod
     def pr_merged(hits):
         for hit in hits:
             if hit.get('key') == 'merged' and hit.get('doc_count') > 0:
-                return {"is_positive": 1, "status": "有PR合入"}
-        return {"is_positive": 0, "status": "有PR提交未合入"}
+                return {"is_positive": 1, "status": UPDATE_STATUS.get('pr_merged')}
+        return {"is_positive": 0, "status": UPDATE_STATUS.get('no_merged')}
 
     @staticmethod
     def issue_state(hits):
         for hit in hits:
             if hit.get('key') == 'closed' and hit.get('doc_count') == 0:
-                return {"is_positive": 0, "status": "没有Issue修复"}
+                return {"is_positive": 0, "status": ISSUE_STATUS.get('no_fixed')}
             if hit.get('key') == 'open' and hit.get('doc_count') == 0:
-                return {"is_positive": 1, "status": "全部Issue修复"}
-        return {"is_positive": 0, "status": "有部分Issue修复"}
+                return {"is_positive": 1, "status": ISSUE_STATUS.get('all_fixed')}
+        return {"is_positive": 0, "status": ISSUE_STATUS.get('some_fixed')}
 
     @staticmethod
     def get_repo_maintenance(action):
-        if action.get('cve').get('status') == '有CVE全部未修复' and action.get('issue').get('status') == '没有Issue修复':
-            status = {'status': '没有人维护', 'is_no_maintenance': 1}
-        elif action.get('cve').get('status') == '有CVE全部未修复':
-            status = {'status': '缺人维护', 'is_lack_of_maintenance': 1}
-        elif action.get('cve').get('status') == '有CVE部分修复':
-            status = {'status': '缺人维护', 'is_lack_of_maintenance': 1}
-        elif action.get('cve').get('status') == '有CVE且全部修复':
-            status = {'status': '健康', 'is_health': 1}
-        elif action.get('cve').get('status') == '没有CVE问题' \
-                and action.get('package_update').get('status') == '没有PR提交' \
-                and action.get('package_version').get('status') == '最新版本':
-            status = {'status': '健康', 'is_health': 1}
-        elif action.get('cve').get('status') == '没有CVE问题' \
-                and action.get('package_update').get('status') == '没有PR提交' \
-                and action.get('package_version').get('status') == '落后版本':
-            status = {'status': '静止', 'is_inactive': 1}
-        elif action.get('cve').get('status') == '没有CVE问题':
-            status = {'status': '活跃', 'is_active': 1}
-        else:
-            status = {'status': '其他'}
+        status = {'status': '其他'}
+        if action.get('cve').get('status') == CVE_STATUS.get('no_fixed') \
+                and action.get('issue').get('status') == ISSUE_STATUS.get('no_fixed'):
+            status = {'status': REPO_STATUS.get('no_maintenance'), 'is_no_maintenance': 1}
+        elif action.get('cve').get('status') == CVE_STATUS.get('no_fixed'):
+            status = {'status': REPO_STATUS.get('lack_of_maintenance'), 'is_lack_of_maintenance': 1}
+        elif action.get('cve').get('status') == CVE_STATUS.get('some_fixed'):
+            status = {'status': REPO_STATUS.get('lack_of_maintenance'), 'is_lack_of_maintenance': 1}
+        elif action.get('cve').get('status') == CVE_STATUS.get('all_fixed'):
+            status = {'status': REPO_STATUS.get('health'), 'is_health': 1}
+        elif action.get('cve').get('status') == CVE_STATUS.get('no_cve') \
+                and action.get('package_update').get('status') == UPDATE_STATUS.get('no_pr') \
+                and action.get('package_version').get('status') == VERSION_STATUS.get('normal'):
+            status = {'status': REPO_STATUS.get('health'), 'is_health': 1}
+        elif action.get('cve').get('status') == CVE_STATUS.get('no_cve') \
+                and action.get('package_update').get('status') == UPDATE_STATUS.get('no_pr') \
+                and action.get('package_version').get('status') == VERSION_STATUS.get('outdated'):
+            status = {'status': REPO_STATUS.get('inactive'), 'is_inactive': 1}
+        elif action.get('cve').get('status') == CVE_STATUS.get('no_cve'):
+            status = {'status': REPO_STATUS.get('active'), 'is_active': 1}
         return status
 
     @staticmethod
@@ -134,6 +163,55 @@ class PackageStatus(object):
                 repo_name = repo.get('name')
                 repo_types.update({repo_name: pkg_dir})
         return repo_types
+
+    @staticmethod
+    def get_version_api(version_url, up_stream=False):
+        repo_versions = {}
+        resp = requests.get(url=version_url, timeout=60)
+        if resp.status_code != 200:
+            print('get up version error', resp.text)
+            resp.raise_for_status()
+        items = resp.json().get('data').get('res')
+        for repo, value in items.items():
+            if not repo or not value:
+                continue
+            pkgs = {}
+            for val in value:
+                if not val.get('name') or not val.get('version'):
+                    continue
+                pkg_name = val.get('name')
+                if not up_stream:
+                    version = val.get('version').split('-')[0]
+                else:
+                    version = val.get('version').split(pkg_name + '-')[-1]
+                pkgs[pkg_name] = version
+            repo_versions[repo] = pkgs
+        return repo_versions
+
+    @staticmethod
+    def check_repo_version(up_version, euler_version):
+        if not up_version or not euler_version:
+            return False
+        if len(up_version) == 1:
+            version = next(iter(up_version.values()))
+            version = PackageStatus.format_version(version)
+            return all(PackageStatus.compare_version(PackageStatus.format_version(ver), version) == 0
+                       for ver in euler_version.values())
+
+        return all(ver == up_version.get(pkg) for pkg, ver in euler_version.items())
+
+    @staticmethod
+    def convert_versions(items: dict):
+        if not items:
+            return None
+        pkgs = []
+        for key, value in items.items():
+            pkg = {
+                'pkg_name': key,
+                'pkg_version': value
+            }
+            pkgs.append(pkg)
+        return pkgs
 
     def get_obs_meta(self):
         obs_path = self.git_clone_or_pull_repo(platform=self.platform, owner=self.obs_meta_org)
@@ -167,7 +245,7 @@ class PackageStatus(object):
 
         return code_path
 
-    def write_data_thread(self):
+    def write_data_thread(self, version):
         t1 = time.time()
         self.actions = ''
         threads = []
@@ -179,7 +257,7 @@ class PackageStatus(object):
             with self.thread_max_num:
                 t = threading.Thread(
                     target=self.write_repo_data,
-                    args=(repo, sig,))
+                    args=(repo, sig, version,))
                 threads.append(t)
                 t.start()
         for t in threads:
@@ -188,39 +266,65 @@ class PackageStatus(object):
         print('cost time: ', t2 - t1)
         self.esClient.safe_put_bulk(self.actions)
 
-    def run(self, from_date):
-        # Get repos update by the collaboration platform
-        self.collaboration_update_repo = self.get_collaboration_update_repo()
-        # tag old data
-        self.tag_last_update()
-
-        self.repo_versions = self.get_all_repo_version()
-        self.user_owner_repo = self.get_repo_query("user_login")
-
-        for version in self.versions.split(','):
-            root_path = self.get_obs_meta()
-            self.repo_type = self.get_version_repo_type(root_path, version)
-            self.write_data_thread()
-
     def single_data(self, action, doc_id):
         index_data = {"index": {"_index": self.index_name, "_id": doc_id}}
         actions = json.dumps(index_data) + '\n'
         actions += json.dumps(action) + '\n'
         return actions
 
+    def get_package_level(self):
+        search = '''{
+            "size": 1000,
+            "_source": [
+                "repo",
+                "kind",
+                "level",
+                "responsible_team",
+                "responsible"
+            ]   
+        }'''
+
+        data_dic_list = []
+
+        def func(data):
+            for item in data:
+                data_dic_list.append(item['_source'])
+
+        self.esClient.scrollSearch(self.package_level_index_name, search, "1m", func)
+
+        res = {}
+        for data_item in data_dic_list:
+            res[data_item['repo']] = data_item
+        return res
+
+    def get_repo_level(self, repo, kind):
+        if kind == 'baseos' and self.package_level.get(repo).get('kind') == kind:
+            level = self.package_level.get(repo).get('level')
+        elif kind == 'baseos':
+            level = 'L3'
+        elif kind == 'epol':
+            level = 'epol'
+        else:
+            level = 'L4'
+        return level
+
     def get_active(self, repo):
         repo_active = self.repo_active.get(repo)
-        participant = {"is_positive": 0, "status": "贡献人数少", "num": 0}
-        company = {"is_positive": 0, "status": "贡献组织少", "num": 0}
+        participant = {"is_positive": 0, "status": CONTRIBUTE_STATUS.get('few_participants'), "num": 0}
+        company = {"is_positive": 0, "status": CONTRIBUTE_STATUS.get('few_orgs'), "num": 0}
         if repo_active:
             if repo_active['users'] > self.user_num:
-                participant = {"is_positive": 1, "status": "贡献人数多", "num": repo_active['users']}
+                participant = {"is_positive": 1, "status": CONTRIBUTE_STATUS.get('many_participants'),
+                               "num": repo_active['users']}
             else:
-                participant = {"is_positive": 0, "status": "贡献人数少", "num": repo_active['users']}
+                participant = {"is_positive": 0, "status": CONTRIBUTE_STATUS.get('few_participants'),
+                               "num": repo_active['users']}
             if repo_active['companies'] > self.company_num:
-                company = {"is_positive": 1, "status": "贡献组织多", "num": repo_active['companies']}
+                company = {"is_positive": 1, "status": CONTRIBUTE_STATUS.get('many_orgs'),
+                           "num": repo_active['companies']}
             else:
-                company = {"is_positive": 0, "status": "贡献组织少", "num": repo_active['companies']}
+                company = {"is_positive": 0, "status": CONTRIBUTE_STATUS.get('few_orgs'),
+                           "num": repo_active['companies']}
         return participant, company
 
     def get_active_dict(self):
@@ -257,7 +361,7 @@ class PackageStatus(object):
         resp = self.esClient.esSearch(index_name=self.gitee_all_index_name, search=search)
         aggregations = resp.get('aggregations').get('group_field').get('buckets')
         if len(aggregations) == 0:
-            package_update = {"is_positive": 0, "status": "没有PR提交"}
+            package_update = {"is_positive": 0, "status": UPDATE_STATUS.get('no_pr')}
         else:
             package_update = self.pr_merged(aggregations)
         return package_update
@@ -272,49 +376,62 @@ class PackageStatus(object):
         issue_state = self.issue_state(aggregations)
         return issue_state
 
-    def get_all_repo_version(self):
-        page = 1
-        repo_versions = {}
-        while True:
-            params = {"page": page, "items_per_page": 100}
-            resp = requests.get(url=self.pkg_version_url, params=params, timeout=60)
-            page += 1
-            if resp.status_code != 200:
-                print('get version error', resp.text)
-                resp.raise_for_status()
-            items = resp.json().get('items')
-            if not items:
-                break
-            for item in items:
-                name = item.get('name')
-                if name not in repo_versions:
-                    repo_versions[name] = {}
+    def get_repo_euler_version(self, version):
+        version_url = self.pkg_euler_version_url % version
+        repo_versions = self.get_version_api(version_url)
+        return repo_versions
 
-                if item.get('tag').endswith('_up'):
-                    up_version = item.get('version')
-                    repo_versions[name].update({"up_version": up_version})
-                if item.get('tag').endswith('_openeuler'):
-                    euler_version = item.get('version')
-                    repo_versions[name].update({"version": euler_version})
+    def get_repo_up_version(self):
+        repo_versions = self.get_version_api(self.pkg_up_version_url, up_stream=True)
+        return repo_versions
 
-        version_status = {}
-        for repo, version in repo_versions.items():
-            up_version = version.get('up_version')
-            euler_version = version.get('version')
-            if up_version == euler_version and up_version and euler_version:
-                version = {"is_positive": 1, "status": "最新版本", "version": euler_version,
-                           "up_version": up_version}
+    def check_up_version(self, up_version, euler_version):
+        if not up_version:
+            return True
+        euler_version_list = list(euler_version.values())
+        up_version_list = list(up_version.values())
+        print(euler_version_list, up_version_list)
+        euler_version_list.sort(key=functools.cmp_to_key(self.compare_version))
+        up_version_list.sort(key=functools.cmp_to_key(self.compare_version))
+        return self.compare_version(euler_version_list[-1], up_version_list[-1]) == 1
+
+    def get_all_repo_version_status(self, up_versions, euler_versions):
+        repo_version_status = {}
+        for repo, euler_version in euler_versions.items():
+            up_version = up_versions.get(repo)
+            if self.check_up_version(up_version, euler_version):
+                up_version = None
+                version_status = VERSION_STATUS.get('outdated')
+                positive = 0
+            elif self.check_repo_version(up_version, euler_version):
+                version_status = VERSION_STATUS.get('normal')
+                positive = 1
             else:
-                version = {"is_positive": 0, "status": "落后版本", "version": euler_version,
-                           "up_version": up_version}
-            version_status[repo] = version
-        return version_status
+                version_status = VERSION_STATUS.get('outdated')
+                positive = 0
+            version = {
+                "is_positive": positive,
+                "status": version_status,
+                "version": self.convert_versions(euler_version),
+                "up_version": self.convert_versions(up_version)
+            }
+            repo_version_status[repo] = version
+        # 只有上游版本，没有下游版本
+        for repo, up_version in up_versions.items():
+            if repo not in repo_version_status:
+                repo_version_status[repo] = {
+                    "is_positive": 0,
+                    "status": VERSION_STATUS.get('outdated'),
+                    "version": None,
+                    "up_version": self.convert_versions(up_version)
+                }
+        return repo_version_status
 
     def get_repo_version(self, repo):
         if repo in self.repo_versions:
             version = self.repo_versions.get(repo)
         else:
-            version = {"is_positive": 0, "status": "落后版本", "version": None, "up_version": None}
+            version = {"is_positive": 0, "status": VERSION_STATUS.get('outdated'), "version": None, "up_version": None}
         return version
 
     def get_openeuper_cve_state(self, repo_name):
@@ -340,14 +457,14 @@ class PackageStatus(object):
                 "bool": {
                     "must": [
                         {
-                            "match_phrase": {
-                                "repository": "%s"
+                            "match": {
+                                "repository.keyword": "%s"
                             }
                         },
                         {
                             "range": {
                                 "created_at": {
-                                    "gte": "now-1y/y",
+                                    "gte": "now-1y",
                                     "lte": "now"
                                 }
                             }
@@ -372,32 +489,36 @@ class PackageStatus(object):
             if (
                     data_dic["issue_state"] == "closed"
                     or data_dic["issue_state"] == "rejected"
+                    or data_dic["issue_customize_state"] == "已挂起"
             ):
                 fixed_cve_count += 1
         if fixed_cve_count == cve_count > 0:
             cve["is_positive"] = 1
-            cve["status"] = "有CVE且全部修复"
+            cve["status"] = CVE_STATUS.get('all_fixed')
         elif fixed_cve_count == cve_count == 0:
             cve["is_positive"] = 1
-            cve["status"] = "没有CVE问题"
+            cve["status"] = CVE_STATUS.get('no_cve')
         elif cve_count > fixed_cve_count > 0:
             cve["is_positive"] = 0
-            cve["status"] = "有CVE部分修复"
+            cve["status"] = CVE_STATUS.get('some_fixed')
         elif fixed_cve_count == 0 and cve_count > 0:
             cve["is_positive"] = 0
-            cve["status"] = "有CVE全部未修复"
+            cve["status"] = CVE_STATUS.get('no_fixed')
         return cve
 
-    def write_repo_data(self, repo, sig):
+    def write_repo_data(self, repo, sig, version):
         print(f'start collect repo: {repo}')
         created_at = time.strftime("%Y-%m-%d", time.localtime())
         action = self.get_repo_status(repo)
         action['created_at'] = created_at
         action['sig_names'] = sig
         action['repo'] = repo
+        action['version'] = version
         action['is_last'] = 1
         action['maintainers'] = self.user_owner_repo.get(repo)
         action['kind'] = self.repo_type.get(repo)
+        level = self.get_repo_level(repo, self.repo_type.get(repo))
+        action['level'] = level
 
         doc_id = created_at + '_' + repo
         actions = self.single_data(action, doc_id)
@@ -519,3 +640,20 @@ class PackageStatus(object):
             self.esClient.updateByQuery(query)
         except Exception as e:
             logger.info(e)
+
+    def run(self, from_date):
+        # Get repos update by the collaboration platform
+        self.collaboration_update_repo = self.get_collaboration_update_repo()
+
+        self.user_owner_repo = self.get_repo_query("user_login")
+        self.package_level = self.get_package_level()
+        for version in self.versions.split(','):
+            root_path = self.get_obs_meta()
+            self.repo_type = self.get_version_repo_type(root_path, version)
+            repo_euler_version = self.get_repo_euler_version(version=version)
+            repo_up_version = self.get_repo_up_version()
+            self.repo_versions = self.get_all_repo_version_status(repo_up_version, repo_euler_version)
+            self.write_data_thread(version)
+
+        # tag old data
+        self.tag_last_update()
