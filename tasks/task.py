@@ -92,6 +92,7 @@ BACKEND_MAPPING = {
     'gitee_feature': 'data.gitee_feature.giteeFeature',
     'pypi_download': 'data.pypi_download.PypiDownload',
     'package_status': 'data.package.package_status.PackageStatus',
+    'package_maintenance': 'data.package.package_maintenance.PackageStatus',
     'package_overview': 'data.package.package_overview.PackageOverview',
     'github_account': 'data.github_account.GitHubAccount',
     'export_task': 'data.huawei_analytic.export_task.ExportTask',
@@ -101,7 +102,8 @@ BACKEND_MAPPING = {
     'software_repo_maintain': 'data.combine.software_repo_maintain.SoftwareRepoMaintain',
     'event_log_v8': 'data.event_log_v8.EventLogV8',
     'gitee_sla': 'data.gitee_sla.GiteeSLA',
-    'openmind_private_model': 'data.time_series.openmind_private_model.OpenmindPrivateModel'
+    'openmind_private_model': 'data.time_series.openmind_private_model.OpenmindPrivateModel',
+    'gitee_filter': 'data.gitee_filter.GiteeFilter'
 }
 
 

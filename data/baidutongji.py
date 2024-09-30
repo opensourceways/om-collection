@@ -46,7 +46,7 @@ class BaiduTongji(object):
     def getIndexName(self):
         return self.index_name
 
-    def getBaiduAction(self, starTime, endTime, data, index_name, is_day_data=True):
+    def getBaiduAction(self, starTime, endTime, data, index_name, method, is_day_data=True):
         if not data:
             print("The data(%s) not exist" % data)
             return ''
@@ -94,7 +94,8 @@ class BaiduTongji(object):
                 result[data['result']['fields'][f]] = tmpv
                 f += 1
 
-            indexData = {"index": {"_index": index_name, "_id": title + starTime + self.site_id}}
+            result['method'] = method
+            indexData = {"index": {"_index": index_name, "_id": title + starTime + method + self.site_id}}
             actions += json.dumps(indexData) + '\n'
             actions += json.dumps(result) + '\n'
             i += 1
@@ -124,7 +125,7 @@ class BaiduTongji(object):
             is_day_data = True
             if method == "trend/time/a":
                 is_day_data = False
-            actions = self.getBaiduAction(collect_time, collect_time, data, index_name, is_day_data)
+            actions = self.getBaiduAction(collect_time, collect_time, data, index_name, method, is_day_data)
             self.esClient.safe_put_bulk(actions)
 
             fromTime = fromTime + timedelta(days=1)
