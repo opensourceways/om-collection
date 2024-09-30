@@ -25,13 +25,16 @@ class OpenmindOwner(object):
         self.index_name = config.get('index_name')
         self.esClient = ESClient(config)
         self.api_base = config.get('api_base')
+        self.private_api_base = config.get('private_api_base')
+        self.private_token = config.get('private_token')
         self.kind = config.get('kind')
 
     def run(self, from_data=None):
         self.get_owners()
         kinds = self.kind.split(',')
         for kind in kinds:
-            self.get_all_repos(kind)
+            self.get_public_repos(kind)
+            self.get_private_repos(kind)
 
     def get_owners(self):
         owner_url = f'{self.api_base}/organization'
@@ -57,7 +60,7 @@ class OpenmindOwner(object):
         actions += self.write_owner_count(users, 0)
         self.esClient.safe_put_bulk(actions)
 
-    def get_all_repos(self, kind):
+    def get_public_repos(self, kind):
         repo_url = f'{self.api_base}/{kind}'
         cur = 1
         actions = ''
@@ -88,29 +91,69 @@ class OpenmindOwner(object):
         actions += self.write_project_count(kind, user_count, 0)
         self.esClient.safe_put_bulk(actions)
 
-    def write_project_count(self, kind, count, owner_type):
+    def get_private_repos(self, kind):
+        repo_url = f'{self.private_api_base}/{kind}/list'
+        cur = 1
+        actions = ''
+        field = f'{kind}s'
+        org_count, user_count = 0, 0
+        while True:
+            headers = {"token": self.private_token}
+            params = {"visibility": "private", "count": 1, "page_num": cur}
+            response = request_url(repo_url, headers=headers, payload=params)
+
+            cur += 1
+            try:
+                objs = response.json().get('data').get(field)
+            except Exception as e:
+                print(f'Get {kind} info error')
+                break
+            
+            if not objs:
+                print(f'Get {kind} info error')
+                break
+            for obj in objs:
+                ts_obj = datetime.datetime.fromtimestamp(obj['updated_at'])
+                created_at = ts_obj.strftime('%Y-%m-%dT%H:%M:%S+08:00')
+                obj['created_at'] = created_at
+                obj['type'] = kind
+                index_data = {"index": {"_index": self.index_name, "_id": kind + obj['id']}}
+                actions += json.dumps(index_data) + '\n'
+                actions += json.dumps(obj) + '\n'
+                if obj.get('owner_type') == 1:
+                    org_count += 1
+                else:
+                    user_count += 1
+
+        actions += self.write_project_count(kind, org_count, 1, 'private')
+        actions += self.write_project_count(kind, user_count, 0, 'private')
+        self.esClient.safe_put_bulk(actions)
+
+    def write_project_count(self, kind, count, owner_type, visibility='public'):
         created_at = time.strftime("%Y-%m-%d", time.localtime())
         action = {
             'all_count': count,
             'created_at': created_at,
             'type': kind,
-            'owner_type': owner_type
+            'owner_type': owner_type,
+            'visibility': visibility
         }
-        doc_id = created_at + kind + f'_{owner_type}'
+        doc_id = created_at + kind + visibility + f'_{owner_type}'
         index_data = {"index": {"_index": self.index_name, "_id": doc_id}}
         actions = json.dumps(index_data) + '\n'
         actions += json.dumps(action) + '\n'
         return actions
 
-    def write_owner_count(self, count, owner_type):
+    def write_owner_count(self, count, owner_type, visibility='public'):
         created_at = time.strftime("%Y-%m-%d", time.localtime())
         action = {
             'all_count': count,
             'created_at': created_at,
             'is_owner': 1,
-            'owner_type': owner_type
+            'owner_type': owner_type,
+            'visibility': visibility
         }
-        doc_id = created_at + f'owner_{owner_type}'
+        doc_id = created_at + visibility + f'owner_{owner_type}'
         index_data = {"index": {"_index": self.index_name, "_id": doc_id}}
         actions = json.dumps(index_data) + '\n'
         actions += json.dumps(action) + '\n'
