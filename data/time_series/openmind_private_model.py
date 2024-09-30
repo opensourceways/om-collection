@@ -41,7 +41,7 @@ class OpenmindPrivateModel(object):
         org_count, user_count = 0, 0
         while True:
             headers = {"token": self.token}
-            params = {"visibility": self.visibility, "count": self.count, "page_num": cur}
+            params = {"visibility": self.visibility, "count": 1, "page_num": cur}
             
             response = request_url(repo_url, headers=headers, payload=params)
             
