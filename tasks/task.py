@@ -100,7 +100,8 @@ BACKEND_MAPPING = {
     'version_download': 'data.combine.version_download.VersionDownload',
     'software_repo_maintain': 'data.combine.software_repo_maintain.SoftwareRepoMaintain',
     'event_log_v8': 'data.event_log_v8.EventLogV8',
-    'gitee_sla': 'data.gitee_sla.GiteeSLA'
+    'gitee_sla': 'data.gitee_sla.GiteeSLA',
+    'openmind_private_model': 'data.time_series.openmind_private_model.OpenmindPrivateModel'
 }
 
 
