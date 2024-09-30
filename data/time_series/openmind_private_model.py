@@ -28,7 +28,6 @@ class OpenmindPrivateModel(object):
         self.token = config.get("token")
         self.kind = config.get("kind")
         self.visibility = config.get("visibility")
-        self.count = config.get("count")
 
     def run(self, from_data=None):
         self.get_private_models(self.kind)
