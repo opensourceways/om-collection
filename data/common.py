@@ -978,6 +978,8 @@ class ESClient(object):
             return data
         except JSONDecodeError:
             print("Gitee get JSONDecodeError, error: ", response)
+        except Exception as ex:
+            print('*** Generator fail ***', ex)
 
         return data
 
@@ -2268,61 +2270,48 @@ class ESClient(object):
         while fromTime.strftime("%Y%m%d") <= to:
             id_key = time.mktime(fromTime.timetuple()) * 1000
             data_json = '''{
-            "size": 0,
-            "query": {
-                "bool": {
-                    "filter": [
-                        {
-                            "range": {
-                                "created_at": {
-                                    "lte": "%s"
+                "size": 0,
+                "query": {
+                    "bool": {
+                        "filter": [
+                            {
+                                "range": {
+                                    "created_at": {
+                                        "lte": "%s"
+                                    }
                                 }
-                            }
-                        },
-                        {
+                            },
+                            {
                             "query_string": {
                                 "analyze_wildcard": true,
                                 "query": "%s"
                             }
                         }
-                    ]
-                }
-            },
-            "aggs": {             
-                "2": {
-                    "date_histogram": {
-                        "field": "created_at",
-                        "format": "epoch_millis",
-                        "interval": "10000d"
-                    },
-                    "aggs": {
-                        "maxCount": {
-                            "max": {
-                                "field": "%s"
-                            }
+                        ]
+                    }
+                },
+                "aggs": {
+                    "max_download": {
+                        "max": {
+                            "field": "%s"
                         }
                     }
                 }
-            }
-        }''' % (fromTime.strftime("%Y-%m-%dT23:59:59+08:00"), query, count_key)
+            }''' % (fromTime.strftime("%Y-%m-%dT23:59:59+08:00"), query, count_key)
 
             res = self.request_get(self.getSearchUrl(index_name=query_index_name), data=data_json,
                                    headers=self.default_headers)
             if res.status_code != 200:
                 return {}
             data = res.json()
-            buckets_data = data['aggregations']['2']['buckets']
+            value = data['aggregations']['max_download']['value']
             fromTime += relativedelta(days=1)
-            if len(buckets_data) == 0:
+            if not value:
                 time_count_dict.update({id_key: 0})
                 continue
-            for bucket in buckets_data:
-                max_count = bucket['maxCount']['value']
-                if max_count is None:
-                    max_count = 0
-                if id_key in time_count_dict:
-                    max_count += time_count_dict.get(id_key)
-                time_count_dict.update({id_key: max_count})
+            if id_key in time_count_dict:
+                value += time_count_dict.get(id_key)
+            time_count_dict.update({id_key: value})
 
         res_dict = self.get_day_download(time_count_dict, to)
         return res_dict
@@ -2839,7 +2828,7 @@ class ESClient(object):
         res = self.request_get(url=url, headers=self.default_headers,
                                data=search.encode('utf-8'))
         if res.status_code != 200:
-            print('requests error')
+            print('requests error', res.text)
             return
         res_data = res.json()
         data = res_data['hits']['hits']
