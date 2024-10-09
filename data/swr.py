@@ -33,7 +33,7 @@ class Swr(object):
         self.password = self.config.get('password')
         self.domain = self.config.get('domain')
         self.region = self.config.get('region')
-        self.namespace = self.config.get('namespace')
+        self.namespaces = self.config.get('namespaces')
         self.token = self.generate_token()
         self.repos = self.config.get('repos')
 
@@ -77,26 +77,28 @@ class Swr(object):
             "Content-Type": 'application/json',
             'X-Auth-Token': self.token.get('token')
         }
-        param = {'namespace': self.namespace} if self.namespace else None
-        response = requests.get(url=self.repo_list_url, params=param, headers=_header, timeout=60)
-        if response.status_code != 200:
-            print('get namespace repo error: ', response.text)
-            return
-
-        now = datetime.datetime.today()
-        created_at = now.strftime("%Y-%m-%dT08:00:00+08:00")
         download = 0
         actions = ''
-        for repo in response.json():
-            action = {
-                'repo': repo.get('name'),
-                'repo_download': repo.get('num_download'),
-                'created_at': created_at
-            }
-            index_data = {"index": {"_index": self.index_name, "_id": repo.get('name') + created_at}}
-            actions += json.dumps(index_data) + '\n'
-            actions += json.dumps(action) + '\n'
-            download += repo.get('num_download')
+        now = datetime.datetime.today()
+        created_at = now.strftime("%Y-%m-%dT08:00:00+08:00")
+        for namespace in self.namespaces.split(','):
+            param = {'namespace': namespace} if namespace else None
+            response = requests.get(url=self.repo_list_url, params=param, headers=_header, timeout=60)
+            if response.status_code != 200:
+                print('get namespace repo error: ', response.text)
+                continue
+
+            for repo in response.json():
+                action = {
+                    'repo': repo.get('name'),
+                    'namespace': namespace,
+                    'repo_download': repo.get('num_download'),
+                    'created_at': created_at
+                }
+                index_data = {"index": {"_index": self.index_name, "_id": namespace + '-' + repo.get('name') + created_at}}
+                actions += json.dumps(index_data) + '\n'
+                actions += json.dumps(action) + '\n'
+                download += repo.get('num_download')
 
         action = {
             'download': download,
