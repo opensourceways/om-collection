@@ -1804,7 +1804,7 @@ class ESClient(object):
             elif field:
                 agg_json = '''"aggs": {"2": {"terms": {"field": "%s","size": 100000,"min_doc_count": 1}}}''' % field
             else:
-                agg_json = '''"aggs": {"2": {"date_histogram": {"interval": "10000d","field": "created_at","min_doc_count": 0}}}'''
+                agg_json = '''"aggs": {"2": {"date_histogram": {"interval": "100000d","field": "created_at","min_doc_count": 0}}}'''
 
             data_json = '''{
                 "size": 0,
@@ -2221,18 +2221,9 @@ class ESClient(object):
                         "min_doc_count": 1
                     },
                     "aggs": {
-                        "2": {
-                            "date_histogram": {
-                                "field": "metadata__updated_on",
-                                "format": "epoch_millis",
-                                "interval": "10000d"
-                            },
-                            "aggs": {
-                                "maxCount": {
-                                    "max": {
-                                        "field": "%s"
-                                    }
-                                }
+                        "maxCount": {
+                            "max": {
+                                "field": "%s"
                             }
                         }
                     }
@@ -2251,14 +2242,12 @@ class ESClient(object):
                 time_count_dict.update({id_key: 0})
                 continue
             for bucket_data in buckets_data:
-                buckets = bucket_data['2']['buckets']
-                for bucket in buckets:
-                    max_count = bucket['maxCount']['value']
-                    if max_count is None:
-                        max_count = 0
-                    if id_key in time_count_dict:
-                        max_count += time_count_dict.get(id_key)
-                    time_count_dict.update({id_key: max_count})
+                max_count = bucket_data['maxCount']['value']
+                if not max_count:
+                    max_count = 0
+                if id_key in time_count_dict:
+                    max_count += time_count_dict.get(id_key)
+                time_count_dict.update({id_key: max_count})
 
         res_dict = self.get_day_download(time_count_dict, to)
         return res_dict
@@ -2354,18 +2343,9 @@ class ESClient(object):
                         "min_doc_count": 1
                     },
                     "aggs": {
-                        "sum": {
-                            "date_histogram": {
-                                "field": "created_at",
-                                "format": "epoch_millis",
-                                "interval": "10000d"
-                            },
-                            "aggs": {
-                                "maxCount": {
-                                    "max": {
-                                        "field": "%s"
-                                    }
-                                }
+                        "maxCount": {
+                            "max": {
+                                "field": "%s"
                             }
                         }
                     }
@@ -2384,14 +2364,12 @@ class ESClient(object):
                 time_count_dict.update({id_key: 0})
                 continue
             for bucket_data in buckets_data:
-                buckets = bucket_data['sum']['buckets']
-                for bucket in buckets:
-                    max_count = bucket['maxCount']['value']
-                    if max_count is None:
-                        max_count = 0
-                    if id_key in time_count_dict:
-                        max_count += time_count_dict.get(id_key)
-                    time_count_dict.update({id_key: max_count})
+                max_count = bucket_data['maxCount']['value']
+                if max_count is None:
+                    max_count = 0
+                if id_key in time_count_dict:
+                    max_count += time_count_dict.get(id_key)
+                time_count_dict.update({id_key: max_count})
 
         res_dict = self.get_day_download(time_count_dict, to)
         return res_dict
@@ -2405,46 +2383,35 @@ class ESClient(object):
             stepTime = fromTime + relativedelta(days=1)
             id_key = time.mktime(fromTime.timetuple()) * 1000
             data_json = '''{
-            "size": 0,
-            "query": {
-                "bool": {
-                    "filter": [
-                        {
-                            "range": {
-                                "update_time": {
-                                    "gte": "%s",
-                                    "lte": "%s"
+                "size": 0,
+                "query": {
+                    "bool": {
+                        "filter": [
+                            {
+                                "range": {
+                                    "update_time": {
+                                        "gte": "%s",
+                                        "lte": "%s"
+                                    }
+                                }
+                            },
+                            {
+                                "query_string": {
+                                    "analyze_wildcard": true,
+                                    "query": "%s"
                                 }
                             }
-                        },
-                        {
-                            "query_string": {
-                                "analyze_wildcard": true,
-                                "query": "%s"
-                            }
-                        }
-                    ]
-                }
-            },
-
-            "aggs": {
-                "2": {
-                    "date_histogram": {
-                        "field": "update_time",
-                        "format": "epoch_millis",
-                        "interval": "10000d"
-                    },
-                    "aggs": {
-                        "maxCount": {
-                            "max": {
-                                "field": "%s"
-                            }
+                        ]
+                    }
+                },
+                "aggs": {
+                    "maxCount": {
+                        "max": {
+                            "field": "%s"
                         }
                     }
                 }
-            }
-
-        }''' % (fromTime.strftime("%Y-%m-%dT00:00:00+08:00"),
+            }''' % (fromTime.strftime("%Y-%m-%dT00:00:00+08:00"),
                 stepTime.strftime("%Y-%m-%dT00:00:00+08:00"),
                 query, count_key)
 
@@ -2453,17 +2420,12 @@ class ESClient(object):
             if res.status_code != 200:
                 return {}
             data = res.json()
-            buckets = data['aggregations']['2']['buckets']
+            max_count = data['aggregations']['maxCount']['value']
             fromTime += relativedelta(days=1)
-            if len(buckets) == 0:
-                time_count_dict.update({id_key: 0})
-                continue
-            for bucket in buckets:
-                max_count = bucket['maxCount']['value']
-                if max_count is None:
-                    max_count = 0
-                if id_key in time_count_dict:
-                    max_count += time_count_dict.get(id_key)
+            if not max_count:
+                max_count = 0
+            if id_key in time_count_dict:
+                max_count += time_count_dict.get(id_key)
                 time_count_dict.update({id_key: max_count})
 
         res_dict = self.get_day_download(time_count_dict, to)
