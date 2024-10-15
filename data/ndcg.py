@@ -59,18 +59,8 @@ class Ndcg(object):
                               }
                             },
                             {
-                              "exists": {
-                                "field": "properties.search_rank_num"
-                              }
-                            },
-                            {
                               "term": {
-                                "type.keyword": "profile_set"
-                              }
-                            },
-                            {
-                              "term": {
-                                "properties.profileType.keyword": "selectSearchResult"
+                                "event.keyword": "selectSearchResult"
                               }
                             }
                           ]
@@ -122,5 +112,4 @@ class Ndcg(object):
             index_data = {"index": {"_index": self.target_index, "_id": index_id}}
             actions += json.dumps(index_data) + '\n'
             actions += json.dumps(record) + '\n'
-
         self.esClient.safe_put_bulk(actions)
