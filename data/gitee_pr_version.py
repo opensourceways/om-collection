@@ -1,16 +1,22 @@
-#  Copyright (c) 2023.
-#  Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-#  Morbi non lorem porttitor neque feugiat blandit. Ut vitae ipsum eget quam lacinia accumsan.
-#  Etiam sed turpis ac ipsum condimentum fringilla. Maecenas magna.
-#  Proin dapibus sapien vel ante. Aliquam erat volutpat. Pellentesque sagittis ligula eget metus.
-#  Vestibulum commodo. Ut rhoncus gravida arcu.
-import base64
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright 2023 The community Authors.
+# A-Tune is licensed under the Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#     http://license.coscl.org.cn/MulanPSL2
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+# PURPOSE.
+# See the Mulan PSL v2 for more details.
+# Create: 2023/8/26
 import json
-import os
 
 import requests
 
 from data.common import ESClient
+from data.common_client.release_repo import ReleaseRepo
 
 
 class GiteePrVersion(object):
@@ -22,19 +28,26 @@ class GiteePrVersion(object):
         self.authorization = config.get('authorization')
         self.index_name = config.get('index_name')
         self.index_name_gitee = config.get('index_name_gitee')
-        self.gitee_token = config.get('gitee_token')
         self.esClient = ESClient(config)
         self.obs_meta_org = config.get('obs_meta_org')
         self.obs_meta_repo = config.get('obs_meta_repo')
         self.obs_meta_dir = config.get('obs_meta_dir')
         self.obs_versions = config.get('obs_versions')
         self.code_base_path = config.get('code_base_path')
-        self.cloc_bin_path = config.get('cloc_bin_path')
-        self.username = config.get('username')
-        self.password = config.get('password')
+        self.gitee_base = config.get('gitee_base')
+        self.platform = config.get('platform')
+
+    @staticmethod
+    def convert_vers(versions):
+        version_query = '''('''
+        for ver in versions:
+            version_query += '\\"' + ver + '\\",'
+        version_query += ''')'''
+        return version_query
 
     def run(self, from_time):
-        repo_versions = self.get_obs_meta()
+        release_client = ReleaseRepo(self.config)
+        repo_versions = release_client.get_repo_versions()
         for org in self.orgs.split(','):
             print('start org: ', org)
             self.reindex_pr(org, repo_versions)
@@ -44,57 +57,57 @@ class GiteePrVersion(object):
         for repo, versions in repo_versions.items():
             if org == 'openeuler' and repo != 'kernel':
                 continue
-            gitee_repo = 'https://gitee.com/%s/%s' % (org, repo)
-            for version in versions:
-                reindex_json = '''{
-                    "source": {
-                        "index": "%s",
-                        "query": {
-                            "bool": {
-                                "filter": [
-                                    {
-                                        "query_string": {
-                                            "analyze_wildcard": true,
-                                            "query": "is_gitee_pull_request:1 AND org_name.keyword:%s AND gitee_repo.keyword:\\"%s\\" AND base_label.keyword:%s AND !tag_user_company.keyword:robot"
-                                        }
-                                    }
-                                ]
-                            }
-                        }
-                    },
-                    "dest": {
-                        "index": "%s"
-                    }
-                }''' % (self.index_name_gitee, org, gitee_repo, version, self.index_name)
-                data_num = self.esClient.reindex(reindex_json.encode('utf-8'))
-                if data_num == 0:
-                    continue
-                print('reindex: %s(%s) -> %d over' % (repo, version, data_num))
-
-    def refresh_robot_pr(self, org, repo_versions):
-        for repo, versions in repo_versions.items():
-            if org == 'openeuler' and repo != 'kernel':
-                continue
-            print('start repo: ', repo)
-            gitee_repo = 'https://gitee.com/%s/%s' % (org, repo)
-            for version in versions:
-                query = '''{
-                    "size": 5000,
+            gitee_repo = f'{self.gitee_base}/{org}/{repo}'
+            version_str = self.convert_vers(versions)
+            reindex_json = '''{
+                "source": {
+                    "index": "%s",
                     "query": {
                         "bool": {
                             "filter": [
                                 {
                                     "query_string": {
                                         "analyze_wildcard": true,
-                                        "query": "is_gitee_pull_request:1 AND org_name.keyword:%s AND gitee_repo.keyword:\\"%s\\" AND base_label.keyword:%s AND tag_user_company.keyword:robot"
+                                        "query": "is_gitee_pull_request:1 AND org_name.keyword:%s AND gitee_repo.keyword:\\"%s\\" AND base_label.keyword:%s AND !tag_user_company.keyword:robot"
                                     }
                                 }
                             ]
                         }
-                    },
-                    "aggs": {}
-                }''' % (org, gitee_repo, version)
-                self.esClient.scrollSearch(self.index_name_gitee, search=query, func=self.get_pr_func)
+                    }
+                },
+                "dest": {
+                    "index": "%s"
+                }
+            }''' % (self.index_name_gitee, org, gitee_repo, version_str, self.index_name)
+            data_num = self.esClient.reindex(reindex_json.encode('utf-8'))
+            if data_num == 0:
+                continue
+            print('reindex: %s(%s) -> %d over' % (repo, versions, data_num))
+
+    def refresh_robot_pr(self, org, repo_versions):
+        for repo, versions in repo_versions.items():
+            if org == 'openeuler' and repo != 'kernel':
+                continue
+            print('start repo: ', repo)
+            gitee_repo = f'{self.gitee_base}/{org}/{repo}'
+            version_str = self.convert_vers(versions)
+            query = '''{
+                "size": 5000,
+                "query": {
+                    "bool": {
+                        "filter": [
+                            {
+                                "query_string": {
+                                    "analyze_wildcard": true,
+                                    "query": "is_gitee_pull_request:1 AND org_name.keyword:%s AND gitee_repo.keyword:\\"%s\\" AND base_label.keyword:%s AND tag_user_company.keyword:robot"
+                                }
+                            }
+                        ]
+                    }
+                },
+                "aggs": {}
+            }''' % (org, gitee_repo, version_str)
+            self.esClient.scrollSearch(self.index_name_gitee, search=query, func=self.get_pr_func)
 
     def get_pr_func(self, hits):
         actions = ''
@@ -149,68 +162,3 @@ class GiteePrVersion(object):
                 'is_admin_added': d['_source']['is_admin_added']
             }
         return user_info
-
-    def get_obs_meta(self):
-        obs_path = self.git_clone_or_pull_repo(owner=self.obs_meta_org, repo_name=self.obs_meta_repo)
-        meta_dir = obs_path if self.obs_meta_dir is None else os.path.join(obs_path, self.obs_meta_dir)
-        root, dirs, _ = os.walk(meta_dir).__next__()
-        if self.obs_versions:
-            obs_versions = self.obs_versions.split(";")
-            inter_versions = list(set(obs_versions).intersection(set(dirs)))
-        else:
-            def check_version(s):
-                return s.startswith("openEuler-")
-
-            inter_versions = list(filter(check_version, dirs))
-        repo_versions = {}
-        for version in inter_versions:
-            package_dirs = []
-            package_epol_dir = []
-            try:
-                # 注意，windows下不支持目录中包含”:“等符号
-                package_path = os.path.join(root, version, version.replace('-', ':'))
-                package_epol_path = os.path.join(root, version, ('%s:Epol' % version.replace('-', ':')))
-                if os.path.exists(package_path):
-                    _, package_dirs, _ = os.walk(package_path).__next__()
-                if os.path.exists(package_epol_path):
-                    _, package_epol_dir, _ = os.walk(package_epol_path).__next__()
-            except:
-                continue
-            package_union_dirs = list(set(package_dirs).union(set(package_epol_dir)))
-            for dir in package_union_dirs:
-                versions = repo_versions.get(dir)
-                if versions is not None:
-                    versions.append(version)
-                    repo_versions.update({dir: versions})
-                else:
-                    repo_versions.update({dir: [version]})
-        return repo_versions
-
-    def git_clone_or_pull_repo(self, owner, repo_name):
-        # 本地仓库目录
-        owner_path = self.code_base_path + 'gitee/' + owner + '/'
-        if not os.path.exists(owner_path):
-            os.makedirs(owner_path)
-        code_path = owner_path + repo_name
-
-        username = base64.b64decode(self.username).decode()
-        passwd = base64.b64decode(self.password).decode()
-        clone_url = 'https://%s:%s@gitee.com/%s/%s' % (username, passwd, owner, repo_name)
-
-        # 本地仓库已存在执行git pull；否则执行git clone
-        self.removeGitLockFile(code_path)
-        if os.path.exists(code_path):
-            cmd_pull = 'cd %s;git checkout .;git pull' % code_path
-            os.system(cmd_pull)
-        else:
-            if clone_url is None:
-                return
-            cmd_clone = 'cd %s;git clone %s' % (owner_path, clone_url + '.git')
-            os.system(cmd_clone)
-        return code_path
-
-    # 删除git lock
-    def removeGitLockFile(self, code_path):
-        lock_file = code_path + '/.git/index.lock'
-        if os.path.exists(lock_file):
-            os.remove(lock_file)
