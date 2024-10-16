@@ -188,7 +188,8 @@ class GitCommitLog(object):
         if branch_name != '':
             # checkout到指定分支获取数据
             print('*** start %s repo: %s/%s; branch: %s ***' % (platform, owner, repo_name, branch_name))
-            repo.git.checkout(branch_name)
+            if self.check_branch_faild(repo, branch_name):
+                return
             self.get_pull_branch(repo, code_path, branch_name)
             merge_commits = list(
                 repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name,
@@ -206,8 +207,8 @@ class GitCommitLog(object):
                     continue
                 branch_name = branch.split('/', 1)[1]
                 print('*** start %s repo: %s/%s; branch: %s ***' % (platform, owner, repo_name, branch_name))
-                repo.git.checkout(branch_name)
-                repo.git.checkout(branch_name)
+                if self.check_branch_faild(repo, branch_name):
+                    continue
                 self.get_pull_branch(repo, code_path, branch_name)
                 merge_commits = list(
                     repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name,
@@ -494,3 +495,13 @@ class GitCommitLog(object):
             print(f"{code_path} git pull {branch} success!")
         except GitCommandError as e:
             print(f"{code_path} git pull failed!", e)
+
+    # 切换分支，并且检查是否切换成功
+    def check_branch_faild(self, repo, branch_name):
+        try:
+            repo.git.checkout(branch_name)
+        except Exception:
+            print('*** branch checkout fail: %s' % branch_name)
+            return True
+        return False
+        
