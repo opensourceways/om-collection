@@ -34,6 +34,14 @@ class Polymerization(object):
         self.collections = config.get('collections')
         self.is_mix_download = config.get('is_mix_download')
         self.get_total_count_oversea = config.get('get_total_count_oversea')
+        self.origin_method_map = {
+            'dockerhub': self.esClient.splitMixDockerHub,
+            'xihe': self.esClient.getTotalXiheDown,
+            'oepkgs': self.esClient.getTotalOepkgsDown,
+            'swr': self.esClient.getTotalRepoDownload,
+            'crs': self.esClient.getTotalRepoDownload,
+            'quay': self.esClient.getTotalRepoDownload
+        }
 
     def run(self, from_time):
         startTime = time.time()
@@ -80,18 +88,14 @@ class Polymerization(object):
         j = json.loads(self.collections)
         counter = Counter({})
         for coll in j['collections']:
-            query, key_prefix, count_key, origin = None, None, None, None
-            if 'query' in coll:
-                query = coll['query']
-            if 'count_key' in coll:
-                count_key = coll['count_key']
-            if 'origin' in coll:
-                origin = coll['origin']
+            query = coll.get('query')
+            count_key = coll.get('count_key')
+            origin = coll.get('origin')
 
             query_index_name = coll['query_index_name']
             self.esClient.query_index_name = query_index_name
             polymerization_from_time = coll['polymerization_from_time']
-            if query is not None:
+            if query:
                 query = str(query).replace('"', '\\"')
             if origin == 'dockerhub':
                 time_count_dict = self.esClient.splitMixDockerHub(from_date=polymerization_from_time,
@@ -110,14 +114,12 @@ class Polymerization(object):
         j = json.loads(self.collections)
         com_keys = {}.keys()
         dicts = []
-        query, key_prefix, count_key, query_es = None, None, None, None
         for coll in j['collections']:
-            if 'query' in coll:
-                query = coll['query']
-            count_key = coll['count_key']
-            query_index_name = coll['query_index_name']
+            query = coll.get('query')
+            count_key = coll.get('count_key')
+            query_index_name = coll.get('query_index_name')
             self.esClient.query_index_name = query_index_name
-            if query is not None:
+            if query:
                 query = str(query).replace('"', '\\"')
             ip_first_dict = self.esClient.getFirstItemMix(query=query, key=count_key,
                                                           query_index_name=query_index_name)
@@ -141,49 +143,34 @@ class Polymerization(object):
         polymerization_from_time = self.from_d
         data_dict = {}
         for coll in j['collections']:
-            query, key_prefix, count_key = None, None, None
-            oversea, origin = None, None
-            if 'query' in coll:
-                query = coll['query']
-            if 'count_key' in coll:
-                count_key = coll['count_key']
-            if 'oversea' in coll:
-                oversea = coll['oversea']
-            if 'origin' in coll:
-                origin = coll['origin']
+            query = coll.get('query')
+            count_key = coll.get('count_key')
+            oversea = coll.get('oversea')
+            origin = coll.get('origin')
 
             print('start to collect download of %s from %s ...' % (origin, polymerization_from_time))
-            query_index_name = coll['query_index_name']
+            query_index_name = coll.get('query_index_name')
             self.esClient.query_index_name = query_index_name
-            if query is not None:
+            if query:
                 query = str(query).replace('"', '\\"')
-            if origin == 'dockerhub':
-                time_count_dict = self.esClient.splitMixDockerHub(from_date=polymerization_from_time,
-                                                                  count_key=count_key, query=query,
-                                                                  query_index_name=query_index_name)
-            elif origin == 'xihe':
-                time_count_dict = self.esClient.getTotalXiheDown(from_date=polymerization_from_time,
-                                                                 count_key=count_key, query=query,
-                                                                 query_index_name=query_index_name)
-            elif origin == 'oepkgs':
-                time_count_dict = self.esClient.getTotalOepkgsDown(from_date=polymerization_from_time,
-                                                                   count_key=count_key, query=query,
-                                                                   query_index_name=query_index_name)
-            elif origin == 'swr':
-                time_count_dict = self.esClient.splitSwr(from_date=polymerization_from_time,
-                                                         count_key=count_key, query=query,
-                                                         query_index_name=query_index_name)
+            
+            method_name = origin.split('-')[0]
+            if method_name in self.origin_method_map:
+                method = self.origin_method_map.get(method_name, self.esClient.getTotalCountMix)
+                time_count_dict = method(from_date=polymerization_from_time, 
+                                         count_key=count_key, 
+                                         query=query, 
+                                         query_index_name=query_index_name) 
             else:
                 time_count_dict = self.esClient.getTotalCountMix(polymerization_from_time, query=query,
                                                                  count_key=count_key, origin=origin)
 
             if oversea:
                 self.esClient.writeMixDownload(time_count_dict, "day_download", oversea, origin)
+            elif origin in data_dict:
+                data_dict.update({origin: data_dict.get(origin) + Counter(time_count_dict)})
             else:
-                if origin in data_dict:
-                    data_dict.update({origin: data_dict.get(origin) + Counter(time_count_dict)})
-                else:
-                    data_dict.update({origin: Counter(time_count_dict)})
+                data_dict[origin] = Counter(time_count_dict)
 
         for key in data_dict:
             self.esClient.writeMixDownload(dict(data_dict.get(key)), "day_download", None, key)
