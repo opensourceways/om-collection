@@ -2252,7 +2252,7 @@ class ESClient(object):
         res_dict = self.get_day_download(time_count_dict, to)
         return res_dict
 
-    def splitSwr(self, from_date, count_key, query=None, query_index_name=None):
+    def getTotalRepoDownload(self, from_date, count_key, query=None, query_index_name=None):
         fromTime = datetime.strptime(from_date, "%Y%m%d")
         to = datetime.today().strftime("%Y%m%d")
         time_count_dict = {}
