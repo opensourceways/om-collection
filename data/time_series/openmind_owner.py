@@ -17,6 +17,7 @@ import time
 
 from collect.api import request_url
 from data.common import ESClient
+from data.common_client.tag_removed_data import TagRemovedData
 
 
 class OpenmindOwner(object):
@@ -28,6 +29,7 @@ class OpenmindOwner(object):
         self.private_api_base = config.get('private_api_base')
         self.private_token = config.get('private_token')
         self.kind = config.get('kind')
+        self.last_ids = []
 
     def run(self, from_data=None):
         self.get_owners()
@@ -79,6 +81,8 @@ class OpenmindOwner(object):
                 created_at = ts_obj.strftime('%Y-%m-%dT%H:%M:%S+08:00')
                 obj['created_at'] = created_at
                 obj['type'] = kind
+                obj['visibility'] = 'public'
+                self.last_ids.append(kind + obj['id'])
                 index_data = {"index": {"_index": self.index_name, "_id": kind + obj['id']}}
                 actions += json.dumps(index_data) + '\n'
                 actions += json.dumps(obj) + '\n'
@@ -108,7 +112,7 @@ class OpenmindOwner(object):
             except Exception as e:
                 print(f'Get {kind} info error')
                 break
-            
+
             if not objs:
                 print(f'Get {kind} info error')
                 break
@@ -117,6 +121,8 @@ class OpenmindOwner(object):
                 created_at = ts_obj.strftime('%Y-%m-%dT%H:%M:%S+08:00')
                 obj['created_at'] = created_at
                 obj['type'] = kind
+                obj['visibility'] = 'private'
+                self.last_ids.append(kind + obj['id'])
                 index_data = {"index": {"_index": self.index_name, "_id": kind + obj['id']}}
                 actions += json.dumps(index_data) + '\n'
                 actions += json.dumps(obj) + '\n'
@@ -158,3 +164,9 @@ class OpenmindOwner(object):
         actions = json.dumps(index_data) + '\n'
         actions += json.dumps(action) + '\n'
         return actions
+
+    def tag_removed_data(self):
+        query = 'AND owner.keyword:*'
+        tag_client = TagRemovedData(self.config)
+        id_list = tag_client.query_id(self.last_ids, query)
+        tag_client.tag_removed_data(id_list)
