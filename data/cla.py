@@ -64,6 +64,8 @@ class Cla(object):
         corporation_infos = self.claClient.fetch_cla(url=corporation_url, method='get', headers=headers)
         corDict = []
         for corporation_info in corporation_infos['data']:
+            if corporation_info['corporation_name'].strip() == '中国电信股份有限公司云计算分公司':
+                corporation_info['corporation_name'] = '天翼云科技有限公司'
             signing_id = corporation_info['id']
             corporation_name = corporation_info['corporation_name'].strip()
             admin_name = corporation_info['admin_name']
