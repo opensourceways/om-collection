@@ -12,8 +12,8 @@
 # See the Mulan PSL v2 for more details.
 # Create: 2024/10/21
 import json
-import time
 
+from datetime import datetime, timedelta
 from data.common import ESClient
 from data.common_client.tag_removed_data import TagRemovedData
 
@@ -65,7 +65,8 @@ class DownloadCompute(object):
         return repos
 
     def query_download_info(self, repos):
-        created_at = time.strftime("%Y-%m-%d", time.localtime())
+        yesterday = datetime.now() - timedelta(days=1)
+        created_at = yesterday.strftime("%Y-%m-%d")
         search = '''{
             "size": 2000,
             "query": {
@@ -116,13 +117,6 @@ class DownloadCompute(object):
                             "query_string": {
                                 "analyze_wildcard": true,
                                 "query": "!is_removed:1"
-                            }
-                        },
-                        {
-                            "range": {
-                                "created_at": {
-                                    "lte": "2024-11-01"
-                                }
                             }
                         }
                     ]
