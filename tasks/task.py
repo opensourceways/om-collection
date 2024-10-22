@@ -103,7 +103,8 @@ BACKEND_MAPPING = {
     'event_log_v8': 'data.event_log_v8.EventLogV8',
     'gitee_sla': 'data.gitee_sla.GiteeSLA',
     'gitee_filter': 'data.gitee_filter.GiteeFilter',
-    'download_data': 'data.modelers.download.DownloadData'
+    'download_data': 'data.modelers.download.DownloadData',
+    'model_download_compute': 'data.combine.model_download_compute.DownloadCompute'
 }
 
 
