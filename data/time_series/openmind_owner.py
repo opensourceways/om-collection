@@ -37,6 +37,8 @@ class OpenmindOwner(object):
         for kind in kinds:
             self.get_public_repos(kind)
             self.get_private_repos(kind)
+        self.tag_removed_data()
+        self.last_ids = []
 
     def get_owners(self):
         owner_url = f'{self.api_base}/organization'

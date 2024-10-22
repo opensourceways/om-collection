@@ -75,3 +75,22 @@ class TagRemovedData(object):
     def tag_removed_data(self, id_list):
         id_lists = self.chunk_list(id_list, 1000)
         self.tag_removed_id(id_lists)
+
+    def tag_removed_term(self, field, remove):
+        query = {
+            "script": {
+                "source": "ctx._source.is_removed=1"
+            },
+            "query": {
+                "bool": {
+                    "must": [
+                        {
+                            "term": {
+                                f"{field}.keyword": remove
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+        self.esClient.updateByQuery(json.dumps(query))
