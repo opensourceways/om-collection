@@ -38,10 +38,9 @@ class Polymerization(object):
             'dockerhub': self.esClient.splitMixDockerHub,
             'xihe': self.esClient.getTotalXiheDown,
             'oepkgs': self.esClient.getTotalOepkgsDown,
-            'swr': self.esClient.getTotalRepoDownload,
-            'crs': self.esClient.getTotalRepoDownload,
-            'quay': self.esClient.getTotalRepoDownload
+            'max_total': self.esClient.getTotalRepoDownload
         }
+        self.max_total_origin = config.get('max_total_origin', 'swr').split(',')
 
     def run(self, from_time):
         startTime = time.time()
@@ -154,13 +153,13 @@ class Polymerization(object):
             if query:
                 query = str(query).replace('"', '\\"')
             
-            method_name = origin.split('-')[0]
+            method_name = 'max_total' if origin in self.max_total_origin else origin
             if method_name in self.origin_method_map:
-                method = self.origin_method_map.get(method_name, self.esClient.getTotalCountMix)
-                time_count_dict = method(from_date=polymerization_from_time, 
-                                         count_key=count_key, 
-                                         query=query, 
-                                         query_index_name=query_index_name) 
+                method = self.origin_method_map.get(method_name)
+                time_count_dict = method(from_date=polymerization_from_time,
+                                         count_key=count_key,
+                                         query=query,
+                                         query_index_name=query_index_name)
             else:
                 time_count_dict = self.esClient.getTotalCountMix(polymerization_from_time, query=query,
                                                                  count_key=count_key, origin=origin)
