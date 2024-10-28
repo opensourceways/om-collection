@@ -12,10 +12,11 @@
 # See the Mulan PSL v2 for more details.
 # Create: 2020-05
 #
-
+import json
 import time
 from collections import Counter
-import json
+from datetime import timedelta, datetime
+
 from data.common import ESClient
 
 
@@ -38,6 +39,7 @@ class Polymerization(object):
             'dockerhub': self.esClient.splitMixDockerHub,
             'xihe': self.esClient.getTotalXiheDown,
             'oepkgs': self.esClient.getTotalOepkgsDown,
+            'openmind': self.esClient.getOpenMindModelDown,
             'max_total': self.esClient.getTotalRepoDownload
         }
         self.max_total_origin = config.get('max_total_origin', 'swr').split(',')
@@ -139,7 +141,11 @@ class Polymerization(object):
 
     def getDownloadMixOversea(self):
         j = json.loads(self.collections)
-        polymerization_from_time = self.from_d
+        if not self.from_d:
+            from_d = datetime.now() - timedelta(weeks=1)
+            polymerization_from_time = from_d.strftime("%Y%m%d")
+        else:
+            polymerization_from_time = self.from_d
         data_dict = {}
         for coll in j['collections']:
             query = coll.get('query')
@@ -156,10 +162,13 @@ class Polymerization(object):
             method_name = 'max_total' if origin in self.max_total_origin else origin
             if method_name in self.origin_method_map:
                 method = self.origin_method_map.get(method_name)
-                time_count_dict = method(from_date=polymerization_from_time,
-                                         count_key=count_key,
-                                         query=query,
-                                         query_index_name=query_index_name)
+                params = {
+                    'from_date': polymerization_from_time,
+                    'count_key': count_key,
+                    'query': query,
+                    'query_index_name': query_index_name
+                }
+                time_count_dict = method(**params)
             else:
                 time_count_dict = self.esClient.getTotalCountMix(polymerization_from_time, query=query,
                                                                  count_key=count_key, origin=origin)
