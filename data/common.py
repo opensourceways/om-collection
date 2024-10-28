@@ -2407,26 +2407,42 @@ class ESClient(object):
                 "aggs": {
                     "maxCount": {
                         "max": {
-                            "field": "%s"
+                            "field": "download"
+                        }
+                    },
+                    "maxModel": {
+                        "max": {
+                            "field": "bigmodel"
+                        }
+                    },
+                    "maxCpu": {
+                        "max": {
+                            "field": "cloud/cpu"
+                        }
+                    },
+                    "maxNpu": {
+                        "max": {
+                            "field": "cloud/npu"
                         }
                     }
                 }
             }''' % (fromTime.strftime("%Y-%m-%dT00:00:00+08:00"),
                 stepTime.strftime("%Y-%m-%dT00:00:00+08:00"),
-                query, count_key)
+                query)
 
             res = self.request_get(self.getSearchUrl(index_name=query_index_name), data=data_json,
                                    headers=self.default_headers)
             if res.status_code != 200:
                 return {}
             data = res.json()
-            max_count = data['aggregations']['maxCount']['value']
+            max_count = ((data['aggregations']['maxCount']['value'] or 0)
+                         + (data['aggregations']['maxModel']['value'] or 0)
+                         + (data['aggregations']['maxCpu']['value'] or 0)
+                         + (data['aggregations']['maxNpu']['value'] or 0))
             fromTime += relativedelta(days=1)
-            if not max_count:
-                max_count = 0
             if id_key in time_count_dict:
                 max_count += time_count_dict.get(id_key)
-                time_count_dict.update({id_key: max_count})
+            time_count_dict.update({id_key: max_count})
 
         res_dict = self.get_day_download(time_count_dict, to)
         return res_dict
