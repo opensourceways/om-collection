@@ -2431,6 +2431,66 @@ class ESClient(object):
         res_dict = self.get_day_download(time_count_dict, to)
         return res_dict
 
+    def getOpenMindModelDown(self, from_date, count_key=None, query=None, query_index_name=None):
+        fromTime = datetime.strptime(from_date, "%Y%m%d")
+        to = datetime.today().strftime("%Y%m%d")
+        query = '*' if query is None else query
+        time_count_dict = {}
+        while fromTime.strftime("%Y%m%d") <= to:
+            created_at = fromTime.strftime("%Y-%m-%dT23:59:59+08:00")
+            if fromTime.strftime("%Y%m%d") == to:
+                created_at = fromTime.strftime("%Y-%m-%dT00:00:01+08:00")
+            data_json = '''{
+                "size": 0,
+                "query": {
+                    "bool": {
+                        "filter": [
+                            {
+                                "range": {
+                                    "created_at": {
+                                        "gte": "%s",
+                                        "lte": "%s"
+                                    }
+                                }
+                            },
+                            {
+                                "query_string": {
+                                    "analyze_wildcard": true,
+                                    "query": "%s"
+                                }
+                            }
+                        ]
+                    }
+                },
+                "aggs": {
+                    "git": {
+                        "sum": {
+                            "field": "is_git_clone"
+                        }
+                    },
+                    "web": {
+                        "sum": {
+                            "field": "is_web_download"
+                        }
+                    }
+                }
+            }''' % (fromTime.strftime("%Y-%m-%d"),
+                fromTime.strftime("%Y-%m-%d"),
+                query)
+
+            res = self.request_get(self.getSearchUrl(index_name=query_index_name), data=data_json,
+                                   headers=self.default_headers)
+            if res.status_code != 200:
+                return {}
+            data = res.json()
+            git_count = data['aggregations']['git']['value']
+            web_count = data['aggregations']['web']['value']
+            count = git_count + web_count // 2
+            fromTime += relativedelta(days=1)
+            time_count_dict.update({created_at: count})
+
+        return time_count_dict
+
     def get_day_download(self, time_count_dict, to):
         last_not_0_count = 0
         count_dict = {}
@@ -2454,7 +2514,6 @@ class ESClient(object):
 
     def getTotalCountMix(self, from_date, count_key,
                          field=None, query=None, origin=None):
-        starTime = datetime.strptime(from_date, "%Y%m%d")
         fromTime = datetime.strptime(from_date, "%Y%m%d")
         to = datetime.today().strftime("%Y%m%d")
 
@@ -2463,18 +2522,18 @@ class ESClient(object):
             created_at = fromTime.strftime("%Y-%m-%dT23:59:59+08:00")
             if fromTime.strftime("%Y%m%d") == to:
                 created_at = fromTime.strftime("%Y-%m-%dT00:00:01+08:00")
-            c = self.getCountByTermDate(
-                field,
-                count_key,
-                fromTime.strftime("%Y-%m-%d"),
-                fromTime.strftime("%Y-%m-%d"),
+            count = self.getCountByTermDate(
+                term=field,
+                field=count_key,
+                from_date=fromTime.strftime("%Y-%m-%d"),
+                to_date=fromTime.strftime("%Y-%m-%d"),
                 index_name=self.index_name,
                 query_index_name=self.query_index_name,
                 query=query,
                 origin=origin)
-            if c is None:
-                c = 0
-            time_count_dict.update({created_at: c})
+            if not count:
+                count = 0
+            time_count_dict.update({created_at: count})
             fromTime = fromTime + timedelta(days=1)
         return time_count_dict
 
