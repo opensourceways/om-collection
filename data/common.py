@@ -2494,16 +2494,16 @@ class ESClient(object):
     def get_day_download(self, time_count_dict, to):
         last_not_0_count = 0
         count_dict = {}
-        res_dict = {}
         for key, value in time_count_dict.items():
             dt = time.strftime("%Y%m%d", time.localtime(key / 1000))
             created_at = datetime.strptime(dt, "%Y%m%d").strftime("%Y-%m-%dT23:59:59+08:00")
-            res_dict.update({created_at: value})
             if dt == to:
                 created_at = datetime.strptime(dt, "%Y%m%d").strftime("%Y-%m-%dT00:00:01+08:00")
             before_value = time_count_dict.get(key - 86400000)
 
-            if value == 0 or before_value is None:
+            if not before_value:
+                continue
+            if value == 0:
                 count_dict.update({created_at: value})
             elif before_value != 0:
                 count_dict.update({created_at: value - before_value})
