@@ -40,6 +40,7 @@ class Polymerization(object):
             'xihe': self.esClient.getTotalXiheDown,
             'oepkgs': self.esClient.getTotalOepkgsDown,
             'openmind': self.esClient.getOpenMindModelDown,
+            'openmind_image': self.esClient.getTotalImageDown,
             'max_total': self.esClient.getTotalRepoDownload
         }
         self.max_total_origin = config.get('max_total_origin', 'swr').split(',')

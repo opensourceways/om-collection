@@ -2374,6 +2374,76 @@ class ESClient(object):
         res_dict = self.get_day_download(time_count_dict, to)
         return res_dict
 
+    def getTotalImageDown(self, from_date, count_key, query=None, query_index_name=None):
+        fromTime = datetime.strptime(from_date, "%Y%m%d")
+        to = datetime.today().strftime("%Y%m%d")
+        time_count_dict = {}
+        while fromTime.strftime("%Y%m%d") <= to:
+            id_key = time.mktime(fromTime.timetuple()) * 1000
+            data_json = '''{
+            "size": 0,
+            "query": {
+                "bool": {
+                    "filter": [
+                        {
+                            "range": {
+                                "created_at": {
+                                    "gte": "%s",
+                                    "lte": "%s"
+                                }
+                            }
+                        },
+                        {
+                            "query_string": {
+                                "analyze_wildcard": true,
+                                "query": "%s"
+                            }
+                        }
+                    ]
+                }
+            },
+            "aggs": {
+                "unique": {
+                    "terms": {
+                        "field": "unique.keyword",
+                        "size": 10000,
+                        "order": {
+                            "_key": "desc"
+                        },
+                        "min_doc_count": 1
+                    },
+                    "aggs": {
+                        "maxCount": {
+                            "max": {
+                                "field": "%s"
+                            }
+                        }
+                    }
+                }
+            }
+        }''' % (fromTime.strftime("%Y-%m-%d"), fromTime.strftime("%Y-%m-%d"), query, count_key)
+
+            res = self.request_get(self.getSearchUrl(index_name=query_index_name), data=data_json,
+                                   headers=self.default_headers)
+            if res.status_code != 200:
+                return {}
+            data = res.json()
+            buckets_data = data['aggregations']['unique']['buckets']
+            fromTime += relativedelta(days=1)
+            if len(buckets_data) == 0:
+                time_count_dict.update({id_key: 0})
+                continue
+            sum_count = 0
+            for bucket_data in buckets_data:
+                max_count = bucket_data['maxCount']['value']
+                if not max_count:
+                    max_count = 0
+                sum_count += max_count
+            time_count_dict[id_key] = sum_count
+
+        res_dict = self.get_day_download(time_count_dict, to)
+        return res_dict
+
     def getTotalXiheDown(self, from_date, count_key, query=None, query_index_name=None):
         fromTime = datetime.strptime(from_date, "%Y%m%d")
         to = datetime.today().strftime("%Y%m%d")
@@ -2517,7 +2587,7 @@ class ESClient(object):
                 created_at = datetime.strptime(dt, "%Y%m%d").strftime("%Y-%m-%dT00:00:01+08:00")
             before_value = time_count_dict.get(key - 86400000)
 
-            if not before_value:
+            if before_value is None:
                 continue
             if value == 0:
                 count_dict.update({created_at: value})
