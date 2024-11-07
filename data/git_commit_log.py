@@ -59,7 +59,7 @@ class GitCommitLog(object):
         self.repo_sigs_dict = defaultdict(dict)
         self.white_box_yaml = config.get('white_box_yaml')
         self.upstream_yaml = config.get('upstream_yaml')
-        self.user_yaml = config.get('user_yaml')
+        self.user_file = config.get('user_file')
         self.company_yaml = config.get('company_yaml')
         self.model_repo_yaml = config.get('model_repo_yaml')
         self.all_repo_default_branch = config.get('all_repo_default_branch', 'false')
@@ -89,7 +89,7 @@ class GitCommitLog(object):
             self.getCommitWhiteBox(all_branch_repos)  # 获取全部分支commit
         elif self.upstream_yaml:  # upstream 指定仓库
             self.email_orgs_dict, self.domain_orgs_dict, self.email_user_dict = self.getUpstreamCompany(
-                user_yaml=self.user_yaml, company_yaml=self.company_yaml)
+                user_file=self.user_file, company_yaml=self.company_yaml)
             all_branch_repos, default_branch_repos = self.getReposFromYaml(yaml_file=self.upstream_yaml)
             self.getCommitWhiteBox(default_branch_repos, 'default')  # 只是获取默认分支commit
             self.getCommitWhiteBox(all_branch_repos)  # 获取全部分支commit
@@ -428,7 +428,7 @@ class GitCommitLog(object):
                 print('*** platform: %s, owner: %s, repo: %s, fail ***' % (platform, owner, repo))
 
     # upstream 需要从yaml中获取组织
-    def getUpstreamCompany(self, user_yaml, company_yaml):
+    def getUpstreamCompany(self, user_file, company_yaml):
         email_org_dict = {}
         domain_org_dict = {}
         email_user_dict = {}
@@ -436,8 +436,9 @@ class GitCommitLog(object):
             domain_org_dict, aliases_company_dict = self.get_domain_org(company_yaml)
 
             # 用户邮箱和组织
-            user_datas = self.get_yaml_file(user_yaml)
-            for user in user_datas['users']:
+            yaml_list = self.get_yaml_list(user_file)
+            user_datas = self.get_user_info_from_yaml(yaml_list)
+            for user in user_datas:
                 user_company = user['companies'][0]['company_name']
                 if user_company in aliases_company_dict:
                     user_company = aliases_company_dict[user_company]
@@ -482,6 +483,28 @@ class GitCommitLog(object):
             return
         return yaml_json
 
+    def get_yaml_list(self, yaml_file):
+        yaml_list = []
+        if GITEE_BASE in yaml_file:
+            token = self.gitee_access_token
+        else:
+            token = self.github_access_token
+        headers = {'Authorization': f'token {token}'}
+        response = requests.get(yaml_file, headers=headers, verify=False, timeout=60)
+        if response.status_code != 200:
+            return yaml_list
+        for file in response.json():
+            if file.get('download_url', '').endswith('yaml'):
+                yaml_list.append(file.get('download_url'))
+        return yaml_list
+
+    def get_user_info_from_yaml(self, yaml_list):
+        users = []
+        for yaml_url in yaml_list:
+            yaml_json = self.get_yaml_file(yaml_url).get('users')
+            users.extend(yaml_json)
+        return users
+
     @staticmethod
     def get_pull_branch(repo, code_path, branch):
         try:
@@ -494,7 +517,7 @@ class GitCommitLog(object):
             repo.git.reset('--hard', reset_branch)
             print(f"{code_path} git pull {branch} success!")
         except GitCommandError as e:
-            print(f"{code_path} git pull failed!", e)
+            print(f"{code_path} git pull {branch} failed!", e)
 
     # 切换分支，并且检查是否切换成功
     def check_branch_faild(self, repo, branch_name):
