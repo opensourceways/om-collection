@@ -59,6 +59,7 @@ class SigMaintainer(object):
         self.email_gitee_es = config.get('email_gitee_es')
         self.email_gitee_authorization = config.get('email_gitee_authorization')
         self.email_gitee_index = config.get('email_gitee_index')
+        self.platform = config.get('platform', 'gitee')
 
     def run(self, from_time):
         self.download_sigs()
@@ -139,38 +140,47 @@ class SigMaintainer(object):
             requests.post(url, headers=self.esClient.default_headers, verify=False, data=mark)
             print('<%s> has been marked for removal' % s)
 
-    def get_sig_repos(self, dir):
+    def get_sig_repos_openeuler(self):
+        sig_repos_dict = {}
+        dirs = os.walk(self.sigs_dirs_path).__next__()[1]
+        for sig in dirs:
+            sig_repo_path = self.sigs_dirs_path + '/' + sig
+            repo_path_dirs = os.walk(sig_repo_path).__next__()[1]
+            sig_repo_list = self.get_sig_repos_by_org('openeuler', repo_path_dirs, sig_repo_path)
+            sig_repo_list.extend(self.get_sig_repos_by_org('src-openeuler', repo_path_dirs, sig_repo_path))
+            sig_repos_dict.update({sig: sig_repo_list})
+        return sig_repos_dict
+
+    def get_sig_repos_openubmc(self):
+        sig_repos_dict = {}
+        dirs = os.walk(self.sigs_dirs_path).__next__()[1]
+        for sig in dirs:
+            repo_path_dir = os.path.join(self.sigs_dirs_path, sig, 'repo-info.yaml')
+            try:
+                repo_info = yaml.load_all(open(repo_path_dir), Loader=yaml.Loader).__next__()
+                sig_repo_list = []
+                for repo in repo_info:
+                    sig_repo_list.append(self.org + '/' + repo['name'])
+                sig_repos_dict.update({sig: sig_repo_list})
+            except (yaml.YAMLError, IOError) as e:
+                print(f"Error reading or parsing {repo_path_dir}: {e}")
+        return sig_repos_dict
+
+    @staticmethod
+    def get_sig_repos_by_org(org, repo_path_dirs, sig_repo_path):
         sig_repo_list = []
-        sig_repo_path = self.sigs_dirs_path + '/' + dir
-        repo_path_dirs = os.walk(sig_repo_path).__next__()[1]
-
-        if 'openeuler' in repo_path_dirs:
-            repo_path_dir = sig_repo_path + '/' + 'openeuler'
-            repo_paths = os.walk(repo_path_dir).__next__()[1]
-            if repo_paths is None:
-                return sig_repo_list
-            for repo_path in repo_paths:
-                yaml_dir_path = repo_path_dir + '/' + repo_path
-                yaml_dir = os.walk(yaml_dir_path).__next__()[2]
-                for file in yaml_dir:
-                    yaml_path = yaml_dir_path + '/' + file
-                    repo_name = 'openeuler/' + yaml.load_all(open(yaml_path),
-                                                             Loader=yaml.Loader).__next__()['name']
+        if org not in repo_path_dirs:
+            return sig_repo_list
+        repo_path_dir = os.path.join(sig_repo_path, org)
+        for root, dirs, files in os.walk(repo_path_dir):
+            for file in files:
+                yaml_path = os.path.join(root, file)
+                try:
+                    name = yaml.load_all(open(yaml_path), Loader=yaml.Loader).__next__()['name']
+                    repo_name = f"{org}/{name}"
                     sig_repo_list.append(repo_name)
-
-        if 'src-openeuler' in repo_path_dirs:
-            repo_path_dir = sig_repo_path + '/' + 'src-openeuler'
-            repo_paths = os.walk(repo_path_dir).__next__()[1]
-            if repo_paths is None:
-                return sig_repo_list
-            for repo_path in repo_paths:
-                yaml_dir_path = repo_path_dir + '/' + repo_path
-                yaml_dir = os.walk(yaml_dir_path).__next__()[2]
-                for file in yaml_dir:
-                    yaml_path = yaml_dir_path + '/' + file
-                    repo_name = 'src-openeuler/' + yaml.load_all(open(yaml_path),
-                                                                 Loader=yaml.Loader).__next__()['name']
-                    sig_repo_list.append(repo_name)
+                except (yaml.YAMLError, IOError) as e:
+                    print(f"Error reading or parsing {yaml_path}: {e}")
         return sig_repo_list
 
     def get_sig_repos_opengauss(self):
@@ -194,12 +204,11 @@ class SigMaintainer(object):
     def get_sig_repo_dict(self):
         sig_repos_dict = {}
         if self.org == 'openeuler':
-            dirs = os.walk(self.sigs_dirs_path).__next__()[1]
-            for dir in dirs:
-                sig_repo_list = self.get_sig_repos(dir)
-                sig_repos_dict.update({dir: sig_repo_list})
-        if self.org == 'opengauss':
+            sig_repos_dict = self.get_sig_repos_openeuler()
+        elif self.org == 'opengauss':
             sig_repos_dict = self.get_sig_repos_opengauss()
+        else:
+            sig_repos_dict = self.get_sig_repos_openubmc()
         return sig_repos_dict
 
     def get_id_func(self, hit):
@@ -303,7 +312,7 @@ class SigMaintainer(object):
             for r in rs:
                 if r == '':
                     continue
-                if re.search(r'\+\s*-\s*gitee_id:\s*%s' % user, r):
+                if re.search(r'\+\s*-\s*%s_id:\s*%s' % (self.platform, user), r):
                     date = re.search(r'Date:\s*(.*)\n', r).group(1)
                     # time_struct = time.strptime(date, '%a %b %d %H:%M:%S %Y')
                     time_struct = time.strptime(date.strip()[:-6], '%a %b %d %H:%M:%S %Y')
@@ -346,16 +355,22 @@ class SigMaintainer(object):
         dataw.update(userExtra)
         return dataw
 
-    def get_repo_committer_from_yaml(self, repositories):
+    def get_repo_committer_from_yaml(self, info):
         repo_committer_dict = {}
         committers = []
-        for repo in repositories:
-            for r in repo['repo']:
-                if repo.get('committers'):
-                    user_login = [user['gitee_id'] for user in repo['committers']]
-                    repo_committer_dict.update({r: user_login})
-            if 'committers' in repo:
-                committers.extend(repo['committers'])
+        for repo in info.get('repositories'):
+            try:
+                for r in repo['repo']:
+                    if repo.get('committers'):
+                        user_login = [user[f'{self.platform}_id'] for user in repo['committers']]
+                        repo_committer_dict.update({r: user_login})
+                if 'committers' in repo:
+                    committers.extend(repo['committers'])
+            except TypeError as e:
+                print("Committer has all repository permissions")
+                committers = info.get('committers')
+                user_login = [user[f'{self.platform}_id'] for user in committers]
+                repo_committer_dict.update({repo: user_login})
         return committers, repo_committer_dict
 
     def download_sigs(self):
@@ -433,18 +448,18 @@ class SigMaintainer(object):
                     sig_info = self.sigs_dirs_path + '/' + dir + '/' + 'sig-info.yaml'
                     info = yaml.load_all(open(sig_info), Loader=yaml.Loader).__next__()
                     if info.get('repositories'):
-                        committers, repo_committer_dic = self.get_repo_committer_from_yaml(info.get('repositories'))
+                        committers, repo_committer_dic = self.get_repo_committer_from_yaml(info)
                     else:
-                        committers = info['committers'] if 'committers' in info and info['committers'] else None
+                        committers = info.get('committers')
                     repos = sig_repos_dict.get(dir)
                     datas = ''
                     if 'maintainers' in info and info['maintainers']:
                         users_info = info['maintainers']
-                        maintainer_users = [user['gitee_id'] for user in users_info]
+                        maintainer_users = [user[f'{self.platform}_id'] for user in users_info]
                         datas = self.get_sig_info('maintainers', repos, maintainer_users, dir)
 
                     if committers and len(committers) != 0:
-                        committer_users = [user['gitee_id'] for user in committers]
+                        committer_users = [user[f'{self.platform}_id'] for user in committers]
                         datas += self.get_sig_info('committers', repos, committer_users, dir, repo_committer_dic)
                     self.esClient.safe_put_bulk(datas)
                     print("this sig done: %s" % dir)
@@ -511,13 +526,13 @@ class SigMaintainer(object):
                         maintainer_list = info['maintainers']
                         self.get_owner_info(maintainer_list)
                         action.update({'maintainer_info': self.attach_user_info(maintainer_list)})
-                        maintainers = [user['gitee_id'] for user in info['maintainers']]
+                        maintainers = [user[f'{self.platform}_id'] for user in info['maintainers']]
                         action.update({'maintainers': maintainers})
                     if info.get('repositories'):
-                        committer_list = self.get_repo_committer_from_yaml(info.get('repositories'))[0]
+                        committer_list = self.get_repo_committer_from_yaml(info)[0]
                         self.get_owner_info(committer_list)
                         action.update({'committer_info': self.attach_user_info(committer_list)})
-                        committers = [user['gitee_id'] for user in committer_list]
+                        committers = [user[f'{self.platform}_id'] for user in committer_list]
                         action.update({'committers': committers})
                 except FileNotFoundError:
                     print('sig-info.yaml %s is not exist.' % dir)
@@ -551,11 +566,11 @@ class SigMaintainer(object):
         user_list = []
         for user in users:
             try:
-                gitee_id = user.get('gitee_id')
+                login_id = user.get(f'{self.platform}_id')
                 user_dict = user
-                user_dict['avatar_url'] = self.owner_info_dict.get(gitee_id, {}).get('avatar_url')
+                user_dict['avatar_url'] = self.owner_info_dict.get(login_id, {}).get('avatar_url')
             except AttributeError:
-                user_dict = {'gitee_id': user}
+                user_dict = {f'{self.platform}_id': user}
             user_list.append(user_dict)
         return user_list
 
@@ -583,15 +598,13 @@ class SigMaintainer(object):
                 sig = info.get('group_name')
                 maillist = info.get('maillist')
                 self.sig_mail_dict.update({sig: maillist})
-            return
-        if self.org == 'opengauss':
+        elif self.org == 'opengauss':
             try:
                 res = yaml.load_all(open(self.maillist_path), Loader=yaml.Loader).__next__()
                 for key, val in res.items():
                     self.sig_mail_dict.update({key: val})
             except FileNotFoundError:
                 print('maillist_path missing.')
-        print(self.sig_mail_dict)
 
     def get_mailing_list(self, sig, info):
         mailing_list = 'dev@openeuler.org'
@@ -606,27 +619,27 @@ class SigMaintainer(object):
 
     def get_owner_info(self, owners):
         for owner in owners:
-            gitee_id = owner.get('gitee_id')
-            if not gitee_id:
+            login_id = owner.get(f'{self.platform}_id')
+            if not login_id:
                 continue
-            if gitee_id not in self.owner_info_dict:
-                email = self.get_email_by_gitee_id(gitee_id)
+            if login_id not in self.owner_info_dict:
+                email = self.get_email_by_gitee_id(login_id)
                 if owner.get('email') and owner.get('email', 'na').lower() != 'na':
                     email = owner.get('email')
                 owner_info = {
                     'organization': owner.get('organization', 'na'),
                     'email': email,
                     'name': owner.get('name'),
-                    'avatar_url': self.get_user_info(gitee_id)
+                    'avatar_url': self.get_user_info(login_id)
                 }
-                self.owner_info_dict[gitee_id] = owner_info
+                self.owner_info_dict[login_id] = owner_info
             else:
                 if owner.get('email', 'na').lower() != 'na':
-                    self.owner_info_dict[gitee_id].update({'email': owner.get('email')})
+                    self.owner_info_dict[login_id].update({'email': owner.get('email')})
                 if owner.get('organization', 'na').lower() != 'na':
-                    self.owner_info_dict[gitee_id].update({'organization': owner.get('organization')})
+                    self.owner_info_dict[login_id].update({'organization': owner.get('organization')})
 
-    def get_email_by_gitee_id(self, gitee_id):
+    def get_email_by_gitee_id(self, login_id):
         search = '''{
             "size": 10,
             "query": {
@@ -648,7 +661,7 @@ class SigMaintainer(object):
                     }
                 }
             ]
-        }''' % gitee_id
+        }''' % login_id
         headers = {
                 'Content-Type': 'application/json',
                 'Authorization': self.email_gitee_authorization
