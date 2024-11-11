@@ -93,6 +93,7 @@ class GitCommitLog(object):
             all_branch_repos, default_branch_repos = self.getReposFromYaml(yaml_file=self.upstream_yaml)
             self.getCommitWhiteBox(default_branch_repos, 'default')  # 只是获取默认分支commit
             self.getCommitWhiteBox(all_branch_repos)  # 获取全部分支commit
+            self.update_company_changed()
         elif self.model_repo_yaml:  # 大模型指定仓库
             self.domain_orgs_dict, aliases_company_dict = self.get_domain_org(company_yaml=self.company_yaml)
             all_branch_repos, default_branch_repos = self.getReposFromYaml(yaml_file=self.model_repo_yaml)
@@ -236,7 +237,9 @@ class GitCommitLog(object):
             email = commit.author.email
             email_domain = email.split('@')[-1]
             if self.email_orgs_dict and email in self.email_orgs_dict:
-                company = self.email_orgs_dict[email]
+                companies = self.email_orgs_dict[email]
+                commit_time = str(commit.committed_datetime).split(' ')[0]
+                company = self.get_company_by_end_date(companies, commit_time)
             elif self.domain_orgs_dict and email_domain in self.domain_orgs_dict:
                 company = self.domain_orgs_dict[email_domain]
 
@@ -305,6 +308,52 @@ class GitCommitLog(object):
                 count = 0
                 actions = ''
         self.esClient.safe_put_bulk(actions)
+
+    @staticmethod
+    def get_company_by_end_date(companies, commit_time):
+        if len(companies) == 1:
+            return companies[0]['company_name']
+
+        for company_info in companies:
+            if commit_time < company_info['end_date']:
+                return company_info['company_name']
+        return companies[0]['company_name']
+
+    def update_company_changed(self):
+        for email, companies in self.email_orgs_dict.items():
+            start_date = '0000-01-01'
+            for i in range(1, len(companies)):
+                if start_date > self.start_date:
+                    continue
+                end_date = companies[i]['end_date']
+                company = companies[i]['company_name']
+                query = '''{
+                    "script": {
+                        "source": "ctx._source['tag_user_company']='%s'"
+                    },
+                    "query": {
+                        "bool": {
+                            "filter": [
+                                {
+                                    "range": {
+                                        "created_at": {
+                                            "gt": "%s",
+                                            "lte": "%s"
+                                        }
+                                    }
+                                },
+                                {
+                                    "query_string": {
+                                        "analyze_wildcard": true,
+                                        "query": "email.keyword.keyword:%s AND !tag_user_company.keyword:%s"
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }''' % (company, start_date, end_date, email, company)
+                start_date = end_date
+                self.esClient.updateByQuery(query=query.encode('utf-8'))
 
     # 删除git lock
     def removeGitLockFile(self, code_path):
@@ -439,11 +488,17 @@ class GitCommitLog(object):
             yaml_list = self.get_yaml_list(user_file)
             user_datas = self.get_user_info_from_yaml(yaml_list)
             for user in user_datas:
-                user_company = user['companies'][0]['company_name']
-                if user_company in aliases_company_dict:
-                    user_company = aliases_company_dict[user_company]
+                user_companies = []
+                for company in user['companies']:
+                    user_company = company['company_name']
+                    if user_company in aliases_company_dict:
+                        user_company = aliases_company_dict[user_company]
+                    company['company_name'] = user_company
+                    user_companies.append(company)
+
+                user_companies.sort(key=lambda x: x['end_date'])
                 for email in user['emails']:
-                    email_org_dict.update({email: user_company})
+                    email_org_dict.update({email: user_companies})
                     email_user_dict.update({email: user.get('user_name')})
 
             return email_org_dict, domain_org_dict, email_user_dict
@@ -527,4 +582,3 @@ class GitCommitLog(object):
             print('*** branch checkout fail: %s' % branch_name)
             return True
         return False
-        
