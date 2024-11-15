@@ -577,7 +577,7 @@ class GitCommitLog(object):
     # 切换分支，并且检查是否切换成功
     def check_branch_faild(self, repo, branch_name):
         try:
-            repo.git.checkout(branch_name)
+            repo.git.checkout('-f', branch_name)
         except Exception:
             print('*** branch checkout fail: %s' % branch_name)
             return True
