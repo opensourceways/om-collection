@@ -17,6 +17,7 @@ import datetime
 import hashlib
 import json
 import os
+import requests
 import subprocess
 import time
 import traceback
@@ -25,10 +26,12 @@ from json import JSONDecodeError
 
 import git
 import yaml
+from git import GitCommandError
 
 from collect.gitee import GiteeClient
 from collect.github import GithubClient
 from data.common import ESClient
+from data.common_client.release_repo import ReleaseRepo
 
 GITEE_BASE = "gitee.com"
 GITHUB_BASE = "github.com"
@@ -58,6 +61,13 @@ class CodeStatistics(object):
         self.company_aliases_yaml_url = config.get('company_aliases_yaml_url')
         self.company_aliases_yaml_path = config.get('company_aliases_yaml_path')
         self.time_now = ''
+        self.version_org = config.get('version_org')
+
+        self.github_access_token = config.get('github_access_token')
+        self.gitee_access_token = config.get('gitee_access_token')
+
+        self.query_es = config.get('query_es')
+        self.query_auth = config.get('query_auth')
 
     def run(self, from_time):
         print("code statistics: start")
@@ -70,61 +80,81 @@ class CodeStatistics(object):
         # 仓库 -> 维护仓库的企业（根据maintainer的gitee_id识别）
         repo_company_dict = self.esClient.getRepoOrganizations(field='tag_user_company',
                                                                company_aliases_dict=company_aliases_dict,
-                                                               is_sig_info_yaml=False)
+                                                               is_sig_info_yaml=False,
+                                                               query_es=self.query_es,
+                                                               query_auth=self.query_auth)
 
         # 仓库 -> 维护仓库的组织（根据sig-info.yaml记录识别）
         repo_org_dict = self.esClient.getRepoOrganizations(field='organization',
                                                            company_aliases_dict=company_aliases_dict,
-                                                           is_sig_info_yaml=True)
+                                                           is_sig_info_yaml=True,
+                                                           query_es=self.query_es,
+                                                           query_auth=self.query_auth)
 
         # 仓库对应的sig
-        repo_sigs_dict = self.esClient.getRepoSigs()
+        repo_sigs_dict = self.esClient.getRepoSigs(query_es=self.query_es, query_auth=self.query_auth)
+
+        # 仓库对应的版本
+        repo_versions = {}
+        if self.is_version_statistic == 'true':
+            release_client = ReleaseRepo(self.config)
+            repo_versions = release_client.get_repo_versions()
 
         for org in self.orgs.split(';'):
-            # 获取组织下所有的仓库
-            repos = self.get_repos(owner=org)
-            for repo in repos:
-                org_repo = org + '/' + repo
-                # 维护该仓库的sigs
-                sig_names = ['No-SIG']
-                if org_repo in repo_sigs_dict:
-                    sig_names = repo_sigs_dict[org_repo]
-                # 维护该仓库的companies
-                tag_user_companies = ['independent']
-                if org_repo in repo_org_dict:
-                    tag_user_companies = repo_org_dict[org_repo]
-                elif org_repo in repo_company_dict:
-                    tag_user_companies = repo_company_dict[org_repo]
-
-                repo_url = 'https://{}.com/{}/{}'.format(self.platform, org, repo)
-
-                repo_info = {'repo_platform': self.platform,
-                             'repo_owner': org,
-                             'repo_name': repo,
-                             'repo_url': repo_url,
-                             'update_at': self.time_now,
-                             'sig_names': sig_names,
-                             'tag_user_company': tag_user_companies,
-                             'is_last': 1}
-
-                # 统计每个仓库的代码量
-                if self.is_repo_statistic == 'true':
+            # 统计每个仓库的代码量
+            if self.is_repo_statistic == 'true':
+                # 获取组织下所有的仓库
+                repos = self.get_repos(owner=org)
+                for repo in repos:
+                    repo_info = self.get_base_repo_info(org, repo, repo_sigs_dict, repo_org_dict, repo_company_dict)
                     self.statistics_code_of_repo(owner=org, repo=repo, repo_info=repo_info)
 
-                # 统计每个版本的代码量
-                if self.is_version_statistic == 'true' and org == self.obs_meta_org:
-                    # 仓库对应的版本
-                    repo_versions = self.get_obs_meta()
-                    self.statistics_code_of_version(owner=org, repo=repo, repo_info=repo_info,
-                                                    repo_versions=repo_versions)
+            # 统计每个版本的代码量
+            if self.is_version_statistic == 'true' and self.version_org:
+                for repo, branches in repo_versions.items():
+                    repo_info = self.get_base_repo_info(self.version_org, repo, repo_sigs_dict,
+                                                        repo_org_dict, repo_company_dict)
+                    self.statistics_code_of_version(owner=self.version_org, repo=repo,
+                                                    repo_info=repo_info, branches=branches)
+
+    def get_base_repo_info(self, org, repo, repo_sigs_dict, repo_org_dict, repo_company_dict):
+        org_repo = org + '/' + repo
+        # 维护该仓库的sigs
+        sig_names = ['No-SIG']
+        if org_repo in repo_sigs_dict:
+            sig_names = repo_sigs_dict[org_repo]
+        # 维护该仓库的companies
+        tag_user_companies = ['independent']
+        if org_repo in repo_org_dict:
+            tag_user_companies = repo_org_dict[org_repo]
+        elif org_repo in repo_company_dict:
+            tag_user_companies = repo_company_dict[org_repo]
+
+        repo_url = 'https://{}.com/{}/{}'.format(self.platform, org, repo)
+
+        repo_info = {
+            'repo_platform': self.platform,
+            'repo_owner': org,
+            'repo_name': repo,
+            'repo_url': repo_url,
+            'update_at': self.time_now,
+            'sig_names': sig_names,
+            'tag_user_company': tag_user_companies,
+            'is_last': 1
+        }
+        return repo_info
 
     def getCompanyAliasesName(self):
-        cmd = 'wget -N -P %s %s' % (self.company_aliases_yaml_path, self.company_aliases_yaml_url)
-        os.system(cmd)
-        user_file_name = str(self.company_aliases_yaml_url).split('/')[-1]
-        user_file = self.company_aliases_yaml_path + user_file_name
-
-        datas = yaml.safe_load_all(open(user_file, encoding='UTF-8')).__next__()
+        yaml_response = requests.get(self.company_aliases_yaml_url, verify=False, timeout=60)
+        if yaml_response.status_code != 200:
+            print('Cannot fetch online yaml file.', yaml_response.text)
+            return {}
+        try:
+            yaml_json = yaml.safe_load(yaml_response.text)
+        except yaml.YAMLError as e:
+            print(f'Error parsing YAML: {e}')
+            return {}
+        datas = yaml_json
         company_aliases_dict = {}
         for item in datas['companies']:
             company_cn = item['company_cn']
@@ -134,13 +164,8 @@ class CodeStatistics(object):
                 company_aliases_dict[aliases] = company_cn
         return company_aliases_dict
 
-    def statistics_code_of_version(self, owner, repo, repo_info, repo_versions):
+    def statistics_code_of_version(self, owner, repo, repo_info, branches):
         print('**** statistics_code_of_version start : %s/%s' % (owner, repo))
-        if repo not in repo_versions:
-            print('*** repo has no versions : %s/%s' % (owner, repo))
-            return
-        branches = repo_versions.get(repo)
-
         action = repo_info.copy()
         repo_path = self.git_clone_or_pull_repo(platform=self.platform, owner=owner, repo_name=repo)
         git_repo = None
@@ -160,12 +185,9 @@ class CodeStatistics(object):
                 s_time = datetime.datetime.now()
                 actions = ''
                 # 切换到版本分支
-                try:
-                    git_repo.git.checkout(branch)
-                except Exception:
-                    print('*** %s/%s has no branch : %s' % (owner, repo, branch))
+                if self.check_branch_failed(git_repo, branch):
                     continue
-                print('*** checkout branch : %s' % branch)
+                self.get_pull_branch(git_repo, repo_path, branch)
 
                 # 解压压缩文件
                 self.decompress(repo_path)
@@ -219,18 +241,21 @@ class CodeStatistics(object):
             git_repo = git.Repo(repo_path)
             # 识别主分支
             default_branch = 'master'
-            branchs = git_repo.git.branch('-r').split('\n')
-            for b in branchs:
-                if b.startswith(DEFAULT_BRANCH_HEAD):
-                    default_branch = b.replace(DEFAULT_BRANCH_HEAD, '').split('/', 1)[1]
+            branches = git_repo.git.branch('-r').split('\n')
+            for branch in branches:
+                if branch.startswith(DEFAULT_BRANCH_HEAD):
+                    default_branch = branch.replace(DEFAULT_BRANCH_HEAD, '').split('/', 1)[1]
                     break
             # 切换到主分支
-            git_repo.git.checkout(default_branch)
+            if self.check_branch_failed(git_repo, default_branch):
+                return
 
             # 清理未追踪文件
             cmd_clean = 'cd %s;git clean -f -df -x' % repo_path
             os.system(cmd_clean)
             print('*** git clean success ***')
+
+            self.get_pull_branch(git_repo, repo_path, default_branch)
 
             cmd_cloc = '%s/cloc %s --json' % (self.cloc_bin_path, repo_path)
             res_cloc = os.popen(cmd_cloc)
@@ -269,44 +294,6 @@ class CodeStatistics(object):
             print('**** statistics_code_of_repo fail : %s/%s' % (owner, repo))
             return
 
-    def get_obs_meta(self):
-        obs_path = self.git_clone_or_pull_repo(platform=self.platform, owner=self.obs_meta_org,
-                                               repo_name=self.obs_meta_repo)
-        meta_dir = obs_path if self.obs_meta_dir is None else os.path.join(obs_path, self.obs_meta_dir)
-        root, dirs, _ = os.walk(meta_dir).__next__()
-        if self.obs_versions:
-            obs_versions = self.obs_versions.split(";")
-            inter_versions = list(set(obs_versions).intersection(set(dirs)))
-        else:
-            def check_version(s):
-                return s.startswith("openEuler-")
-
-            inter_versions = list(filter(check_version, dirs))
-
-        repo_versions = {}
-        for version in inter_versions:
-            package_dirs = []
-            package_epol_dir = []
-            try:
-                # 注意，windows下不支持目录中包含”:“等符号
-                package_path = os.path.join(root, version, version.replace('-', ':'))
-                package_epol_path = os.path.join(root, version, ('%s:Epol' % version.replace('-', ':')))
-                if os.path.exists(package_path):
-                    _, package_dirs, _ = os.walk(package_path).__next__()
-                if os.path.exists(package_epol_path):
-                    _, package_epol_dir, _ = os.walk(package_epol_path).__next__()
-            except:
-                continue
-            package_union_dirs = list(set(package_dirs).union(set(package_epol_dir)))
-            for dir in package_union_dirs:
-                versions = repo_versions.get(dir)
-                if versions is not None:
-                    versions.append(version)
-                    repo_versions.update({dir: versions})
-                else:
-                    repo_versions.update({dir: [version]})
-        return repo_versions
-
     def get_repos(self, owner):
         if self.platform == 'gitee':
             repos = self.gitee_repos(owner=owner, token=self.token)
@@ -324,20 +311,16 @@ class CodeStatistics(object):
         code_path = owner_path + repo_name
 
         username = base64.b64decode(self.username).decode()
-        passwd = base64.b64decode(self.password).decode()
         if platform == 'gitee':
-            clone_url = 'https://%s:%s@%s/%s/%s' % (username, passwd, GITEE_BASE, owner, repo_name)
+            clone_url = 'https://%s:%s@%s/%s/%s' % (username, self.gitee_access_token, GITEE_BASE, owner, repo_name)
         elif platform == 'github':
-            clone_url = 'https://%s:%s@%s/%s/%s' % (username, passwd, GITHUB_BASE, owner, repo_name)
+            clone_url = 'https://%s:%s@%s/%s/%s' % (username, self.github_access_token, GITHUB_BASE, owner, repo_name)
         else:
             clone_url = None
 
         # 本地仓库已存在执行git pull；否则执行git clone
         self.removeGitLockFile(code_path)
-        if os.path.exists(code_path):
-            cmd_pull = 'cd %s;git checkout .;git pull --rebase' % code_path
-            os.system(cmd_pull)
-        else:
+        if not os.path.exists(code_path):
             if clone_url is None:
                 return
             cmd_clone = 'cd %s;git clone %s' % (owner_path, clone_url + '.git')
@@ -454,3 +437,27 @@ class CodeStatistics(object):
                                         es_authorization=self.esClient.authorization)
         except Exception:
             pass
+
+    @staticmethod
+    def get_pull_branch(repo, code_path, branch):
+        try:
+            # git fetch origin
+            origin = repo.remote(name='origin')
+            origin.fetch()
+
+            # git reset --hard origin/<branch>
+            reset_branch = f'origin/{branch}'
+            repo.git.reset('--hard', reset_branch)
+            print(f"{code_path} git pull {branch} success!")
+        except GitCommandError as e:
+            print(f"{code_path} git pull {branch} failed!", e)
+
+    # 切换分支，并且检查是否切换成功
+    @staticmethod
+    def check_branch_failed(repo, branch_name):
+        try:
+            repo.git.checkout('-f', branch_name)
+        except GitCommandError as e:
+            print('*** branch checkout fail: %s' % branch_name)
+            return True
+        return False

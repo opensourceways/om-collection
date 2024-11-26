@@ -303,7 +303,7 @@ class ESClient(object):
             return {}
         return res.json()
 
-    def getRepoSigs(self):
+    def getRepoSigs(self, query_es=None, query_auth=None):
         dict_comb = defaultdict(dict)
         if self.sig_index:
             search = '''{
@@ -325,8 +325,13 @@ class ESClient(object):
     }
   }
 }'''
-            res = self.request_get(self.getSearchUrl(index_name=self.sig_index),
-                                   data=search, headers=self.default_headers)
+            if query_es and query_auth:
+                url = self.getSearchUrl(query_es, self.sig_index)
+                _headers = {
+                    'Content-Type': 'application/json',
+                    'Authorization': query_auth
+                }
+            res = self.request_get(url, data=search, headers=_headers)
             if res.status_code != 200:
                 print("The index not exist")
                 return dict_comb
@@ -342,7 +347,7 @@ class ESClient(object):
                 dict_comb = {key: dict_comb.get(key, []) + dt.get(key, []) for key in combined_keys}
         return dict_comb
 
-    def getRepoOrganizations(self, field, company_aliases_dict, is_sig_info_yaml=True):
+    def getRepoOrganizations(self, field, company_aliases_dict, is_sig_info_yaml=True, query_es=None, query_auth=None):
         dict_comb = defaultdict(dict)
         if self.sig_index:
             search = '''{
@@ -378,8 +383,15 @@ class ESClient(object):
                             }
                           }
                         }''' % field
-            res = self.request_get(self.getSearchUrl(index_name=self.sig_index),
-                                   data=search, headers=self.default_headers)
+            
+            _headers = self.default_headers
+            if query_es and query_auth:
+                url = self.getSearchUrl(query_es, self.sig_index)
+                _headers = {
+                    'Content-Type': 'application/json',
+                    'Authorization': query_auth
+                }
+            res = self.request_get(url, data=search, headers=_headers)
             if res.status_code != 200:
                 print("The index not exist")
                 return dict_comb
