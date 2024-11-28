@@ -105,7 +105,8 @@ BACKEND_MAPPING = {
     'gitee_filter': 'data.gitee_filter.GiteeFilter',
     'download_data': 'data.modelers.download.DownloadData',
     'model_download_compute': 'data.combine.model_download_compute.DownloadCompute',
-    'image_download': 'data.combine.image_download.ImageDownload'
+    'image_download': 'data.combine.image_download.ImageDownload',
+    'model_ci': 'data.modelers.model_ci.ModelCi'
 }
 
 
