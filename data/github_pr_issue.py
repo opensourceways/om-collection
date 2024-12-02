@@ -285,6 +285,8 @@ class GitHubPrIssue(object):
                 'time_to_close_days': common.get_time_diff_days(pr['created_at'], pr['closed_at']),
                 'time_to_close_seconds': common.get_time_diff_seconds(pr['created_at'], pr['closed_at']),
                 'github_repo': self.org + '/' + repo,
+                'addcodenum': 0,
+                'delcodenum': 0,
                 'is_github_pr': 1,
                 'is_github_account': 1,
                 'is_project_internal_user': 0,
@@ -295,11 +297,14 @@ class GitHubPrIssue(object):
             }
             if pr['merged_at']:
                 pull_info = client.get_pull_by_number(self.org, repo, pr_num)
-                pr_data.update({
-                    'additions': pull_info[0]['additions'],
-                    'deletions': pull_info[0]['deletions'],
-                    'changed_files': pull_info[0]['changed_files']
-                })
+                if not pull_info:
+                    print("No pull information available.")
+                else:
+                    pr_data.update({
+                        'addcodenum': pull_info[0]['additions'],
+                        'delcodenum': pull_info[0]['deletions'],
+                        'changed_files': pull_info[0]['changes']
+                    })
             pr_data.update(self.get_user_info(pr['user']['login']))
             pr_first_reply_times = []
             if reviews and len(reviews) != 0:
