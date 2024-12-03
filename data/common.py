@@ -331,6 +331,11 @@ class ESClient(object):
                     'Content-Type': 'application/json',
                     'Authorization': query_auth
                 }
+            else:
+                url = self.getSearchUrl(index_name=self.sig_index)
+                _headers = {
+                    'Content-Type': 'application/json',
+                }
             res = self.request_get(url, data=search, headers=_headers)
             if res.status_code != 200:
                 print("The index not exist")
@@ -603,7 +608,7 @@ class ESClient(object):
         self.scrollSearch(self.index_name_org, search_json, scroll_duration, func)
 
         for hit in resp_list:
-            field_id = hit[field]
+            field_id = hit.get(field, None)
             if field_id is None:
                 continue
             value = {hit['created_at']: hit['company']}
