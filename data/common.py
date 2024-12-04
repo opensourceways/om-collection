@@ -325,6 +325,8 @@ class ESClient(object):
     }
   }
 }'''
+            url = self.getSearchUrl(index_name=self.sig_index)
+            _headers = self.default_headers
             if query_es and query_auth:
                 url = self.getSearchUrl(query_es, self.sig_index)
                 _headers = {
@@ -390,6 +392,7 @@ class ESClient(object):
                         }''' % field
             
             _headers = self.default_headers
+            url = self.getSearchUrl(index_name=self.sig_index)
             if query_es and query_auth:
                 url = self.getSearchUrl(query_es, self.sig_index)
                 _headers = {
@@ -3298,11 +3301,11 @@ def convert_to_localTime(input_datetime):
     return input_datetime.astimezone(local_tz)
 
 def convert_to_date_str(input_timestamp):
-    '''
+    """
     Convert the given timestamp object to date_str
     :param input_timestamp: a given timestamp object
     :return: date_str
-    '''
+    """
     ts_obj = datetime.fromtimestamp(input_timestamp)
     date_str = ts_obj.strftime('%Y-%m-%dT%H:%M:%S+08:00')
     return date_str
