@@ -36,7 +36,7 @@ class GitHubPrIssue(object):
         self.repos = config.get('repos')
         self.robot_user = config.get('robot_user')
         self.repos_name = []
-        self.tokens = config.get('tokens')
+        self.tokens = config.get('tokens').split(',') if config.get('tokens') else []
         self.is_write_page = config.get('is_write_page')
         self.from_page = config.get('from_page')
         self.end_page = config.get('end_page')
@@ -53,9 +53,7 @@ class GitHubPrIssue(object):
         else:
             self.repos_name = str(self.repos).split(";")
         for repo in self.repos_name:
-            client = GithubClient(org=self.org, repository=repo, token=self.github_token)
-            client.tokens = self.tokens.split(',')
-            client.used_tokens.append(self.github_token)
+            client = GithubClient(org=self.org, repository=repo, token=self.github_token, tokens=self.tokens)
             if self.from_page:
                 client.from_page = int(self.from_page)
             if self.end_page:
@@ -83,7 +81,7 @@ class GitHubPrIssue(object):
 
     def write_repos(self):
         print('****** Start collection repos of org ******')
-        client = GithubClient(org=self.org, repository=None, token=self.github_token)
+        client = GithubClient(org=self.org, repository=None, token=self.github_token, tokens=self.tokens)
         repos = client.get_repos(org=self.org)
         actions = ''
         for repo in repos:
@@ -159,13 +157,14 @@ class GitHubPrIssue(object):
                     'user_id': review_user_id,
                     'user_login': review_user_login,
                     'html_url': review['html_url'],
-                    'pr_review_body': review['body'],
+                    'pr_comment_body': review['body'],
                     'pr_review_state': review['state'],
                     'created_at': self.format_time_z(submitted_at),
                     'updated_at': self.format_time_z(submitted_at),
                     'submitted_at': self.format_time_z(submitted_at),
                     'github_repo': self.org + '/' + repo,
                     'is_github_pr_review': 1,
+                    'is_github_comment': 1,
                     'is_github_account': 1,
                     'is_project_internal_user': 0,
                 }
@@ -251,7 +250,7 @@ class GitHubPrIssue(object):
                     'user_id': issue_comment_user_id,
                     'user_login': issue_comment_user_login,
                     'html_url': issue_comment['html_url'],
-                    'pr_issue_comment_body': issue_comment['body'],
+                    'pr_comment_body': issue_comment['body'],
                     'created_at': self.format_time_z(issue_comment['created_at']),
                     'updated_at': self.format_time_z(issue_comment['updated_at']),
                     'github_repo': self.org + '/' + repo,

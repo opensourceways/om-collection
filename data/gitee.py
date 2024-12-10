@@ -164,7 +164,6 @@ class Gitee(object):
 
             change_repo_sig_dic = self.get_change_repo_sig_dict(repo_sigs_dict)
             self.esClient.tagRepoSigChanged(change_repo_sig_dic)
-            self.esClient.tagUserOrgChanged()
         endTime = time.time()
         spent_time = time.strftime("%H:%M:%S",
                                    time.gmtime(endTime - startTime))
@@ -1571,7 +1570,7 @@ class Gitee(object):
         dict_all_user = {}
         # the first update all data
         if len(self.giteeid_company_dict_last) == 0:
-            all_user = self.esClient.getTotalAuthorName(size=20000)
+            all_user = self.esClient.getTotalAuthorName(size=50000)
             for user in all_user:
                 dict_all_user.update({user['key']: "independent"})
 
@@ -1581,9 +1580,8 @@ class Gitee(object):
             diff.add((d, "independent"))
 
         dict_all_user.update(dict(diff))
-        for item in dict_all_user.items():
-            u = item[0]
-            sp = item[1].split("_adminAdded_", 1)
+        for u, value in dict_all_user.items():
+            sp = value.split("_adminAdded_", 1)
             company = sp[0]
             if len(sp) == 2:
                 is_admin_added = sp[1]
@@ -1612,60 +1610,62 @@ class Gitee(object):
                     print('*** update %s : %s' % (u, company))
 
                     query = '''{
-                                  "script": {
-                                    "source": "ctx._source.tag_user_company = params.tag_user_company;ctx._source.is_project_internal_user = params.is_project_internal_user;ctx._source.is_admin_added = params.is_admin_added",
-                                    "params": {
-                                      "tag_user_company": "%s",
-                                      "is_project_internal_user": "%s",
-                                      "is_admin_added": "%s"
-                                    },
-                                    "lang": "painless"
-                                  },
-                                  "query": {
-                                    "bool": {
-                                      "must": [
-                                        {
-                                          "range": {
+                        "script": {
+                            "source": "ctx._source.tag_user_company = params.tag_user_company;ctx._source.is_project_internal_user = params.is_project_internal_user;ctx._source.is_admin_added = params.is_admin_added",
+                            "params": {
+                                "tag_user_company": "%s",
+                                "is_project_internal_user": "%s",
+                                "is_admin_added": "%s"
+                            },
+                            "lang": "painless"
+                        },
+                        "query": {
+                            "bool": {
+                                "filter": [
+                                    {
+                                        "range": {
                                             "created_at": {
-                                              "gte": "%s",
-                                              "lt": "%s"
+                                                "gte": "%s",
+                                                "lt": "%s"
                                             }
-                                          }
-                                        },
-                                        {
-                                          "term": {
-                                            "user_login.keyword": "%s"
-                                          }
                                         }
-                                      ]
+                                    },
+                                    {
+                                        "query_string": {
+                                            "analyze_wildcard": true,
+                                            "query": "user_login.keyword:%s AND !tag_user_company.keyword:%s"
+                                        }
                                     }
-                                  }
-                                }''' % (company, is_project_internal_user, is_admin_added, startTime, endTime, u)
+                                ]
+                            }
+                        }
+                    }''' % (company, is_project_internal_user, is_admin_added, startTime, endTime, u, company)
                     self.esClient.updateByQuery(query=query.encode('utf-8'))
             else:
                 print('*** update %s : %s' % (u, tag_user_company))
                 query = '''{
-                              "script": {
-                                "source": "ctx._source.tag_user_company = params.tag_user_company;ctx._source.is_project_internal_user = params.is_project_internal_user;ctx._source.is_admin_added = params.is_admin_added",
-                                "params": {
-                                  "tag_user_company": "%s",
-                                  "is_project_internal_user": "%s",
-                                  "is_admin_added": "%s"
-                                },
-                                "lang": "painless"
-                              },
-                              "query": {
-                                "bool": {
-                                  "must": [
-                                    {
-                                      "term": {
-                                        "user_login.keyword": "%s"
-                                      }
+                    "script": {
+                        "source": "ctx._source.tag_user_company = params.tag_user_company;ctx._source.is_project_internal_user = params.is_project_internal_user;ctx._source.is_admin_added = params.is_admin_added",
+                        "params": {
+                            "tag_user_company": "%s",
+                            "is_project_internal_user": "%s",
+                            "is_admin_added": "%s"
+                        },
+                        "lang": "painless"
+                    },
+                    "query": {
+                        "bool": {
+                            "filter": [
+                                {
+                                    "query_string": {
+                                        "analyze_wildcard": true,
+                                        "query": "user_login.keyword:%s AND !tag_user_company.keyword:%s"
                                     }
-                                  ]
                                 }
-                              }
-                            }''' % (tag_user_company, is_project_internal_user, is_admin_added, u)
+                            ]
+                        }
+                    }
+                }''' % (tag_user_company, is_project_internal_user, is_admin_added, u, tag_user_company)
                 self.esClient.updateByQuery(query=query.encode('utf-8'))
 
     def tagUsersFromEmail(self, tag_user_company="internal_company"):

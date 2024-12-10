@@ -574,7 +574,7 @@ class ESClient(object):
 
         dic_change = giteeid_orgs_dict.copy()
         for key, vMap in giteeid_orgs_dict.items():
-            if len(vMap) > 1:
+            if len(set(vMap.values())) > 1:
                 last_time = max(vMap.keys())
                 dic.update({key: vMap[last_time]})
             else:
@@ -741,22 +741,13 @@ class ESClient(object):
             else:
                 userExtra["tag_user_company"] = "independent"
                 userExtra["is_project_internal_user"] = 0
-        if self.is_update_tag_company == 'true' and login in giteeid_company_dict_copy:
-            if giteeid_company_dict_copy.get(login) is None:
-                userExtra["tag_user_company"] = 'independent'
-            else:
-                sp = giteeid_company_dict_copy.get(login).split("_adminAdded_", 1)
-                company = sp[0]
-                userExtra["tag_user_company"] = company
+                tag_user_company = giteeid_company_dict_copy.get(login, 'independent')
+                sp = tag_user_company.split("_adminAdded_", 1)
+                userExtra["tag_user_company"] = sp[0]
                 if len(sp) == 2:
                     userExtra["is_admin_added"] = sp[1]
                 else:
                     userExtra["is_admin_added"] = 0
-
-            if userExtra["tag_user_company"] == self.internal_company_name:
-                userExtra["is_project_internal_user"] = 1
-            else:
-                userExtra["is_project_internal_user"] = 0
 
         if created_at and len(self.giteeid_company_change_dict) != 0 and login in self.giteeid_company_change_dict:
             vMap = self.giteeid_company_change_dict[login]
@@ -777,6 +768,11 @@ class ESClient(object):
                 else:
                     continue
 
+        if userExtra["tag_user_company"] == self.internal_company_name:
+            userExtra["is_project_internal_user"] = 1
+        else:
+            userExtra["is_project_internal_user"] = 0
+        
         if self.company_location_index:
             addr = self.getCompanyLocationInfo(userExtra['tag_user_company'], self.company_location_index)
             if addr:
@@ -1561,7 +1557,6 @@ class ESClient(object):
                          }
                      }
                      }''' % (field, size)
-        print(data_json)
         res = self.request_get(self.getSearchUrl(), data=data_json,
                                headers=self.default_headers)
         if res.status_code != 200:

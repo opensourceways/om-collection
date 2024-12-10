@@ -311,6 +311,8 @@ class GitCommitLog(object):
 
     @staticmethod
     def get_company_by_end_date(companies, commit_time):
+        if not isinstance(companies, list):
+            return companies
         if len(companies) == 1:
             return companies[0]['company_name']
 
@@ -563,7 +565,6 @@ class GitCommitLog(object):
     @staticmethod
     def get_pull_branch(repo, code_path, branch):
         try:
-            # git fetch origin
             origin = repo.remote(name='origin')
             origin.fetch()
 
