@@ -479,7 +479,7 @@ class GithubClient(object):
         diff = list(set(self.tokens).difference(set(self.used_tokens)))
         if len(diff) == 0:
             token = self.used_tokens[0]
-            self.used_tokens = []
+            self.used_tokens = [token]
         else:
             token = diff[0]
         self.used_tokens.append(token)

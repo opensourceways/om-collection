@@ -368,7 +368,7 @@ class SigMaintainer(object):
                     committers.extend(repo['committers'])
             except TypeError as e:
                 print("Committer has all repository permissions")
-                committers = info.get('committers')
+                committers = info.get('committers', [])
                 user_login = [user[f'{self.platform}_id'] for user in committers]
                 repo_committer_dict.update({repo: user_login})
         return committers, repo_committer_dict
