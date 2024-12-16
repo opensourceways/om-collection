@@ -418,7 +418,7 @@ class SigMaintainer(object):
                         repo_mark = True
                         repos = []
                         if dir in sig_repos_dict:
-                            repos = sig_repos_dict.get(dir)
+                            repos = sig_repos_dict.get(dir, [])
                         for repo in repos:
                             ID = self.org + '_' + dir + '_' + repo + '_' + key + '_' + str(owner)
                             if ID in self.exists_ids:
@@ -451,7 +451,7 @@ class SigMaintainer(object):
                         committers, repo_committer_dic = self.get_repo_committer_from_yaml(info)
                     else:
                         committers = info.get('committers')
-                    repos = sig_repos_dict.get(dir)
+                    repos = sig_repos_dict.get(dir, [])
                     datas = ''
                     if 'maintainers' in info and info['maintainers']:
                         users_info = info['maintainers']
@@ -484,7 +484,7 @@ class SigMaintainer(object):
             # get repos
             repositories = []
             if dir in sig_repos_dict:
-                repositories = sig_repos_dict.get(dir)
+                repositories = sig_repos_dict.get(dir, [])
             # sig actions
             action = {
                 "sig_name": dir,
