@@ -528,6 +528,11 @@ class SigMaintainer(object):
                         action.update({'maintainer_info': self.attach_user_info(maintainer_list)})
                         maintainers = [user[f'{self.platform}_id'] for user in info['maintainers']]
                         action.update({'maintainers': maintainers})
+                    if info.get('committers'):
+                        self.get_owner_info(info['committers'])
+                        action.update({'committer_info': self.attach_user_info(info['committers'])})
+                        committers = [user[f'{self.platform}_id'] for user in info['committers']]
+                        action.update({'committers': committers})
                     if info.get('repositories'):
                         committer_list = self.get_repo_committer_from_yaml(info)[0]
                         self.get_owner_info(committer_list)
