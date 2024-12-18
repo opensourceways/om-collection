@@ -153,6 +153,7 @@ class GitHubPrIssue(object):
                     'pr_number': pr_num,
                     'pr_title': pr['title'],
                     'pr_body': pr['body'],
+                    'id': review['id'],
                     'pr_review_id': review['id'],
                     'user_id': review_user_id,
                     'user_login': review_user_login,
