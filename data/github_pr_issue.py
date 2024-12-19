@@ -45,7 +45,7 @@ class GitHubPrIssue(object):
         self.user_org_dic = {}
 
     def run(self, from_date):
-        dic = self.esClient.get_mark_org('github_id')
+        dic = self.esClient.getOrgByGiteeID()
         self.user_org_dic = dic[0]
         print('Start collection github pr/issue/swf')
         if self.is_set_repo == 'true' and self.repos is None:
@@ -165,7 +165,6 @@ class GitHubPrIssue(object):
                     'submitted_at': self.format_time_z(submitted_at),
                     'github_repo': self.org + '/' + repo,
                     'is_github_pr_review': 1,
-                    'is_github_comment': 1,
                     'is_github_account': 1,
                     'is_project_internal_user': 0,
                 }

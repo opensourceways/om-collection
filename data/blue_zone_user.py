@@ -57,7 +57,7 @@ class BlueZoneUser(object):
             user.pop('product_line_code', None)
             emails = ';'.join(user['emails'])
             user['emails'] = emails
-            self.user.__delitem__('created_at')
+            self.user.pop('created_at', None)
             if user['gitee_id'] is not None and user['gitee_id'] != '':
                 self.get_pr_gitee()
                 self.get_issue_gitee()
