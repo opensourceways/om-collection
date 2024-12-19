@@ -106,7 +106,8 @@ BACKEND_MAPPING = {
     'download_data': 'data.modelers.download.DownloadData',
     'model_download_compute': 'data.combine.model_download_compute.DownloadCompute',
     'image_download': 'data.combine.image_download.ImageDownload',
-    'model_ci': 'data.modelers.model_ci.ModelCi'
+    'model_ci': 'data.modelers.model_ci.ModelCi',
+    'file_moderation': 'data.modelers.file_moderation.FileModeration'
 }
 
 
