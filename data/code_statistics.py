@@ -323,7 +323,7 @@ class CodeStatistics(object):
         if not os.path.exists(code_path):
             if clone_url is None:
                 return
-            cmd_clone = 'cd %s;git clone %s' % (owner_path, clone_url + '.git')
+            cmd_clone = 'cd %s;git clone --depth 1 %s' % (owner_path, clone_url + '.git')
             os.system(cmd_clone)
 
         return code_path

@@ -177,6 +177,8 @@ class GitCommitLog(object):
             print('*** repo clone fail: %s' % remote_repo)
             return
 
+        self.reset_remote_url(repo, clone_url)
+
         # 如果指定分支为default，则指定分支为默认分支
         default_branch = 'master'
         branchs = repo.git.branch('-r').split('\n')
@@ -574,6 +576,22 @@ class GitCommitLog(object):
             print(f"{code_path} git pull {branch} success!")
         except GitCommandError as e:
             print(f"{code_path} git pull {branch} failed!", e)
+
+    def reset_remote_url(self, repo, new_remote_url):
+        try:
+            origin = repo.remotes.origin
+            origin.pull()
+        except GitCommandError as e:
+            print('pull failed:', e)
+            print('Try to set remote url')
+            self.set_remote_url(repo, new_remote_url)
+            
+    def set_remote_url(self, repo, new_remote_url):
+        try:
+            origin = repo.remotes.origin
+            origin.set_url(new_remote_url)
+        except GitCommandError as e:
+            print('set remote url failed:', e)
 
     # 切换分支，并且检查是否切换成功
     def check_branch_faild(self, repo, branch_name):
