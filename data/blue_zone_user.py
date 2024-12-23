@@ -40,15 +40,8 @@ class BlueZoneUser(object):
     def run(self, from_date):
         print('Start collection BlueZoneUserContributes')
         current_date = datetime.today().strftime('%Y-%m-%d')
-        if self.startTime:
-            self.startTime = self.startTime + 'T00:00:00+08:00'
-        else:
-            self.startTime = current_date + 'T00:00:00+08:00'
-
-        if self.endTime:
-            self.endTime = self.endTime + 'T23:59:59+08:00'
-        else:
-            self.endTime = current_date + 'T23:59:59+08:00'
+        self.startTime = self.startTime if self.startTime else current_date
+        self.endTime = self.endTime if self.endTime else self.endTime
 
         self.get_blue_users()
         for user in self.users:
