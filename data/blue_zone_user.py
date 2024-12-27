@@ -43,6 +43,7 @@ class BlueZoneUser(object):
         self.startTime = self.startTime if self.startTime else current_date
         self.endTime = self.endTime if self.endTime else current_date
 
+        self.users = []
         self.get_blue_users()
         for user in self.users:
             print('******* %s *******' % user['name'])
@@ -114,7 +115,7 @@ class BlueZoneUser(object):
     def get_pr_gitee(self):
         indexs = str(self.gitee_pr_issue_index).split(";")
         search = '''{
-                      "size": 200,
+                      "size": 1000,
                       "_source": {
                         "includes": [
                           "created_at",
@@ -156,7 +157,7 @@ class BlueZoneUser(object):
                       }
                     }''' % (self.user['gitee_id'].strip(), self.startTime, self.endTime)
         for index in indexs:
-            self.esClient.scrollSearch(index_name=index, search=search, func=self.pr_func_gitee)
+            self.esClient.scrollSearch(index_name=index, search=search, scroll_duration='2m', func=self.pr_func_gitee)
 
     def pr_func_gitee(self, hits):
         actions = ''
@@ -186,7 +187,7 @@ class BlueZoneUser(object):
     def get_issue_gitee(self):
         indexs = str(self.gitee_pr_issue_index).split(";")
         search = '''{
-                      "size": 200,
+                      "size": 1000,
                       "_source": {
                         "includes": [
                           "created_at",
@@ -228,7 +229,7 @@ class BlueZoneUser(object):
                       }
                     }''' % (self.user['gitee_id'].strip(), self.startTime, self.endTime)
         for index in indexs:
-            self.esClient.scrollSearch(index_name=index, search=search, func=self.issue_func_gitee)
+            self.esClient.scrollSearch(index_name=index, search=search, scroll_duration='2m', func=self.issue_func_gitee)
 
     def issue_func_gitee(self, hits):
         actions = ''
@@ -259,7 +260,7 @@ class BlueZoneUser(object):
     def get_pr_issue_comment_gitee(self):
         indexs = str(self.gitee_pr_issue_index).split(";")
         search = '''{
-                      "size": 200,
+                      "size": 1000,
                       "_source": {
                         "includes": [
                           "created_at",
@@ -303,7 +304,7 @@ class BlueZoneUser(object):
                       }
                     }''' % (self.user['gitee_id'].strip(), self.startTime, self.endTime)
         for index in indexs:
-            self.esClient.scrollSearch(index_name=index, search=search, func=self.pr_issue_comment_func_gitee)
+            self.esClient.scrollSearch(index_name=index, search=search, scroll_duration='2m', func=self.pr_issue_comment_func_gitee)
 
     def pr_issue_comment_func_gitee(self, hits):
         actions = ''
@@ -350,7 +351,7 @@ class BlueZoneUser(object):
         emails = emails_str.split(";")
         for email in emails:
             search = '''{
-                          "size": 200,
+                          "size": 1000,
                           "_source": {
                             "includes": [
                               "created_at",
@@ -388,7 +389,7 @@ class BlueZoneUser(object):
                           }
                         }''' % (email.strip(), self.startTime, self.endTime)
             for index in indexs:
-                self.esClient.scrollSearch(index_name=index, search=search, func=self.commit_func)
+                self.esClient.scrollSearch(index_name=index, search=search, scroll_duration='2m', func=self.commit_func)
         self.user['emails'] = emails_str
 
     def commit_func(self, hits):
@@ -416,7 +417,7 @@ class BlueZoneUser(object):
     def get_pr_github(self):
         indexs = str(self.github_pr_issue_index).split(";")
         search = '''{
-                      "size": 200,
+                      "size": 1000,
                       "_source": {
                         "includes": [
                           "created_at",
@@ -458,7 +459,7 @@ class BlueZoneUser(object):
                       }
                     }''' % (self.user['github_id'].strip(), self.startTime, self.endTime)
         for index in indexs:
-            self.esClient.scrollSearch(index_name=index, search=search, func=self.pr_func_github)
+            self.esClient.scrollSearch(index_name=index, search=search, scroll_duration='2m', func=self.pr_func_github)
 
     def pr_func_github(self, hits):
         actions = ''
@@ -488,7 +489,7 @@ class BlueZoneUser(object):
     def get_issue_github(self):
         indexs = str(self.github_pr_issue_index).split(";")
         search = '''{
-                      "size": 200,
+                      "size": 1000,
                       "_source": {
                         "includes": [
                           "created_at",
@@ -529,7 +530,7 @@ class BlueZoneUser(object):
                       }
                     }''' % (self.user['github_id'].strip(), self.startTime, self.endTime)
         for index in indexs:
-            self.esClient.scrollSearch(index_name=index, search=search, func=self.issue_func_github)
+            self.esClient.scrollSearch(index_name=index, search=search, scroll_duration='2m', func=self.issue_func_github)
 
     def issue_func_github(self, hits):
         actions = ''
@@ -559,7 +560,7 @@ class BlueZoneUser(object):
     def get_pr_issue_comment_github(self):
         indexs = str(self.github_pr_issue_index).split(";")
         search = '''{
-                      "size": 200,
+                      "size": 1000,
                       "_source": {
                         "includes": [
                           "created_at",
@@ -602,7 +603,7 @@ class BlueZoneUser(object):
                       }
                     }''' % (self.user['github_id'].strip(), self.startTime, self.endTime)
         for index in indexs:
-            self.esClient.scrollSearch(index_name=index, search=search, func=self.pr_issue_comment_func_github)
+            self.esClient.scrollSearch(index_name=index, search=search, scroll_duration='2m', func=self.pr_issue_comment_func_github)
 
     def pr_issue_comment_func_github(self, hits):
         actions = ''
