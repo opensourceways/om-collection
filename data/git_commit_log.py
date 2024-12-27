@@ -173,6 +173,7 @@ class GitCommitLog(object):
 
         try:
             repo = git.Repo(code_path)
+            repo.git.remote('prune', 'origin')
         except Exception:
             print('*** repo clone fail: %s' % remote_repo)
             return
