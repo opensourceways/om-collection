@@ -105,8 +105,8 @@ BACKEND_MAPPING = {
     'gitee_filter': 'data.gitee_filter.GiteeFilter',
     'download_data': 'data.modelers.download.DownloadData',
     'model_download_compute': 'data.combine.model_download_compute.DownloadCompute',
-    'xihe_user_profile': 'data.xihe_user_profile.XiheUserProfile',
-    'image_download': 'data.combine.image_download.ImageDownload'
+    'image_download': 'data.combine.image_download.ImageDownload',
+    'xihe_user_profile': 'data.xihe_user_profile.XiheUserProfile'
 }
 
 
