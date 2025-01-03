@@ -114,7 +114,7 @@ class GitCommitLog(object):
         # elif self.codearts_yaml:
         #     default_branch_repos = ['http://codehub.devcloud.cn-southwest-2.huaweicloud.com/709968f4a69145deba5559c5faf4eca8/openlibing-gateway']
         #     all_branch_repos = ['http://codehub.devcloud.cn-southwest-2.huaweicloud.com/709968f4a69145deba5559c5faf4eca8/openlibing-gateway']
-        #     self.getCommitWhiteBox(default_branch_repos, 'default')  # 只是获取默认分支commit
+        #     self.getCommitWhiteBox(default_branch_repos, 'default')  
         #     self.getCommitWhiteBox(all_branch_repos)
         elif self.codearts_yaml:  # 针对 CodeArts 平台的指定仓库
             all_branch_repos, default_branch_repos = self.getReposFromYaml(yaml_file=self.codearts_yaml)
@@ -270,61 +270,61 @@ class GitCommitLog(object):
                 self.parse_commits(no_merge_commits, platform, owner, branch_name, remote_repo, 0, default_branch,
                                    repo_name)               
 
-    # 统计仓库总行数
-    def parse_repo_linecount(self, code_path, platform, owner, repo_name, branch, remote_repo):
-        """
-        统计当前仓库中所有文件行数，将结果写入到ES中
-        """
-        try:
-            total_lines = self.get_repo_linecount(code_path)
-            # 控制台输出
-            print(f"[RepoLineCount] {platform}/{owner}/{repo_name} (branch={branch}) -> {total_lines} lines")
+    # # 统计仓库总行数
+    # def parse_repo_linecount(self, code_path, platform, owner, repo_name, branch, remote_repo):
+    #     """
+    #     统计当前仓库中所有文件行数，将结果写入到ES中
+    #     """
+    #     try:
+    #         total_lines = self.get_repo_linecount(code_path)
+    #         # 控制台输出
+    #         print(f"[RepoLineCount] {platform}/{owner}/{repo_name} (branch={branch}) -> {total_lines} lines")
 
-            # 统计结果->ES
-            doc_id_str = f"{remote_repo}-{branch}-linecount"
-            doc_id = hashlib.md5(doc_id_str.encode('utf-8')).hexdigest()
-            doc = {
-                "platform": platform,
-                "owner": owner,
-                "repo_name": repo_name,
-                "branch": branch,
-                "repo_url": remote_repo,
-                "total_lines_of_code": total_lines,
-                "collected_at": str(datetime.datetime.now().isoformat()) # 记录当前收集数据时间
-            }
+    #         # 统计结果->ES
+    #         doc_id_str = f"{remote_repo}-{branch}-linecount"
+    #         doc_id = hashlib.md5(doc_id_str.encode('utf-8')).hexdigest()
+    #         doc = {
+    #             "platform": platform,
+    #             "owner": owner,
+    #             "repo_name": repo_name,
+    #             "branch": branch,
+    #             "repo_url": remote_repo,
+    #             "total_lines_of_code": total_lines,
+    #             "collected_at": str(datetime.datetime.now().isoformat()) # 记录当前收集数据时间
+    #         }
 
-            # bulk操作前先准备index行
-            index_data = {"index": {"_index": self.repo_line_index, "_id": doc_id}}
-            actions = json.dumps(index_data) + '\n' + json.dumps(doc) + '\n'
-            self.esClient.safe_put_bulk(actions)
+    #         # bulk操作前先准备index行
+    #         index_data = {"index": {"_index": self.repo_line_index, "_id": doc_id}}
+    #         actions = json.dumps(index_data) + '\n' + json.dumps(doc) + '\n'
+    #         self.esClient.safe_put_bulk(actions)
 
-        except Exception as e:
-            print(f"parse_repo_linecount failed: {e}")
+    #     except Exception as e:
+    #         print(f"parse_repo_linecount failed: {e}")
 
-    def get_repo_linecount(self, repo_path):
-        """
-        遍历gitcode中所有的文件,累加统计数量
-        """
-        import subprocess
-        total_lines = 0
-        try:
-            cmd = f'cd "{repo_path}" && git ls-files' # git ls-files获取文件列表
-            output = subprocess.check_output(cmd, shell=True)
-            file_list = output.decode().strip().split('\n')
+    # def get_repo_linecount(self, repo_path):
+    #     """
+    #     遍历gitcode中所有的文件,累加统计数量
+    #     """
+    #     import subprocess
+    #     total_lines = 0
+    #     try:
+    #         cmd = f'cd "{repo_path}" && git ls-files' # git ls-files获取文件列表
+    #         output = subprocess.check_output(cmd, shell=True)
+    #         file_list = output.decode().strip().split('\n')
 
-            for rel_path in file_list:
-                full_path = os.path.join(repo_path, rel_path)
-                if not os.path.join(full_path):
-                    continue
+    #         for rel_path in file_list:
+    #             full_path = os.path.join(repo_path, rel_path)
+    #             if not os.path.join(full_path):
+    #                 continue
 
-                # 逐行读取普通文本，添加额外判断排除二进制文件
-                with open(full_path, 'r', errors='ignore') as f:
-                    lines = sum(1 for _ in f)
-                total_lines += lines
-        except Exception as e:
-            print(f"get_repo_linecount erroe: {e}")
+    #             # 逐行读取普通文本，添加额外判断排除二进制文件
+    #             with open(full_path, 'r', errors='ignore') as f:
+    #                 lines = sum(1 for _ in f)
+    #             total_lines += lines
+    #     except Exception as e:
+    #         print(f"get_repo_linecount erroe: {e}")
         
-        return total_lines
+    #     return total_lines
 
     # 数据解析
     def parse_commits(self, commits, platform, owner, branch, repo_url, is_merge, default_branch, repo_name):
