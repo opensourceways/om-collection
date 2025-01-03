@@ -12,7 +12,6 @@
 # See the Mulan PSL v2 for more details.
 # Create: 2022-03
 #
-
 import base64
 import datetime
 import hashlib
@@ -35,16 +34,15 @@ from data.common import ESClient
 GITEE_BASE = "gitee.com"
 GITHUB_BASE = "github.com"
 HUGGINGFACE_BASE = "huggingface.co"
-CODEARTS_BASE = "codehub.devcloud.cn-southwest-2.huaweicloud.com"  # codearts域名
 DEFAULT_BRANCH_HEAD = "  origin/HEAD ->"
 
 
 class GitCommitLog(object):
     def __init__(self, config=None):
         self.config = config
-        self.org = config.get('org') # 组织名称
-        self.index_name = config.get('index_name') # ES索引名称
-        self.code_base_path = config.get('code_base_path') #代码拉取到本地的存储根目录
+        self.org = config.get('org')
+        self.index_name = config.get('index_name')
+        self.code_base_path = config.get('code_base_path')
         self.platform_owner_token = config.get('platform_owner_token')
         self.start_date = config.get('start_date')
         self.end_date = config.get('end_date')
@@ -52,34 +50,24 @@ class GitCommitLog(object):
         self.user_commit_name = config.get('user_commit_name')
         self.gitee_repo_branch = config.get('gitee_repo_branch')
         self.github_repo_branch = config.get('github_repo_branch')
-        self.codearts_repo_branch = config.get('codearts_repo_branch') # 对codearts仓库指定的分支配置
         self.username = config.get('username')
         self.password = config.get('password')
-        self.write_bulk = int(config.get('write_bulk', 1000)) # 写入ES的批次大小，默认1000。累积到1000后，一次bulk写入
-        self.esClient = ESClient(config) # 创建ESClient 实例，用来执行 bulk 操作和各种查询
-
-        self.username = config.get('username')
-        self.password = config.get('password')
-        self.write_bulk = int(config.get('write_bulk', 1000)) # 写入ES的批次大小，默认1000。累积到1000后，一次bulk写入
+        self.write_bulk = int(config.get('write_bulk', 1000))
         self.esClient = ESClient(config)
         self.email_orgs_dict = {}
         self.domain_orgs_dict = {}
         self.repo_sigs_dict = defaultdict(dict)
-        self.white_box_yaml = config.get('white_box_yaml') # 白名单指定仓库的YAML路径
-        self.codearts_yaml = config.get('codearts_yaml', 'true')
+        self.white_box_yaml = config.get('white_box_yaml')
         self.upstream_yaml = config.get('upstream_yaml')
         self.user_file = config.get('user_file')
         self.company_yaml = config.get('company_yaml')
         self.model_repo_yaml = config.get('model_repo_yaml')
-        self.all_repo_default_branch = config.get('all_repo_default_branch', 'false') # 是否只拉取所有仓库的默认分支
-        self.all_repo_default_branch = config.get('all_repo_default_branch', 'false') # 是否只拉取
+        self.all_repo_default_branch = config.get('all_repo_default_branch', 'false')
         self.is_gitee_enterprise = config.get('is_gitee_enterprise')
         self.huggingface_access_token = config.get('huggingface_access_token')
         self.github_access_token = config.get('github_access_token')
         self.gitee_access_token = config.get('gitee_access_token')
-        self.codearts_access_token = config.get('codearts_access_token')  # 新增CodeARts访问Token
         self.tokens = config.get('tokens').split(',') if config.get('tokens') else None
-        
 
         self.email_user_dict = {}
 
@@ -111,17 +99,8 @@ class GitCommitLog(object):
             all_branch_repos, default_branch_repos = self.getReposFromYaml(yaml_file=self.model_repo_yaml)
             self.getCommitWhiteBox(default_branch_repos, 'default')
             self.getCommitWhiteBox(all_branch_repos)
-        # elif self.codearts_yaml:
-        #     default_branch_repos = ['http://codehub.devcloud.cn-southwest-2.huaweicloud.com/709968f4a69145deba5559c5faf4eca8/openlibing-gateway']
-        #     all_branch_repos = ['http://codehub.devcloud.cn-southwest-2.huaweicloud.com/709968f4a69145deba5559c5faf4eca8/openlibing-gateway']
-        #     self.getCommitWhiteBox(default_branch_repos, 'default')  
-        #     self.getCommitWhiteBox(all_branch_repos)
-        elif self.codearts_yaml:  # 针对 CodeArts 平台的指定仓库
-            all_branch_repos, default_branch_repos = self.getReposFromYaml(yaml_file=self.codearts_yaml)
-            self.getCommitWhiteBox(default_branch_repos, 'default')  # 只是获取默认分支 commit
-            self.getCommitWhiteBox(all_branch_repos)  # 获取全部分支 commit
         else:
-            # 上述配置都不存在，默认获取platform_owner_token对应的所有仓库commit
+            # 全部commits
             self.getCommit()
 
     def getCommit(self):
@@ -136,13 +115,7 @@ class GitCommitLog(object):
 
             # 指定了仓库则获取指定仓库数据，否则获取owner下的所有仓库
             repos = []
-            # 使用CodeArtsClients获取codearts仓库列表
-            if platform == 'codearts': 
-                if self.codearts_repo_branch:
-                    repos = self.codearts_repo_branch.split(';')
-                else:
-                    repos = self.codearts_repos(owner=owner, token=token)
-            elif platform == 'gitee':
+            if platform == 'gitee':
                 if self.gitee_repo_branch:
                     repos = self.gitee_repo_branch.split(';')
                 else:
@@ -152,17 +125,12 @@ class GitCommitLog(object):
                     repos = self.github_repo_branch.split(';')
                 else:
                     repos = self.github_repos(owner=owner, token=token)
-            else:
-                # 预留其它平台扩展
-                continue
 
             for repo in repos:
                 if not str(repo).__contains__('->'):
                     continue
                 rb = repo.split('->')
                 branch_name = rb[1]
-
-                # 配置如果是self.all_repo_default_branch == 'true',只获取默认分支
                 if self.all_repo_default_branch == 'true':
                     branch_name = 'default'
                 try:
@@ -171,9 +139,6 @@ class GitCommitLog(object):
                     print('*** platform: %s, owner: %s, repo: %s, fail ***' % (platform, owner, repo))
 
     def getLog(self, platform, owner, repo_name, branch_name, path=None):
-        """
-        执行克隆操作
-        """
         # 本地仓库目录
         owner_path = self.code_base_path + platform + os.sep + owner + os.sep
         if not os.path.exists(owner_path):
@@ -181,9 +146,6 @@ class GitCommitLog(object):
         code_path = owner_path + repo_name
 
         username = base64.b64decode(self.username).decode()
-        print(platform)
-
-        # 托管平台格式构造远程仓库URL
         if platform == 'gitee':
             remote_repo = 'https://%s/%s/%s' % (GITEE_BASE, owner, repo_name)
             clone_url = 'https://%s:%s@%s/%s/%s' % (username, self.gitee_access_token, GITEE_BASE, owner, repo_name)
@@ -194,10 +156,6 @@ class GitCommitLog(object):
             remote_repo = 'https://%s/%s' % (HUGGINGFACE_BASE, path)
             clone_url = 'https://%s:%s@%s/%s' % (
                 username, self.huggingface_access_token, HUGGINGFACE_BASE, path)
-        elif platform in CODEARTS_BASE:  # CodeArts的URL构造
-            remote_repo = f"https://{CODEARTS_BASE}/{owner}/{repo_name}"
-            clone_url = f"https://{username}:{self.codearts_access_token}@{CODEARTS_BASE}/{owner}/{repo_name}"
-            print(clone_url)
         else:
             remote_repo = None
             clone_url = None
@@ -207,13 +165,15 @@ class GitCommitLog(object):
         if not os.path.exists(code_path):
             if clone_url is None:
                 return
-            cmd_clone = 'cd %s;git clone %s' % (owner_path, clone_url + '.git')
+            if platform == 'huggingface':
+                cmd_clone = 'cd %s;git clone %s' % (owner_path, clone_url)
+            else:
+                cmd_clone = 'cd %s;git clone %s' % (owner_path, clone_url + '.git')
             os.system(cmd_clone)
 
-        # 用GitPython加载本地仓库
         try:
             repo = git.Repo(code_path)
-            repo.git.remote('prune', 'origin') # 清理远程无效分支
+            repo.git.remote('prune', 'origin')
         except Exception:
             print('*** repo clone fail: %s' % remote_repo)
             return
@@ -229,16 +189,12 @@ class GitCommitLog(object):
                 break
         if branch_name == 'default':
             branch_name = default_branch
-
-        # 分支不为空，代表获取指定分支，否则遍历所有远程分支
         if branch_name != '':
+            # checkout到指定分支获取数据
             print('*** start %s repo: %s/%s; branch: %s ***' % (platform, owner, repo_name, branch_name))
-            # checkout到指定分支
             if self.check_branch_faild(repo, branch_name):
                 return
             self.get_pull_branch(repo, code_path, branch_name)
-
-            # 拉取merges commits
             merge_commits = list(
                 repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name,
                                   merges=True))
@@ -258,7 +214,6 @@ class GitCommitLog(object):
                 if self.check_branch_faild(repo, branch_name):
                     continue
                 self.get_pull_branch(repo, code_path, branch_name)
-
                 merge_commits = list(
                     repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name,
                                       merges=True))
@@ -268,63 +223,7 @@ class GitCommitLog(object):
                     repo.iter_commits(since=self.start_date, until=self.end_date, author=self.user_commit_name,
                                       no_merges=True))
                 self.parse_commits(no_merge_commits, platform, owner, branch_name, remote_repo, 0, default_branch,
-                                   repo_name)               
-
-    # # 统计仓库总行数
-    # def parse_repo_linecount(self, code_path, platform, owner, repo_name, branch, remote_repo):
-    #     """
-    #     统计当前仓库中所有文件行数，将结果写入到ES中
-    #     """
-    #     try:
-    #         total_lines = self.get_repo_linecount(code_path)
-    #         # 控制台输出
-    #         print(f"[RepoLineCount] {platform}/{owner}/{repo_name} (branch={branch}) -> {total_lines} lines")
-
-    #         # 统计结果->ES
-    #         doc_id_str = f"{remote_repo}-{branch}-linecount"
-    #         doc_id = hashlib.md5(doc_id_str.encode('utf-8')).hexdigest()
-    #         doc = {
-    #             "platform": platform,
-    #             "owner": owner,
-    #             "repo_name": repo_name,
-    #             "branch": branch,
-    #             "repo_url": remote_repo,
-    #             "total_lines_of_code": total_lines,
-    #             "collected_at": str(datetime.datetime.now().isoformat()) # 记录当前收集数据时间
-    #         }
-
-    #         # bulk操作前先准备index行
-    #         index_data = {"index": {"_index": self.repo_line_index, "_id": doc_id}}
-    #         actions = json.dumps(index_data) + '\n' + json.dumps(doc) + '\n'
-    #         self.esClient.safe_put_bulk(actions)
-
-    #     except Exception as e:
-    #         print(f"parse_repo_linecount failed: {e}")
-
-    # def get_repo_linecount(self, repo_path):
-    #     """
-    #     遍历gitcode中所有的文件,累加统计数量
-    #     """
-    #     import subprocess
-    #     total_lines = 0
-    #     try:
-    #         cmd = f'cd "{repo_path}" && git ls-files' # git ls-files获取文件列表
-    #         output = subprocess.check_output(cmd, shell=True)
-    #         file_list = output.decode().strip().split('\n')
-
-    #         for rel_path in file_list:
-    #             full_path = os.path.join(repo_path, rel_path)
-    #             if not os.path.join(full_path):
-    #                 continue
-
-    #             # 逐行读取普通文本，添加额外判断排除二进制文件
-    #             with open(full_path, 'r', errors='ignore') as f:
-    #                 lines = sum(1 for _ in f)
-    #             total_lines += lines
-    #     except Exception as e:
-    #         print(f"get_repo_linecount erroe: {e}")
-        
-    #     return total_lines
+                                   repo_name)
 
     # 数据解析
     def parse_commits(self, commits, platform, owner, branch, repo_url, is_merge, default_branch, repo_name):
@@ -382,7 +281,7 @@ class GitCommitLog(object):
                 'unified_user': unified_user
             }
 
-            # 协作者信息
+            # 协作者
             co_author, co_author_email = self.getCoAuthor(mess)
             if co_author:
                 action['co_author'] = co_author
@@ -523,20 +422,7 @@ class GitCommitLog(object):
         for repo in repos:
             repos_names.append(repo['name'] + '->')
         return repos_names
-    
-    # def codearts_repos(self,owner, token):
-    #     """
-    #     指定owne在gitcode中的仓库列表
-    #     """
-    #     client = CodeartsClient(owner, None, token)
-    #     url = f"rest/orgs/{owner}/repos"
-    #     repos = client.fetch_items('repos', {'per_page': 100})
-    #     repos_names = []
-    #     for repo_page in repos:
-    #         for repo in repo_page:
-    #             repos_names.append(repo['name'] + '->')  #CodeArts->API返回的字段
-    #     return repos_names
-    
+
     def getGenerator(self, response):
         data = []
         try:
@@ -553,7 +439,7 @@ class GitCommitLog(object):
         except StopIteration:
             return data
         except JSONDecodeError:
-            print("CodeArts get JSONDecodeError, error: ", response)
+            print("Gitee get JSONDecodeError, error: ", response)
         except Exception as ex:
             print('*** getGenerator fail ***', ex)
             return data
@@ -641,15 +527,10 @@ class GitCommitLog(object):
             return domain_org_dict, aliases_company_dict
 
     def get_yaml_file(self, yaml_file):
-        if CODEARTS_BASE in yaml_file: 
-            token = self.codearts_access_token
-        elif GITEE_BASE in yaml_file:
+        if GITEE_BASE in yaml_file:
             token = self.gitee_access_token
-        elif GITHUB_BASE in yaml_file:
-            token = self.github_access_token
         else:
-            token = self.github_access_token 
-
+            token = self.github_access_token
         headers = {'Authorization': f'token {token}'}
         yaml_response = requests.get(yaml_file, headers=headers, verify=False, timeout=60)
         if yaml_response.status_code != 200:
@@ -664,15 +545,10 @@ class GitCommitLog(object):
 
     def get_yaml_list(self, yaml_file):
         yaml_list = []
-        if CODEARTS_BASE in yaml_file:
-            token = self.codearts_access_token
-        elif GITEE_BASE in yaml_file:
+        if GITEE_BASE in yaml_file:
             token = self.gitee_access_token
-        elif GITHUB_BASE in yaml_file:
-            token = self.github_access_token
         else:
-            token = self.github_access_token 
-
+            token = self.github_access_token
         headers = {'Authorization': f'token {token}'}
         response = requests.get(yaml_file, headers=headers, verify=False, timeout=60)
         if response.status_code != 200:
